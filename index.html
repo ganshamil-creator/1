@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-title" content="AI Hub"/>
   <link rel="apple-touch-icon" href="icon-192.png"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
@@ -17,6 +18,7 @@
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}.pulse{animation:pulse 1.2s infinite}
     @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.fade{animation:fadeIn .3s ease}
     button{cursor:pointer}input,textarea{outline:none;font-family:inherit}
+    @media(max-width:768px){#inputArea{position:sticky;bottom:0;z-index:50}#messages{padding-bottom:10px}}
   </style>
 </head>
 <body>
@@ -29,11 +31,11 @@
       <button onclick="toggleSidebar()" style="background:none;border:none;color:#6b7280;font-size:20px">✕</button>
     </div>
     <div style="padding:10px">
-      <button onclick="createChat()" style="width:100%;padding:9px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:8px;font-weight:600;font-size:12px;text-align:left">✏️ Новая тема</button>
+      <button onclick="createChat()" style="width:100%;padding:9px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13px;text-align:left">✏️ Новая тема</button>
     </div>
     <div id="chatList" style="flex:1;overflow-y:auto;padding:0 8px"></div>
     <div style="padding:10px;border-top:1px solid #1e1e2e">
-      <button onclick="toggleSidebar();showSettings()" style="width:100%;padding:8px;background:transparent;color:#6b7280;border:1px solid #1e1e2e;border-radius:7px;font-size:12px">⚙️ Настройки</button>
+      <button onclick="toggleSidebar();showSettings()" style="width:100%;padding:8px;background:transparent;color:#6b7280;border:1px solid #1e1e2e;border-radius:7px;font-size:13px">⚙️ Настройки</button>
     </div>
   </div>
   <div style="flex:1;background:rgba(0,0,0,.6)" onclick="toggleSidebar()"></div>
@@ -46,189 +48,253 @@
       <h2 style="font-size:15px">⚙️ Настройки API ключей</h2>
       <button onclick="hideSettings()" style="background:none;border:none;color:#6b7280;font-size:20px">✕</button>
     </div>
-
-    <!-- API Keys -->
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
-      <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:2px">🔑 API Ключи (каждый AI через свой родной API)</div>
-
+    <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:10px">🔑 API Ключи (каждый AI через свой родной API)</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px" id="keyFields">
+      <!-- ChatGPT -->
       <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟢</span><span style="font-size:11px;font-weight:600;color:#10a37f">ChatGPT</span><span style="font-size:9px;color:#6b7280;margin-left:auto">platform.openai.com</span></div>
-        <input type="password" id="key_openai" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:11px"/>
+        <input type="password" id="key_openai" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
       </div>
-
+      <!-- Claude -->
       <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟠</span><span style="font-size:11px;font-weight:600;color:#d97706">Claude</span><span style="font-size:9px;color:#6b7280;margin-left:auto">console.anthropic.com</span></div>
-        <input type="password" id="key_claude" placeholder="sk-ant-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:11px"/>
+        <input type="password" id="key_claude" placeholder="sk-ant-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
       </div>
-
+      <!-- Kimi -->
       <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🔵</span><span style="font-size:11px;font-weight:600;color:#4f8ef7">Kimi</span><span style="font-size:9px;color:#6b7280;margin-left:auto">platform.moonshot.ai</span></div>
-        <input type="password" id="key_kimi" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:11px"/>
+        <input type="password" id="key_kimi" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
       </div>
-
+      <!-- Gemini -->
       <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🔴</span><span style="font-size:11px;font-weight:600;color:#ea4335">Gemini</span><span style="font-size:9px;color:#6b7280;margin-left:auto">aistudio.google.com · бесплатно</span></div>
-        <input type="password" id="key_gemini" placeholder="AIzaSy... (если доступен)" style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:11px"/>
+        <input type="password" id="key_gemini" placeholder="AIzaSy..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
         <div style="font-size:10px;color:#6b7280;margin-top:4px">Нет доступа? Используй OpenRouter ↓</div>
       </div>
-
+      <!-- OpenRouter -->
       <div style="background:#0a0a0f;border:1px solid #4f8ef7;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
           <span>🔀</span><span style="font-size:11px;font-weight:600;color:#4f8ef7">OpenRouter</span>
           <span style="font-size:9px;color:#4ade80;background:#052e16;padding:1px 6px;border-radius:3px;margin-left:auto">⭐ ГЛАВНЫЙ КЛЮЧ</span>
         </div>
-        <input type="password" id="key_openrouter" placeholder="sk-or-v1-... (все агенты через него)" style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #4f8ef755;border-radius:6px;color:#f1f5f9;font-size:11px"/>
-        <div style="font-size:10px;color:#4ade80;margin-top:4px">✅ Решает CORS. Все 6 агентов работают через один ключ. openrouter.ai/keys</div>
+        <input type="password" id="key_openrouter" placeholder="sk-or-v1-... (все агенты через него)" style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #4f8ef755;border-radius:6px;color:#f1f5f9;font-size:12px"/>
+        <div style="font-size:10px;color:#4ade80;margin-top:4px">✅ Решает CORS. Все 6 агентов через один ключ. openrouter.ai/keys</div>
       </div>
-
+      <!-- Perplexity -->
       <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟣</span><span style="font-size:11px;font-weight:600;color:#8b5cf6">Perplexity</span><span style="font-size:9px;color:#6b7280;margin-left:auto">perplexity.ai/settings/api</span></div>
-        <input type="password" id="key_perplexity" placeholder="pplx-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:11px"/>
+        <input type="password" id="key_perplexity" placeholder="pplx-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
       </div>
-
+      <!-- DeepSeek -->
       <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>⚡</span><span style="font-size:11px;font-weight:600;color:#06b6d4">DeepSeek</span><span style="font-size:9px;color:#6b7280;margin-left:auto">platform.deepseek.com</span></div>
-        <input type="password" id="key_deepseek" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:11px"/>
+        <input type="password" id="key_deepseek" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
       </div>
-
+      <!-- Tavily -->
       <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🌐</span><span style="font-size:11px;font-weight:600;color:#4ade80">Tavily Search</span><span style="font-size:9px;color:#4ade80;margin-left:auto">веб-поиск · 1000/мес бесплатно</span></div>
-        <input type="password" id="key_tavily" placeholder="tvly-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:11px"/>
+        <input type="password" id="key_tavily" placeholder="tvly-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
       </div>
     </div>
 
     <!-- Active agents -->
-    <div style="margin-bottom:16px">
+    <div style="margin-bottom:18px">
       <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:8px">🤖 Активные агенты</div>
-      <div id="agentToggles"></div>
+      <div id="agentToggles" style="display:flex;flex-direction:column;gap:6px"></div>
     </div>
 
-    <button onclick="saveSettings()" style="width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:9px;font-weight:700;font-size:13px">💾 Сохранить</button>
+    <!-- Export / Import -->
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button onclick="exportConfig()" style="flex:1;padding:9px;background:#052e16;color:#4ade80;border:1px solid #4ade8033;border-radius:8px;font-weight:600;font-size:12px">📤 Экспорт ключей</button>
+      <label style="flex:1;padding:9px;background:#0c1445;color:#6366f1;border:1px solid #6366f133;border-radius:8px;font-weight:600;font-size:12px;cursor:pointer;text-align:center">
+        📥 Импорт ключей
+        <input type="file" accept=".json" onchange="importConfig(this)" style="display:none">
+      </label>
+    </div>
+    <div style="font-size:10px;color:#6b7280;margin-bottom:12px;padding:6px 10px;background:#0a0a0f;border-radius:6px;border:1px solid #1e1e2e">
+      💡 Экспортируй ключи один раз → сохрани файл → на любом устройстве нажми Импорт
+    </div>
+
+    <button onclick="saveSettings()" style="width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:9px;font-weight:700;font-size:14px">💾 Сохранить</button>
+  </div>
+</div>
+
+<!-- REVEAL MODAL -->
+<div id="revealModal" style="display:none;position:fixed;inset:0;z-index:250;background:rgba(0,0,0,.9);flex-direction:column;align-items:center;justify-content:center;padding:12px">
+  <div style="width:100%;max-width:960px;background:#111;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;height:90vh">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#0a0a0f;flex-shrink:0">
+      <span id="revealTitle" style="font-size:13px;font-weight:700;color:#4ade80">🎭 Презентация</span>
+      <div style="display:flex;gap:8px">
+        <button onclick="openRevealNewTab()" style="padding:5px 12px;background:#1e293b;color:#94a3b8;border:1px solid #374151;border-radius:7px;font-size:11px">↗ Новая вкладка</button>
+        <button onclick="document.getElementById('revealModal').style.display='none'" style="background:none;border:none;color:#6b7280;font-size:22px;line-height:1">✕</button>
+      </div>
+    </div>
+    <iframe id="revealFrame" style="flex:1;border:none;width:100%" sandbox="allow-scripts allow-same-origin"></iframe>
+  </div>
+</div>
+
+<!-- KIMI MODAL -->
+<div id="kimiModal" style="display:none;position:fixed;inset:0;z-index:250;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#13131a;border:1px solid #4f8ef755;border-radius:16px;padding:22px;width:100%;max-width:640px;max-height:85vh;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <span style="font-size:14px;font-weight:700;color:#4f8ef7">🔵 Kimi — Структура презентации</span>
+      <div style="display:flex;gap:8px">
+        <button id="kimiCopyBtn" style="padding:5px 12px;background:#1e293b;color:#94a3b8;border:1px solid #374151;border-radius:7px;font-size:11px">📋 Копировать</button>
+        <button onclick="document.getElementById('kimiModal').style.display='none'" style="background:none;border:none;color:#6b7280;font-size:20px">✕</button>
+      </div>
+    </div>
+    <div style="font-size:11px;color:#6b7280;padding:4px 8px;background:#0a0a0f;border-radius:6px" id="kimiModalTopic"></div>
+    <div id="kimiModalContent" style="flex:1;overflow-y:auto;font-size:13px;line-height:1.8;color:#e2e8f0;white-space:pre-wrap;background:#0a0a0f;border-radius:8px;padding:14px;border:1px solid #1e1e2e"></div>
+    <div style="font-size:10px;color:#6b7280;text-align:center">Скопируй и вставь в Gamma, Canva или PowerPoint</div>
   </div>
 </div>
 
 <!-- TOPBAR -->
-<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #1e1e2e;flex-shrink:0;background:#0a0a0f">
-  <button onclick="toggleSidebar()" style="background:none;border:none;color:#94a3b8;font-size:20px">☰</button>
-  <div id="chatTitle" style="flex:1;font-size:13px;font-weight:600;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Новая тема</div>
-  <div id="searchBadge" style="display:none;font-size:10px;color:#4ade80;background:#052e16;padding:2px 7px;border-radius:4px;border:1px solid #4ade8033">🌐 поиск</div>
-  <button onclick="createChat()" style="padding:5px 12px;background:#1e1e2e;border:1px solid #374151;border-radius:7px;color:#94a3b8;font-size:11px">+ Тема</button>
-  <button onclick="showSettings()" style="background:none;border:none;color:#94a3b8;font-size:16px">⚙️</button>
+<div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid #1e1e2e;flex-shrink:0;background:#0a0a0f;gap:10px">
+  <button onclick="toggleSidebar()" style="background:none;border:none;color:#6b7280;font-size:18px;padding:2px">☰</button>
+  <span id="chatTitle" style="flex:1;font-size:14px;font-weight:600;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Новая тема</span>
+  <div id="searchBadge" style="display:none;font-size:11px;color:#4ade80;background:#052e16;padding:2px 8px;border-radius:4px;border:1px solid #4ade8033">🌐 поиск</div>
+  <button onclick="toggleSearch()" id="searchBtn" style="padding:5px 10px;background:#1e293b;border:1px solid #1e1e2e;border-radius:6px;color:#94a3b8;font-size:11px">🔍</button>
+  <button onclick="toggleTranslateBar()" id="translateBtn" style="padding:5px 10px;background:#1e293b;border:1px solid #1e1e2e;border-radius:6px;color:#94a3b8;font-size:11px">🌐</button>
+  <button onclick="showSettings()" style="padding:5px 10px;background:#1e293b;border:1px solid #1e1e2e;border-radius:6px;color:#94a3b8;font-size:18px;line-height:1">⚙️</button>
 </div>
 
 <!-- MESSAGES -->
 <div id="messages" style="flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:14px"></div>
 
-<!-- INPUT -->
-<div style="padding:10px 12px;border-top:1px solid #1e1e2e;flex-shrink:0;background:#0a0a0f">
-  <div id="filePreview" style="display:none;align-items:center;gap:8px;padding:7px 10px;background:#0c1445;border:1px solid #6366f133;border-radius:8px;margin-bottom:8px">
-    <span id="filePreviewIcon" style="font-size:16px">📄</span>
-    <div style="flex:1"><div id="filePreviewName" style="font-size:11px;font-weight:600;color:#c7d2fe"></div><div id="filePreviewSize" style="font-size:10px;color:#6b7280"></div></div>
-    <button onclick="clearFile()" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:15px">✕</button>
+<!-- FILE PREVIEW -->
+<div id="filePreview" style="display:none;margin:4px 12px;padding:8px 12px;background:#0c1445;border:1px solid #6366f133;border-radius:8px;flex-shrink:0;align-items:center;gap:8px">
+  <span id="filePreviewIcon" style="font-size:20px">📎</span>
+  <div style="flex:1;min-width:0">
+    <div id="filePreviewName" style="font-size:12px;font-weight:600;color:#c7d2fe;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <div id="filePreviewSize" style="font-size:10px;color:#6b7280"></div>
   </div>
-  <div style="display:flex;gap:8px;align-items:flex-end">
-    <label for="fileInput" style="padding:11px 12px;background:#13131a;border:1px solid #1e1e2e;border-radius:10px;color:#94a3b8;cursor:pointer;font-size:16px;flex-shrink:0" title="Прикрепить файл">📎
-      <input type="file" id="fileInput" accept=".pdf,image/*" style="display:none" onchange="handleFile(this)">
-    </label>
-    <textarea id="queryInput" rows="1" placeholder="Введи вопрос... (Enter — отправить, Shift+Enter — перенос)"
-      style="flex:1;padding:11px 14px;background:#13131a;border:1px solid #1e1e2e;border-radius:10px;color:#f1f5f9;font-size:13px;resize:none;max-height:120px;line-height:1.5;overflow-y:auto"></textarea>
-    <button id="sendBtn" onclick="send()" style="padding:11px 16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:15px;flex-shrink:0">↑</button>
-  </div>
+  <button onclick="clearFiles()" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:16px">✕</button>
 </div>
 
-<!-- SLIDES MODAL -->
-<div id="slidesModal" style="display:none;position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:16px">
-  <div style="background:#13131a;border:1px solid #1e1e2e;border-radius:16px;padding:16px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <span id="slidesTitle" style="font-size:13px;font-weight:700;color:#8b5cf6"></span>
-      <div style="display:flex;gap:5px;align-items:center">
-        <button onclick="setTheme(0)" style="width:16px;height:16px;border-radius:50%;background:#6366f1;border:2px solid #fff;cursor:pointer"></button>
-        <button onclick="setTheme(1)" style="width:16px;height:16px;border-radius:50%;background:#f59e0b;border:2px solid transparent;cursor:pointer"></button>
-        <button onclick="setTheme(2)" style="width:16px;height:16px;border-radius:50%;background:#4ade80;border:2px solid transparent;cursor:pointer"></button>
-        <button onclick="setTheme(3)" style="width:16px;height:16px;border-radius:50%;background:#38bdf8;border:2px solid transparent;cursor:pointer"></button>
-        <button onclick="document.getElementById('slidesModal').style.display='none'" style="background:none;border:none;color:#6b7280;font-size:18px;margin-left:4px">✕</button>
-      </div>
-    </div>
-    <div id="slideContent" style="min-height:280px;border-radius:14px;padding:28px 32px;position:relative;overflow:hidden"></div>
-    <div style="display:flex;justify-content:center;align-items:center;gap:10px;margin-top:10px">
-      <button id="slidePrev" onclick="prevSlide()" style="padding:6px 14px;background:#1e293b;color:#94a3b8;border:1px solid #1e1e2e;border-radius:7px;font-size:12px">←</button>
-      <div id="slideDots" style="display:flex;gap:4px;align-items:center"></div>
-      <button id="slideNext" onclick="nextSlide()" style="padding:6px 14px;background:#1e293b;color:#94a3b8;border:1px solid #1e1e2e;border-radius:7px;font-size:12px">→</button>
-    </div>
-  </div>
+<!-- TRANSLATE BAR - показывается когда есть файлы -->
+<div id="translateBar" style="display:none;padding:6px 12px;background:#0a0a0f;border-top:1px solid #1e1e2e;flex-shrink:0;gap:6px;flex-wrap:wrap;align-items:center">
+  <span style="font-size:11px;color:#6b7280">🌐 Перевести на:</span>
+  <button onclick="translateTo('русский')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇷🇺 РУС</button>
+  <button onclick="translateTo('английский')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇬🇧 ENG</button>
+  <button onclick="translateTo('немецкий')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇩🇪 DEU</button>
+  <button onclick="translateTo('французский')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇫🇷 FRA</button>
+  <button onclick="translateTo('испанский')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇪🇸 ESP</button>
+  <button onclick="translateTo('китайский')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇨🇳 ZHO</button>
+  <button onclick="translateTo('арабский')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇸🇦 ARA</button>
+  <button onclick="translateTo('турецкий')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇹🇷 TUR</button>
+</div>
+<!-- TRANSLATE BAR -->
+<div id="translateBar" style="display:none;padding:6px 12px;background:#0a0a0f;border-top:1px solid #1e1e2e;flex-shrink:0;align-items:center;gap:8px;flex-wrap:wrap">
+  <span style="font-size:12px;color:#6b7280;white-space:nowrap">🌐 Перевести на:</span>
+  <select id="translateLang" style="padding:4px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px;flex:1;min-width:140px">
+    <option value="русский">🇷🇺 Русский</option>
+    <option value="английский">🇬🇧 Английский</option>
+    <option value="немецкий">🇩🇪 Немецкий</option>
+    <option value="французский">🇫🇷 Французский</option>
+    <option value="испанский">🇪🇸 Испанский</option>
+    <option value="итальянский">🇮🇹 Итальянский</option>
+    <option value="китайский">🇨🇳 Китайский</option>
+    <option value="японский">🇯🇵 Японский</option>
+    <option value="корейский">🇰🇷 Корейский</option>
+    <option value="арабский">🇸🇦 Арабский</option>
+    <option value="турецкий">🇹🇷 Турецкий</option>
+    <option value="казахский">🇰🇿 Казахский</option>
+    <option value="украинский">🇺🇦 Украинский</option>
+    <option value="польский">🇵🇱 Польский</option>
+    <option value="португальский">🇧🇷 Португальский</option>
+  </select>
+  <button onclick="sendTranslation()" style="padding:5px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">Перевести →</button>
+  <button onclick="hideTranslateBar()" style="background:none;border:none;color:#6b7280;font-size:16px;cursor:pointer">✕</button>
+</div>
+
+<div id="inputArea" style="padding:10px 12px;border-top:1px solid #1e1e2e;flex-shrink:0;background:#0a0a0f;display:flex;align-items:flex-end;gap:8px">
+  <input type="file" id="fileInput" accept="*/*" multiple style="display:none" onchange="handleFiles(this)">
+  <button onclick="document.getElementById('fileInput').click()" style="padding:10px;background:#13131a;border:1px solid #1e1e2e;border-radius:10px;color:#94a3b8;font-size:18px;flex-shrink:0">📎</button>
+  <textarea id="queryInput" placeholder="Введи вопрос... (Enter — отправить, Shift+Enter — перенос)" style="flex:1;padding:10px 14px;background:#13131a;border:1px solid #1e1e2e;border-radius:10px;color:#f1f5f9;font-size:14px;resize:none;max-height:120px;min-height:44px;line-height:1.5;overflow-y:auto" rows="1"
+    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"
+    oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
+  <button id="sendBtn" onclick="send()" style="padding:10px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:10px;color:#fff;font-size:18px;flex-shrink:0">↑</button>
 </div>
 
 <script>
-// ── Helpers ────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════════════════════════
 function escHtml(t){ return (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
 function renderMd(text){
   if(!text) return "";
   let t = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  t = t.replace(/^### (.+)$/gm, '<b style="font-size:13px;color:#6366f1;display:block;margin:8px 0 3px">$1</b>');
-  t = t.replace(/^## (.+)$/gm, '<b style="font-size:15px;color:#1e293b;display:block;margin:10px 0 4px">$1</b>');
-  t = t.replace(/^# (.+)$/gm, '<b style="font-size:17px;color:#1e293b;display:block;margin:12px 0 5px">$1</b>');
-  t = t.replace(/[*][*]([^*]+)[*][*]/g, '<b>$1</b>');
-  t = t.replace(/[*]([^*<>]{1,100})[*]/g, '<i>$1</i>');
-  t = t.replace(/^- (.+)$/gm, '<div style="display:flex;gap:6px;margin:2px 0"><span style="color:#6366f1">•</span><span>$1</span></div>');
-  t = t.replace(/^([0-9]+)[.] (.+)$/gm, '<div style="display:flex;gap:6px;margin:2px 0"><span style="color:#6366f1;font-weight:600">$1.</span><span>$2</span></div>');
-  t = t.replace(/^---+$/gm, '<hr style="border:none;border-top:1px solid #e2e8f0;margin:8px 0">');
-  t = t.replace(/\n/g, '<br>');
+  t = t.replace(/^### (.+)$/gm,'<b style="font-size:13px;color:#8b5cf6;display:block;margin:8px 0 3px">$1</b>');
+  t = t.replace(/^## (.+)$/gm, '<b style="font-size:15px;color:#e2e8f0;display:block;margin:10px 0 4px;border-bottom:1px solid #1e1e2e;padding-bottom:3px">$1</b>');
+  t = t.replace(/^# (.+)$/gm,  '<b style="font-size:17px;color:#f1f5f9;display:block;margin:12px 0 5px">$1</b>');
+  t = t.replace(/[*][*]([^*]+)[*][*]/g,'<b>$1</b>');
+  t = t.replace(/[*]([^*<>]{1,100})[*]/g,'<i>$1</i>');
+  t = t.replace(/^- (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="color:#6366f1;flex-shrink:0">•</span><span>$1</span></div>');
+  t = t.replace(/^([0-9]+)[.] (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="color:#6366f1;font-weight:600;flex-shrink:0">$1.</span><span>$2</span></div>');
+  t = t.replace(/^---+$/gm,'<hr style="border:none;border-top:1px solid #374151;margin:8px 0">');
+  t = t.replace(/\n/g,'<br>');
   return t;
 }
+
 function scrollToBottom(){ const m=document.getElementById("messages"); m.scrollTop=m.scrollHeight; }
 function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
-const STORE_KEY="ai_hub_chats_v3";
+
+// ════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════
+const STORE_KEY = "ai_hub_chats_v4";
 function loadChats(){ try{return JSON.parse(localStorage.getItem(STORE_KEY))||[];}catch{return[];} }
 function saveChats(c){ try{localStorage.setItem(STORE_KEY,JSON.stringify(c));}catch{} }
-function makeChat(t="Новая тема"){ return {id:Date.now()+"_"+Math.random().toString(36).slice(2),title:t,messages:[]}; }
-
-// ── Time ───────────────────────────────────────────────────────────────────
-function getToday(){
-  const n=new Date();
-  const days=["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
-  const months=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
-  const time=n.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
-  const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
-  return `Сегодня ${days[n.getDay()]}, ${n.getDate()} ${months[n.getMonth()]} ${n.getFullYear()} года. Текущее время: ${time} (${tz}). `;
-}
-
-// ── Keys & State ───────────────────────────────────────────────────────────
+function makeChat(){ return {id:Date.now()+"_"+Math.random().toString(36).slice(2),title:"Новая тема",messages:[]}; }
 function getKeys(){ return JSON.parse(localStorage.getItem("ai_hub_keys_v2")||"{}"); }
 function saveKeys(k){ localStorage.setItem("ai_hub_keys_v2",JSON.stringify(k)); }
 
-let activeAgentIds = JSON.parse(localStorage.getItem("active_agents")||"null") || ["gpt","claude","kimi","gemini","perplexity","deepseek"];
 let chats = loadChats();
 if(!chats.length) chats=[makeChat()];
 let activeChatId = chats[0].id;
 let thinking = false;
-let currentFile = null;
+let currentFiles = [];
+let searchEnabled = false;
+let activeAgentIds = JSON.parse(localStorage.getItem("active_agents")||"null") || ["gpt","claude","kimi","gemini","perplexity","deepseek"];
 
 function getChat(){ return chats.find(c=>c.id===activeChatId); }
 function getAgents(){ return ALL_AGENTS.filter(a=>activeAgentIds.includes(a.id)); }
 
-// ── Agent definitions ──────────────────────────────────────────────────────
+function getToday(){
+  const n=new Date();
+  const days=["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
+  const months=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+  return `Сегодня ${days[n.getDay()]}, ${n.getDate()} ${months[n.getMonth()]} ${n.getFullYear()}. Время: ${n.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})} (${Intl.DateTimeFormat().resolvedOptions().timeZone}). `;
+}
+
+// ════════════════════════════════════════════════════════════════
+// AGENTS
+// ════════════════════════════════════════════════════════════════
 const ALL_AGENTS = [
   {id:"gpt",       name:"ChatGPT",    emoji:"🟢", color:"#10a37f", badge:"GPT-4o",
-   system:"Ты ChatGPT от OpenAI. Давай чёткие практичные ответы. ВСЕГДА используй текущую дату и время из системного контекста. Помни весь разговор."},
+   system:"Ты ChatGPT от OpenAI. Давай чёткие практичные ответы. Если прикреплено изображение — ОБЯЗАТЕЛЬНО прочитай весь текст на нём и используй в ответе. Умеешь переводить между любыми языками. Используй текущую дату из контекста. Помни историю разговора."},
   {id:"claude",    name:"Claude",     emoji:"🟠", color:"#d97706", badge:"Sonnet 4.6",
-   system:"Ты Claude Sonnet 4.6 от Anthropic. Давай аналитические ответы. КРИТИЧЕСКИ ВАЖНО: текущая дата и время указаны в начале этого сообщения — используй их как абсолютно точные. НЕ говори что у тебя нет доступа к реальному времени — оно передаётся тебе напрямую. Помни историю разговора."},
-  {id:"kimi",      name:"Kimi",       emoji:"🔵", color:"#4f8ef7", badge:"K2.6",
-   system:"Ты Kimi K2.6 от Moonshot AI. Давай глубокие детальные ответы. ВСЕГДА отвечай — никогда не оставляй пустой ответ. Используй дату и время из контекста. Помни разговор."},
+   system:"Ты Claude от Anthropic. Давай аналитические глубокие ответы. Если прикреплено изображение — ОБЯЗАТЕЛЬНО прочитай весь текст на нём дословно и используй в ответе. Умеешь переводить между любыми языками мира точно и полностью. Текущая дата передана в начале сообщения. Помни историю разговора."},
+  {id:"kimi",      name:"Kimi",       emoji:"🔵", color:"#4f8ef7", badge:"K2",
+   system:"Ты Kimi от Moonshot AI. Давай детальные ответы. Используй дату из контекста. Всегда отвечай."},
   {id:"gemini",    name:"Gemini",     emoji:"🔴", color:"#ea4335", badge:"2.5 Flash",
-   system:"Ты Google Gemini 2.5. Анализируй глубоко. ВСЕГДА используй дату и время из контекста — они точные. Если есть данные из поиска — используй их как основной источник для адресов и фактов."},
+   system:"Ты Google Gemini. Анализируй глубоко. Если прикреплено изображение — ОБЯЗАТЕЛЬНО прочитай весь текст на нём и процитируй его в ответе. Умеешь точно переводить между любыми языками. Используй дату из контекста. Если есть данные поиска — используй их."},
   {id:"perplexity",name:"Perplexity", emoji:"🟣", color:"#8b5cf6", badge:"Sonar Pro",
-   system:"Ты Perplexity Sonar Pro с доступом к интернету. Давай ТОЧНЫЕ актуальные ответы. Для адресов и локальных данных — ищи в интернете и указывай только проверенную информацию с источником."},
+   system:"Ты Perplexity с доступом к интернету. Давай точные актуальные ответы. Если прикреплено изображение — прочитай текст на нём. Умеешь переводить между языками. Давай источники."},
   {id:"deepseek",  name:"DeepSeek",   emoji:"⚡", color:"#06b6d4", badge:"V3",
-   system:"Ты DeepSeek V3. Давай логически выверенные структурированные ответы. Используй дату и время из контекста. Помни историю разговора."},
+   system:"Ты DeepSeek V3. Давай логичные структурированные ответы. Если есть текст из файлов или OCR — анализируй и переводи его. Умеешь переводить между всеми языками. Используй дату из контекста."},
 ];
 
-// ── Native API callers ─────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+// API CALLERS
+// ════════════════════════════════════════════════════════════════
 async function callWithRetry(fn, attempt=1){
   try{ return await fn(); }
   catch(e){
-    if(attempt<3 && (e.name==="AbortError"||e.message.includes("fetch")||e.message.includes("network"))){
-      await sleep(attempt*2000);
-      return callWithRetry(fn, attempt+1);
+    if(attempt<3&&(e.name==="AbortError"||e.message.includes("fetch")||e.message.includes("network"))){
+      await sleep(attempt*2000); return callWithRetry(fn,attempt+1);
     }
     throw e;
   }
@@ -237,16 +303,10 @@ async function callWithRetry(fn, attempt=1){
 async function callOpenAI(key, system, history){
   return callWithRetry(async()=>{
     const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
-    // Используем Netlify прокси чтобы обойти CORS блокировку OpenAI
-    const r=await fetch("/.netlify/functions/proxy",{
+    const r=await fetch("https://api.openai.com/v1/chat/completions",{
       method:"POST",signal:ctrl.signal,
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        url:"https://api.openai.com/v1/chat/completions",
-        headers:{"Authorization":"Bearer "+key},
-        body:JSON.stringify({model:"gpt-4o",max_tokens:1200,
-          messages:[{role:"system",content:system},...history]})
-      })
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+      body:JSON.stringify({model:"gpt-4o",max_tokens:1200,messages:[{role:"system",content:system},...history]})
     });
     clearTimeout(t); const d=await r.json();
     if(d.error) throw new Error(d.error.message);
@@ -260,8 +320,7 @@ async function callClaude(key, system, history){
     const r=await fetch("https://api.anthropic.com/v1/messages",{
       method:"POST",signal:ctrl.signal,
       headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-      body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:1200,
-        system:system,messages:history})
+      body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:1200,system,messages:history})
     });
     clearTimeout(t); const d=await r.json();
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
@@ -275,44 +334,65 @@ async function callKimi(key, system, history){
     const r=await fetch("https://api.moonshot.ai/v1/chat/completions",{
       method:"POST",signal:ctrl.signal,
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:"kimi-k2.6",max_tokens:1200,
-        messages:[{role:"system",content:system},...history]})
+      body:JSON.stringify({model:"moonshot-v1-128k",max_tokens:1200,messages:[{role:"system",content:system},...history]})
     });
     clearTimeout(t); const d=await r.json();
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
-    const txt=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content||"").trim();
-    if(!txt) throw new Error("Kimi вернул пустой ответ — попробуй ещё раз");
-    return txt;
+    return (d.choices[0].message.content||"").trim();
   });
 }
 
 async function callGemini(key, system, history){
-  return callWithRetry(async()=>{
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
-    const parts=history.map(m=>({role:m.role==="assistant"?"model":"user",parts:[{text:m.content}]}));
-    const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,{
-      method:"POST",signal:ctrl.signal,
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        system_instruction:{parts:[{text:system}]},
-        contents:parts,
-        generationConfig:{maxOutputTokens:1500}
-      })
-    });
-    clearTimeout(t); const d=await r.json();
-    if(d.error) throw new Error(d.error.message);
-    return (d.candidates[0].content.parts.map(p=>p.text||"").join("")).trim();
-  });
+  const models=["gemini-2.5-flash","gemini-1.5-flash"];
+  for(let mi=0;mi<models.length;mi++){
+    for(let attempt=1;attempt<=3;attempt++){
+      try{
+        const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+        // Поддержка vision (image_url формат)
+        const contents=history.map(m=>{
+          const role=m.role==="assistant"?"model":"user";
+          if(Array.isArray(m.content)){
+            const parts=[];
+            m.content.forEach(c=>{
+              if(c.type==="image_url"&&c.image_url){
+                const url=c.image_url.url;
+                const match=url.match(/^data:([^;]+);base64,(.+)$/);
+                if(match) parts.push({inline_data:{mime_type:match[1],data:match[2]}});
+              } else if(c.type==="text") parts.push({text:c.text});
+            });
+            return {role,parts};
+          }
+          return {role,parts:[{text:m.content}]};
+        });
+        const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[mi]}:generateContent?key=${key}`,{
+          method:"POST",signal:ctrl.signal,
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:1200}})
+        });
+        clearTimeout(t); const d=await r.json();
+        if(d.error){
+          if((d.error.message||"").includes("overloaded")||(d.error.message||"").includes("high demand")){await sleep(attempt*2000);continue;}
+          if((d.error.message||"").includes("not found")) break;
+          throw new Error(d.error.message);
+        }
+        return (d.candidates[0].content.parts.map(p=>p.text||"").join("")).trim();
+      }catch(e){ if(attempt===3&&mi===models.length-1) throw e; if(e.name==="AbortError") await sleep(2000); }
+    }
+  }
+  throw new Error("Gemini недоступен");
 }
 
 async function callPerplexity(key, system, history){
   return callWithRetry(async()=>{
     const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+    const msgs=history.map(m=>{
+      if(Array.isArray(m.content)) return {role:m.role,content:m.content.find(c=>c.type==="text")?.text||""};
+      return m;
+    });
     const r=await fetch("https://api.perplexity.ai/chat/completions",{
       method:"POST",signal:ctrl.signal,
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:"sonar-pro",max_tokens:1200,
-        messages:[{role:"system",content:system},...history]})
+      body:JSON.stringify({model:"sonar-pro",max_tokens:1200,messages:[{role:"system",content:system},...msgs]})
     });
     clearTimeout(t); const d=await r.json();
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
@@ -323,297 +403,575 @@ async function callPerplexity(key, system, history){
 async function callDeepSeek(key, system, history){
   return callWithRetry(async()=>{
     const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+    const msgs=history.map(m=>{
+      if(Array.isArray(m.content)) return {role:m.role,content:m.content.find(c=>c.type==="text")?.text||""};
+      return m;
+    });
     const r=await fetch("https://api.deepseek.com/chat/completions",{
       method:"POST",signal:ctrl.signal,
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:"deepseek-chat",max_tokens:1200,
-        messages:[{role:"system",content:system},...history]})
+      body:JSON.stringify({model:"deepseek-chat",max_tokens:1200,messages:[{role:"system",content:system},...msgs]})
     });
     clearTimeout(t); const d=await r.json();
-    if(d.error) throw new Error(d.error.message);
+    if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
     return d.choices[0].message.content.trim();
   });
 }
 
-// ── Tavily Search ──────────────────────────────────────────────────────────
 async function tavilySearch(query){
   const keys=getKeys();
-  if(!keys.tavily) return null;
+  if(!keys.tavily) return "";
   try{
     const r=await fetch("https://api.tavily.com/search",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({api_key:keys.tavily,query,search_depth:"advanced",max_results:7,include_answer:true,language:"ru"})
+      body:JSON.stringify({api_key:keys.tavily,query,max_results:5,search_depth:"basic"})
     });
     const d=await r.json();
-    if(d.error) return null;
-    let ctx="";
-    if(d.answer) ctx+="Прямой ответ: "+d.answer+"\n\n";
-    if(d.results) d.results.forEach((res,i)=>{ ctx+=`[${i+1}] ${res.title}\n${res.url}\n${res.content}\n\n`; });
-    return ctx;
-  }catch(e){ return null; }
+    if(!d.results) return "";
+    return "\n\n🌐 Результаты поиска:\n"+d.results.map(r=>`• ${r.title}: ${r.content?.slice(0,200)}`).join("\n");
+  }catch(e){ return ""; }
 }
 
-// ── OpenRouter fallback caller ─────────────────────────────────────────────
 async function callOpenRouter(key, model, system, history){
   return callWithRetry(async()=>{
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),60000);
+    const msgs=history.map(m=>{
+      if(Array.isArray(m.content)){
+        // OpenRouter supports vision
+        return {role:m.role,content:m.content};
+      }
+      return {role:m.role,content:m.content};
+    });
     const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{
       method:"POST",signal:ctrl.signal,
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key,
-        "HTTP-Referer":"https://ai-multi-hub.netlify.app","X-Title":"AI Multi-Hub"},
-      body:JSON.stringify({model,max_tokens:1200,
-        messages:[{role:"system",content:system},...history]})
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key,"HTTP-Referer":"https://ai-hub.vercel.app"},
+      body:JSON.stringify({model,max_tokens:1200,messages:[{role:"system",content:system},...msgs]})
     });
     clearTimeout(t); const d=await r.json();
-    if(d.error) throw new Error(d.error.message);
+    if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
     return (d.choices[0].message.content||"").trim();
   });
 }
 
-// ── Dispatcher ─────────────────────────────────────────────────────────────
 async function callAgent(agent, system, history){
   const keys=getKeys();
-  // OpenRouter — приоритет (нет CORS проблем, работает из браузера)
-  if(keys.openrouter){
-    const models={
-      gpt:        "openai/gpt-4o",
-      claude:     "anthropic/claude-sonnet-4-5",
-      kimi:       "moonshotai/kimi-k2",
-      gemini:     "google/gemini-2.5-flash",
-      perplexity: "perplexity/sonar-pro",
-      deepseek:   "deepseek/deepseek-chat",
-    };
-    if(models[agent.id]) return callOpenRouter(keys.openrouter, models[agent.id], system, history);
-  }
-  // Прямые API — только если нет OpenRouter
+  const or=keys.openrouter;
+  const orModels={gpt:"openai/gpt-4o",claude:"anthropic/claude-sonnet-4-5",kimi:"moonshotai/kimi-k2",gemini:"google/gemini-2.5-flash",perplexity:"perplexity/sonar-pro",deepseek:"deepseek/deepseek-chat"};
   switch(agent.id){
-    case "gpt":
-      if(!keys.openai) throw new Error("Нет OpenAI или OpenRouter ключа → добавь в ⚙️");
-      return callOpenAI(keys.openai, system, history);
-    case "claude":
-      if(!keys.claude) throw new Error("Нет Claude или OpenRouter ключа → добавь в ⚙️");
-      return callClaude(keys.claude, system, history);
-    case "kimi":
-      if(!keys.kimi) throw new Error("Нет Kimi или OpenRouter ключа → добавь в ⚙️");
-      return callKimi(keys.kimi, system, history);
-    case "gemini":
-      if(!keys.gemini) throw new Error("Нет Gemini или OpenRouter ключа → добавь в ⚙️");
-      return callGemini(keys.gemini, system, history);
-    case "perplexity":
-      if(!keys.perplexity) throw new Error("Нет Perplexity или OpenRouter ключа → добавь в ⚙️");
-      return callPerplexity(keys.perplexity, system, history);
-    case "deepseek":
-      if(!keys.deepseek) throw new Error("Нет DeepSeek или OpenRouter ключа → добавь в ⚙️");
-      return callDeepSeek(keys.deepseek, system, history);
-    default: throw new Error("Неизвестный агент");
+    case "gpt":        return keys.openai?callOpenAI(keys.openai,system,history):or?callOpenRouter(or,orModels.gpt,system,history):Promise.reject(new Error("Нет ключа ChatGPT"));
+    case "claude":     return keys.claude?callClaude(keys.claude,system,history):or?callOpenRouter(or,orModels.claude,system,history):Promise.reject(new Error("Нет ключа Claude"));
+    case "kimi":       return keys.kimi?callKimi(keys.kimi,system,history):or?callOpenRouter(or,orModels.kimi,system,history):Promise.reject(new Error("Нет ключа Kimi"));
+    case "gemini":     return keys.gemini?callGemini(keys.gemini,system,history):or?callOpenRouter(or,orModels.gemini,system,history):Promise.reject(new Error("Нет ключа Gemini"));
+    case "perplexity": return keys.perplexity?callPerplexity(keys.perplexity,system,history):or?callOpenRouter(or,orModels.perplexity,system,history):Promise.reject(new Error("Нет ключа Perplexity"));
+    case "deepseek":   return keys.deepseek?callDeepSeek(keys.deepseek,system,history):or?callOpenRouter(or,orModels.deepseek,system,history):Promise.reject(new Error("Нет ключа DeepSeek"));
   }
 }
 
-// ── Synthesizer ────────────────────────────────────────────────────────────
 async function synthesize(system, history){
   const keys=getKeys();
-  // OpenRouter приоритет
-  if(keys.openrouter) return callOpenRouter(keys.openrouter, "deepseek/deepseek-chat", system, history);
-  if(keys.claude)     return callClaude(keys.claude, system, history);
-  if(keys.gemini)     return callGemini(keys.gemini, system, history);
-  throw new Error("Нет доступных ключей для синтеза");
+  if(keys.deepseek) return callDeepSeek(keys.deepseek,system,history);
+  if(keys.openrouter) return callOpenRouter(keys.openrouter,"deepseek/deepseek-chat",system,history);
+  if(keys.claude) return callClaude(keys.claude,system,history);
+  throw new Error("Нет ключа для синтеза");
 }
 
-// ── File handling ──────────────────────────────────────────────────────────
-function handleFile(input){
-  const f=input.files[0]; if(!f)return;
-  if(!["application/pdf","image/jpeg","image/png","image/webp"].includes(f.type)){alert("PDF, JPG, PNG, WebP");input.value="";return;}
-  if(f.size>10*1024*1024){alert("Макс 10 МБ");input.value="";return;}
-  const reader=new FileReader();
-  reader.onload=e=>{
-    currentFile={name:f.name,type:f.type,b64:e.target.result.split(",")[1],size:f.size};
-    document.getElementById("filePreview").style.display="flex";
-    document.getElementById("filePreviewIcon").textContent=f.type==="application/pdf"?"📄":"🖼️";
-    document.getElementById("filePreviewName").textContent=f.name;
-    document.getElementById("filePreviewSize").textContent=(f.size/1024).toFixed(0)+" KB";
-  };
-  reader.readAsDataURL(f);
+// ════════════════════════════════════════════════════════════════
+// FILE HANDLING
+// ════════════════════════════════════════════════════════════════
+async function extractPdfText(b64){
+  try{
+    if(!window.pdfjsLib) return null;
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    const data=atob(b64); const bytes=new Uint8Array(data.length);
+    for(let i=0;i<data.length;i++) bytes[i]=data.charCodeAt(i);
+    const pdf=await window.pdfjsLib.getDocument({data:bytes}).promise;
+    let text="";
+    for(let p=1;p<=pdf.numPages;p++){
+      const page=await pdf.getPage(p);
+      const content=await page.getTextContent();
+      text+="\n--- Стр."+p+" ---\n"+content.items.map(i=>i.str).join(" ");
+    }
+    return text.trim();
+  }catch(e){ return null; }
 }
-function clearFile(){
-  currentFile=null;
+
+async function extractImageTextOCR(b64, mimeType){
+  if(!window.Tesseract) return null;
+  try{
+    const img=new Image();
+    await new Promise((res,rej)=>{img.onload=res;img.onerror=rej;img.src=`data:${mimeType};base64,${b64}`;});
+    const canvas=document.createElement("canvas");
+    const scale=Math.min(2000/img.width,2000/img.height,1);
+    canvas.width=img.width*scale; canvas.height=img.height*scale;
+    const ctx=canvas.getContext("2d");
+    ctx.fillStyle="#fff"; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    const result=await Tesseract.recognize(canvas,"rus+eng",{});
+    const txt=(result.data.text||"").trim();
+    const clean=txt.replace(/[^\u0400-\u04FF\u0000-\u007Fa-zA-Z0-9\s.,!?:;()\-\/\u2116%"'\u00AB\u00BB\n]/g,"").replace(/\n{3,}/g,"\n\n").trim();
+    return clean.length>15?clean:null;
+  }catch(e){ return null; }
+}
+
+function handleFiles(input){
+  const files=Array.from(input.files);
+  if(!files.length) return;
+  if(files.length>10){alert("Максимум 10 файлов");return;}
+  currentFiles=[];
+  document.getElementById("filePreview").style.display="none";
+  let loaded=0;
+  files.forEach(f=>{
+    if(f.size>20*1024*1024){showToast("⚠️ "+f.name+" слишком большой (макс 20MB)");loaded++;if(loaded===files.length)renderFilePreview();return;}
+    const reader=new FileReader();
+    reader.onload=async e=>{
+      const b64=e.target.result.split(",")[1];
+      const obj={name:f.name,type:f.type||"application/octet-stream",b64,size:f.size,text:null};
+      if(f.type==="application/pdf"){
+        showToast("📄 Читаю PDF: "+f.name);
+        const txt=await extractPdfText(b64);
+        if(txt) obj.text=txt; showToast(txt?"✅ PDF прочитан":"⚠️ PDF: текст не извлечён");
+      } else if(f.type.startsWith("image/")){
+        const sendBtn=document.getElementById("sendBtn");
+        if(sendBtn){sendBtn.disabled=true;sendBtn.textContent="⏳";sendBtn.style.background="#374151";}
+        showToast("🔍 OCR: "+f.name);
+        const txt=await extractImageTextOCR(b64,f.type);
+        if(txt) obj.text="[OCR текст]\n"+txt;
+        if(sendBtn){sendBtn.disabled=false;sendBtn.textContent="↑";sendBtn.style.background="linear-gradient(135deg,#6366f1,#8b5cf6)";}
+        showToast(txt?"✅ OCR: "+txt.length+" символов":"⚠️ Текст не распознан (визуальный анализ через AI)");
+      } else if(f.type.startsWith("text/")||f.name.endsWith(".txt")||f.name.endsWith(".md")||f.name.endsWith(".csv")){
+        try{obj.text=atob(b64);}catch(e){}
+      }
+      currentFiles.push(obj);
+      loaded++;
+      if(loaded===files.length) renderFilePreview();
+    };
+    reader.readAsDataURL(f);
+  });
+}
+
+function renderFilePreview(){
+  const p=document.getElementById("filePreview");
+  if(!currentFiles.length){p.style.display="none";return;}
+  p.style.display="flex";
+  const f=currentFiles[0];
+  const icon=f.type.startsWith("image/")?"🖼️":f.type==="application/pdf"?"📄":f.type.includes("word")?"📝":f.type.includes("sheet")?"📊":"📎";
+  document.getElementById("filePreviewIcon").textContent=icon;
+  document.getElementById("filePreviewName").textContent=currentFiles.length===1?f.name:currentFiles.length+" файлов: "+currentFiles.map(x=>x.name).join(", ").slice(0,50);
+  const total=currentFiles.reduce((s,x)=>s+x.size,0);
+  document.getElementById("filePreviewSize").textContent=(total/1024).toFixed(0)+" KB · "+currentFiles.length+" файл(ов)";
+}
+
+function clearFiles(){
+  currentFiles=[];
   document.getElementById("fileInput").value="";
   document.getElementById("filePreview").style.display="none";
 }
 
-// ── Send ───────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+// SEARCH TOGGLE
+// ════════════════════════════════════════════════════════════════
+function toggleTranslateBar(){
+  const bar=document.getElementById("translateBar");
+  const btn=document.getElementById("translateBtn");
+  const visible=bar.style.display!=="none"&&bar.style.display!=="";
+  bar.style.display=visible?"none":"flex";
+  btn.style.background=visible?"#1e293b":"#052e16";
+  btn.style.color=visible?"#94a3b8":"#4ade80";
+}
+
+function hideTranslateBar(){
+  document.getElementById("translateBar").style.display="none";
+  document.getElementById("translateBtn").style.background="#1e293b";
+  document.getElementById("translateBtn").style.color="#94a3b8";
+}
+
+async function sendTranslation(){
+  const lang=document.getElementById("translateLang").value;
+  const inp=document.getElementById("queryInput");
+  // Если есть файлы — переводим файлы
+  if(currentFiles.length>0){
+    inp.value=`Переведи на ${lang} язык`;
+    hideTranslateBar();
+    await send();
+  } else {
+    // Если есть текст в поле — переводим его
+    const existing=inp.value.trim();
+    if(existing){
+      inp.value=`Переведи на ${lang} язык следующий текст:\n\n${existing}`;
+      hideTranslateBar();
+      await send();
+    } else {
+      showToast("⚠️ Прикрепи файл/фото или введи текст для перевода");
+    }
+  }
+}
+
+
+function toggleSearch(){
+  searchEnabled=!searchEnabled;
+  document.getElementById("searchBadge").style.display=searchEnabled?"flex":"none";
+  document.getElementById("searchBtn").style.background=searchEnabled?"#052e16":"#1e293b";
+  document.getElementById("searchBtn").style.color=searchEnabled?"#4ade80":"#94a3b8";
+}
+
+// ════════════════════════════════════════════════════════════════
+// SEND
+// ════════════════════════════════════════════════════════════════
 async function send(){
+  if(thinking) return;
   const inp=document.getElementById("queryInput");
   const text=inp.value.trim();
-  if(!text||thinking)return;
-  const keys=getKeys();
-  const hasAnyKey=Object.values(keys).some(v=>v&&v.trim());
-  if(!hasAnyKey){alert("Добавь хотя бы один API ключ в ⚙️ Настройки");return;}
+  if(!text&&!currentFiles.length) return;
+
+  const filesToSend=[...currentFiles];
+  const today=getToday();
+  const chat=getChat();
+  const agents=getAgents();
+  if(!agents.length){alert("Нет активных агентов");return;}
+
+  // Build history
+  const history=[];
+  if(chat.messages){
+    for(let i=0;i<chat.messages.length;i+=2){
+      const u=chat.messages[i], a=chat.messages[i+1];
+      if(u) history.push({role:"user",content:u.content});
+      if(a) history.push({role:"assistant",content:a.content});
+    }
+  }
+
+  // Build file context
+  const imageFiles=filesToSend.filter(f=>f.type.startsWith("image/")&&f.b64);
+  const otherFiles=filesToSend.filter(f=>!f.type.startsWith("image/"));
+  let fileCtx="";
+
+  // Определяем нужен ли перевод
+  const translateKeywords=["переведи","перевод","переводи","перевести","translate","translation","на русский","на английский","на немецкий","на французский","на испанский","на китайский","на арабский","на турецкий","на казахский","на украинский","на итальянский","на португальский","на японский","на корейский","на польский","на нидерландский","на иврит","по-русски","по-английски","по-немецки","по-французски","на русском","на английском","in russian","in english","in german","in french","in spanish","in chinese","in arabic","in turkish","in italian","in japanese","auf deutsch","en français","в переводе","переведите","what does it say","read the text","what is written"];
+  const needTranslation=translateKeywords.some(k=>text.toLowerCase().includes(k));
+
+  if(otherFiles.length>0){
+    fileCtx+="\n\n=== ПРИКРЕПЛЁННЫЕ ФАЙЛЫ ===\n";
+    for(const f of otherFiles){
+      fileCtx+="\n[Файл: "+f.name+"]\n";
+      if(f.text){
+        fileCtx+=f.text.slice(0,12000)+(f.text.length>12000?"\n...[обрезано]":"")+"\n";
+        if(needTranslation) fileCtx+="\n[ЗАДАЧА: ПЕРЕВЕДИ ВЕСЬ ТЕКСТ ВЫШЕ НА ЗАПРОШЕННЫЙ ЯЗЫК ПОЛНОСТЬЮ И ТОЧНО]\n";
+      } else {
+        fileCtx+="[содержимое не извлечено]\n";
+      }
+    }
+    fileCtx+="=== КОНЕЦ ФАЙЛОВ ===\n";
+  }
+
+  if(imageFiles.length>0){
+    fileCtx+="\n=== ИЗОБРАЖЕНИЯ ===\n";
+    for(const f of imageFiles){
+      fileCtx+="[Изображение: "+f.name+"]\n";
+      if(f.text&&f.text.length>20){
+        fileCtx+="Распознанный OCR текст:\n"+f.text+"\n";
+        if(needTranslation) fileCtx+="[ЗАДАЧА: ПЕРЕВЕДИ ВЕСЬ OCR ТЕКСТ ВЫШЕ НА ЗАПРОШЕННЫЙ ЯЗЫК]\n";
+      } else {
+        fileCtx+="[OCR не дал результата]\n";
+      }
+    }
+    fileCtx+="=== КОНЕЦ ИЗОБРАЖЕНИЙ ===\n";
+  }
+
+  // Автоматическое задание для агентов при наличии файлов/фото
+  const hasFiles=imageFiles.length>0||otherFiles.length>0;
+  let taskInstruction="";
+  if(hasFiles && !text){
+    taskInstruction="\n\nЗАДАНИЕ: Прочитай и подробно опиши содержимое прикреплённых файлов/изображений. Если есть текст — воспроизведи его полностью.";
+  } else if(imageFiles.length>0){
+    if(needTranslation){
+      taskInstruction="\n\nЗАДАНИЕ: 1) Прочитай весь текст на изображении 2) Переведи его на запрошенный язык 3) Покажи оба варианта — оригинал и перевод.";
+    } else {
+      taskInstruction="\n\nЗАДАНИЕ: Внимательно прочитай изображение и ответь на вопрос пользователя на основе его содержимого. Если на изображении есть текст — процитируй его.";
+    }
+  } else if(otherFiles.length>0 && needTranslation){
+    taskInstruction="\n\nЗАДАНИЕ: Переведи весь текст из файла на запрошенный язык. Сохрани форматирование. Переводи полностью, не сокращай.";
+  }
+
+  // Tavily search
+  let searchCtx="";
+  if(searchEnabled&&text){
+    showToast("🌐 Поиск...");
+    searchCtx=await tavilySearch(text);
+  }
+
+  const enrichedMsg=today+text+searchCtx+fileCtx+taskInstruction;
+  history.push({role:"user",content:enrichedMsg});
+
+  // Vision histories — изображения передаются напрямую vision-агентам
+  const makeVisionHistory=()=>{
+    if(!imageFiles.length) return history;
+    const last=history[history.length-1];
+    const content=[];
+    imageFiles.forEach(f=>content.push({type:"image_url",image_url:{url:`data:${f.type};base64,${f.b64}`}}));
+    // Добавляем чёткое задание для vision агентов
+    const visionTask=needTranslation
+      ? `${text||""}\n\nПрочитай ВЕСЬ текст на изображении и переведи его на запрошенный язык. Покажи оригинал и перевод.`
+      : `${text||""}\n\nПрочитай изображение внимательно. Если на нём есть текст — воспроизведи его полностью. Ответь на вопрос пользователя.`;
+    content.push({type:"text",text:visionTask});
+    return [...history.slice(0,-1),{role:"user",content}];
+  };
+  const makeClaudeHistory=()=>{
+    if(!imageFiles.length) return history;
+    const content=[];
+    imageFiles.forEach(f=>{
+      const mt=f.type==="image/jpg"?"image/jpeg":f.type;
+      content.push({type:"image",source:{type:"base64",media_type:mt,data:f.b64}});
+    });
+    const visionTask=needTranslation
+      ? `${text||""}\n\nПрочитай ВЕСЬ текст на изображении и переведи его на запрошенный язык. Покажи оригинал и перевод.`
+      : `${text||""}\n\nПрочитай изображение внимательно. Если на нём есть текст — воспроизведи его полностью. Ответь на вопрос пользователя.`;
+    content.push({type:"text",text:visionTask});
+    return [...history.slice(0,-1),{role:"user",content}];
+  };
+
+  // Save & render
+  chat.messages=chat.messages||[];
+  chat.messages.push({role:"user",content:text,files:filesToSend.map(f=>({name:f.name,type:f.type,size:f.size,b64:f.b64,text:f.text})),ts:Date.now()});
+  if(chat.title==="Новая тема"&&text.length>3){
+    chat.title=text.slice(0,40)+(text.length>40?"...":"");
+    document.getElementById("chatTitle").textContent=chat.title;
+  }
+  saveChats(chats);
+  appendUserBubble(text,filesToSend);
 
   inp.value=""; inp.style.height="auto";
   thinking=true;
   document.getElementById("sendBtn").disabled=true;
   document.getElementById("sendBtn").style.background="#374151";
 
-  const chat=getChat(); if(!chat)return;
-  if(chat.messages.length===0){
-    chat.title=text.slice(0,45);
-    document.getElementById("chatTitle").textContent=chat.title;
-    renderChatList();
-  }
-
-  chat.messages.push({role:"user",content:text,ts:Date.now()});
-  saveChats(chats);
-  appendUserBubble(text);
-
   const turnId="turn_"+Date.now();
-  const agents=getAgents();
-  appendTurnContainer(turnId,agents);
+  const cols=agents.length<=4?2:3;
+  appendTurnContainer(turnId,agents,cols);
 
-  const history=chat.messages.map(m=>({role:m.role,content:m.content}));
-  const today=getToday();
-
-  // Tavily поиск
-  let searchCtx="";
-  if(keys.tavily){
-    showToast("🌐 Ищу в интернете...");
-    const sr=await tavilySearch(text);
-    if(sr) searchCtx="\n\n=== АКТУАЛЬНЫЕ ДАННЫЕ ИЗ ИНТЕРНЕТА ===\n"+sr+"=== КОНЕЦ ДАННЫХ ===\n\nИНСТРУКЦИЯ: Для фактических вопросов (адреса, телефоны, расписания, цены) — используй ТОЛЬКО данные выше. Не придумывай. Если данных нет — так и скажи.\n";
-  }
-
-  const fileNote=currentFile?`\n\n[Прикреплён файл: ${currentFile.name}]`:"";
-  const enrichedMsg=text+searchCtx+fileNote;
-  const enrichedHistory=[...history.slice(0,-1),{role:"user",content:enrichedMsg}];
-
-  // Параллельные запросы
   const results={};
-  await Promise.all(agents.map(async(agent)=>{
+  const visionSet=new Set(["gpt","claude","gemini","perplexity"]);
+
+  // Vision agents first
+  await Promise.all(agents.filter(a=>visionSet.has(a.id)).map(async a=>{
     try{
-      const ans=await callAgent(agent, today+agent.system, enrichedHistory);
-      results[agent.id]={status:"ok",text:ans};
-    }catch(e){
-      results[agent.id]={status:"error",text:e.message};
-    }
-    updateAgentCard(turnId,agent,results[agent.id]);
+      const h=a.id==="claude"?makeClaudeHistory():imageFiles.length?makeVisionHistory():history;
+      const ans=await callAgent(a,today+a.system,h);
+      results[a.id]={status:"ok",text:ans};
+    }catch(e){ results[a.id]={status:"error",text:e.message}; }
+    updateAgentCard(turnId,a,results[a.id]);
   }));
 
-  // Синтез
+  // Non-vision agents (get context from vision agents if images present)
+  await Promise.all(agents.filter(a=>!visionSet.has(a.id)).map(async a=>{
+    try{
+      let h=history;
+      if(imageFiles.length){
+        const visionCtx=agents.filter(x=>visionSet.has(x.id)&&results[x.id]?.status==="ok")
+          .map(x=>x.name+": "+results[x.id].text.slice(0,400)).join("\n\n");
+        if(visionCtx){
+          const extra=enrichedMsg+"\n\n=== Что видят другие AI на изображении ===\n"+visionCtx+"\n=== Конец ===\nИспользуй эту информацию.";
+          h=[...history.slice(0,-1),{role:"user",content:extra}];
+        }
+      }
+      const ans=await callAgent(a,today+a.system,h);
+      results[a.id]={status:"ok",text:ans};
+    }catch(e){ results[a.id]={status:"error",text:e.message}; }
+    updateAgentCard(turnId,a,results[a.id]);
+  }));
+
+  // Synthesize
   const okAgents=agents.filter(a=>results[a.id]?.status==="ok");
   const parts=okAgents.map(a=>a.name+": "+results[a.id].text).join("\n\n---\n\n");
   let consolidated="";
   try{
     consolidated=await synthesize(
-      today+"Ты эксперт-редактор. Твоя задача — создать ОДИН финальный ответ на вопрос пользователя, используя лучшее из ответов нескольких AI. ПРАВИЛА: 1) Не повторяй одно и то же разными словами 2) Не перечисляй кто что сказал 3) Пиши как единый связный текст 4) Если есть конкретные факты (адреса, время, даты) — используй самые точные 5) Будь краток но полон 6) Отвечай на том же языке что и вопрос пользователя.",
-      [{role:"user",content:"Вопрос пользователя: "+text+"\n\nОтветы AI:\n"+parts+"\n\nНапиши единый финальный ответ без повторов:"}]
+      "Ты редактор. Создай ОДИН финальный ответ, используя лучшее из ответов нескольких AI. Не повторяй одно и то же. Пиши единым текстом. Отвечай на языке вопроса.",
+      [{role:"user",content:"Вопрос: "+text+"\n\nОтветы AI:\n"+parts+"\n\nНапиши финальный ответ:"}]
     );
-  }catch(e){
-    // fallback — берём лучший ответ
-    consolidated=okAgents.length>0?results[okAgents[0].id].text:"Не удалось получить ответ.";
-  }
+  }catch(e){ consolidated=okAgents.length>0?results[okAgents[0].id].text:"Нет ответа."; }
 
-  updateConsolidated(turnId,consolidated);
-  chat.messages.push({role:"assistant",content:consolidated,ts:Date.now(),agentResults:results});
+  // Show consolidated immediately
+  updateConsolidated(turnId,consolidated,"");
+  chat.messages.push({role:"assistant",content:consolidated,agentResults:results,ts:Date.now()});
   saveChats(chats);
-  clearFile();
+  clearFiles();
+
   thinking=false;
   document.getElementById("sendBtn").disabled=false;
   document.getElementById("sendBtn").style.background="linear-gradient(135deg,#6366f1,#8b5cf6)";
   scrollToBottom();
+
+  // Analysis in background (non-blocking)
+  if(okAgents.length>=2){
+    try{
+      const analysisRaw=await synthesize(
+        "Ты аналитик консенсуса. Отвечай ТОЛЬКО в формате JSON без markdown.",
+        [{role:"user",content:`Проанализируй ответы ${okAgents.length} AI на вопрос: "${text}"\n\nОтветы:\n${okAgents.map(a=>a.name+": "+results[a.id].text.slice(0,300)).join("\n\n")}\n\nВерни JSON:\n{"consensus_pct":число 0-100,"agents_agree":["имена AI согласных"],"agents_disagree":["имена несогласных"],"majority_view":"мнение большинства (1 предложение)","key_disagreement":"расхождение или null"}`}]
+      );
+      const analysis=JSON.parse(analysisRaw.replace(/```json\s*/gi,"").replace(/```\s*/gi,"").trim());
+      const pct=Math.min(100,Math.max(0,analysis.consensus_pct||70));
+      const color=pct>=75?"#4ade80":pct>=50?"#f59e0b":"#f87171";
+      const agreeStr=(analysis.agents_agree||[]).join(", ");
+      const disagreeStr=(analysis.agents_disagree||[]).join(", ");
+      const html=`<div style="margin-top:12px;padding:10px 12px;background:#0a0a0f;border-radius:8px;border:1px solid #1e1e2e">
+        <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px">🗳️ АНАЛИЗ МНЕНИЙ</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div style="flex:1;height:6px;background:#1e1e2e;border-radius:3px"><div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div></div>
+          <span style="font-size:12px;font-weight:700;color:${color}">${pct}%</span>
+        </div>
+        ${agreeStr?`<div style="font-size:12px;margin-bottom:3px"><span style="color:#4ade80;font-weight:600">✅ За:</span> ${escHtml(agreeStr)}</div>`:""}
+        ${disagreeStr?`<div style="font-size:12px;margin-bottom:3px"><span style="color:#f59e0b;font-weight:600">⚠️ Против:</span> ${escHtml(disagreeStr)}</div>`:""}
+        ${analysis.majority_view?`<div style="font-size:11px;color:#94a3b8;margin-top:4px">💬 ${escHtml(analysis.majority_view)}</div>`:""}
+        ${analysis.key_disagreement?`<div style="font-size:11px;color:#64748b;font-style:italic;margin-top:2px">🔍 ${escHtml(analysis.key_disagreement)}</div>`:""}
+      </div>`;
+      updateConsolidated(turnId,consolidated,html);
+      const lastMsg=chat.messages[chat.messages.length-1];
+      if(lastMsg&&lastMsg.role==="assistant"){lastMsg.analysis=html;saveChats(chats);}
+    }catch(e){ /* тихо */ }
+  }
 }
 
-// ── DOM helpers ────────────────────────────────────────────────────────────
-function appendUserBubble(text){
+// ════════════════════════════════════════════════════════════════
+// UI RENDERING
+// ════════════════════════════════════════════════════════════════
+function appendUserBubble(text, files){
   const el=document.createElement("div");
-  el.className="fade"; el.style.cssText="display:flex;justify-content:flex-end";
-  el.innerHTML='<div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:14px 14px 2px 14px;padding:10px 14px;max-width:75%;font-size:13px;line-height:1.6;white-space:pre-wrap">'+escHtml(text)+'</div>';
+  el.className="fade"; el.style.cssText="display:flex;justify-content:flex-end;margin-bottom:4px";
+  const inner=document.createElement("div");
+  inner.style.cssText="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:16px 16px 2px 16px;padding:12px 16px;max-width:78%;font-size:14px;line-height:1.7";
+  if(files&&files.length>0){
+    const bubbleId="b"+Date.now();
+    const wrap=document.createElement("div");
+    wrap.style.cssText="margin-bottom:8px;display:flex;flex-direction:column;gap:6px";
+    files.forEach((f,fi)=>{
+      const fid=bubbleId+"_"+fi;
+      if(f.type&&f.type.startsWith("image/")&&f.b64){
+        const imgWrap=document.createElement("div");
+        imgWrap.style.cssText="border-radius:10px;overflow:hidden;max-width:220px;cursor:pointer";
+        imgWrap.onclick=()=>showFileViewer(fid);
+        const img=document.createElement("img");
+        img.src="data:"+f.type+";base64,"+f.b64;
+        img.style.cssText="width:100%;max-height:150px;object-fit:cover;display:block";
+        const lbl=document.createElement("div");
+        lbl.style.cssText="background:rgba(0,0,0,.5);padding:4px 8px;font-size:10px;color:#fff";
+        lbl.textContent=f.name;
+        imgWrap.appendChild(img); imgWrap.appendChild(lbl); wrap.appendChild(imgWrap);
+      } else {
+        const btn=document.createElement("div");
+        btn.style.cssText="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);border-radius:8px;padding:7px 10px;cursor:pointer;max-width:280px";
+        btn.onclick=()=>showFileViewer(fid);
+        const icon=f.type==="application/pdf"?"📄":f.type&&f.type.includes("word")?"📝":"📎";
+        btn.innerHTML=`<span style="font-size:20px">${icon}</span><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(f.name)}</div><div style="font-size:10px;opacity:.75">${f.text?"Нажми чтобы прочитать":"Файл"} · ${f.size?(f.size/1024).toFixed(0)+" KB":""} 👁</div></div>`;
+        wrap.appendChild(btn);
+      }
+      const data=document.createElement("div");
+      data.id=fid; data.style.display="none";
+      data.dataset.b64=f.b64||""; data.dataset.type=f.type||"";
+      data.dataset.name=f.name; data.dataset.text=f.text||"";
+      wrap.appendChild(data);
+    });
+    inner.appendChild(wrap);
+    if(text){const sep=document.createElement("div");sep.style.cssText="height:1px;background:rgba(255,255,255,0.2);margin-bottom:8px";inner.appendChild(sep);}
+  }
+  if(text){const t=document.createElement("div");t.style.whiteSpace="pre-wrap";t.textContent=text;inner.appendChild(t);}
+  el.appendChild(inner);
   document.getElementById("messages").appendChild(el);
   scrollToBottom();
 }
 
-function appendTurnContainer(turnId,agents){
+function appendTurnContainer(turnId, agents, cols){
   const el=document.createElement("div");
-  el.className="fade"; el.id=turnId;
-  const cols=agents.length<=2?2:agents.length<=4?2:3;
-  let h='<div style="margin-bottom:4px"><button onclick="toggleCards(\''+turnId+'\')" style="background:none;border:none;color:#6b7280;font-size:11px;padding:2px 0;display:flex;align-items:center;gap:4px"><span id="'+turnId+'_arrow">▶</span> Ответы агентов (0/'+agents.length+')</button></div>';
-  h+='<div id="'+turnId+'_cards" style="display:none;grid-template-columns:repeat('+cols+',1fr);gap:8px;margin-bottom:6px">';
+  el.className="fade"; el.id=turnId+"_container";
+  let h=`<div style="margin-bottom:4px"><button onclick="toggleCards('${turnId}')" style="background:none;border:none;color:#6b7280;font-size:12px;padding:2px 0;display:flex;align-items:center;gap:4px;cursor:pointer"><span id="${turnId}_arrow">▶</span> Ответы агентов (0/${agents.length})</button></div>`;
+  h+=`<div id="${turnId}_cards" style="display:none;grid-template-columns:repeat(${cols},1fr);gap:8px;margin-bottom:8px">`;
   agents.forEach(a=>{
-    h+='<div id="'+turnId+'_'+a.id+'" style="background:#13131a;border:1px solid #1e1e2e;border-radius:10px;padding:10px">';
-    h+='<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px"><span>'+a.emoji+'</span><span style="font-size:11px;font-weight:700;color:#6b7280">'+a.name+'</span><span style="font-size:9px;background:#1e1e2e;padding:1px 5px;border-radius:4px;color:#6b7280">'+a.badge+'</span>';
-    h+='<span id="'+turnId+'_'+a.id+'_status" style="margin-left:auto;font-size:11px" class="pulse">•••</span></div>';
-    h+='<div id="'+turnId+'_'+a.id+'_text" style="font-size:10px;color:#6b7280;line-height:1.6;max-height:80px;overflow-y:auto">Обрабатывается...</div></div>';
+    const cid=turnId+"_"+a.id;
+    h+=`<div id="${cid}" style="background:#13131a;border:1px solid #1e1e2e;border-radius:10px;overflow:hidden">`;
+    h+=`<div onclick="toggleAgentCard('${cid}')" style="display:flex;align-items:center;gap:6px;padding:9px 10px;cursor:pointer">`;
+    h+=`<span style="font-size:14px">${a.emoji}</span>`;
+    h+=`<span style="font-size:11px;font-weight:700;color:#94a3b8">${a.name}</span>`;
+    h+=`<span style="font-size:9px;background:#1e1e2e;padding:1px 5px;border-radius:3px;color:#6b7280">${a.badge}</span>`;
+    h+=`<span id="${cid}_status" style="margin-left:auto;font-size:11px" class="pulse">•••</span>`;
+    h+=`<span id="${cid}_arr" style="font-size:9px;color:#4b5563;margin-left:2px">▼</span>`;
+    h+=`</div>`;
+    h+=`<div id="${cid}_body" style="display:none;border-top:1px solid #1e1e2e;padding:10px">`;
+    h+=`<div id="${cid}_text" style="font-size:12px;color:#94a3b8;line-height:1.7">Обрабатывается...</div>`;
+    h+=`</div></div>`;
   });
-  h+='</div>';
-  h+='<div style="background:#13131a;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:12px 14px">';
-  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:4px">';
-  h+='<div style="display:flex;align-items:center;gap:6px">';
-  h+='<span style="font-size:11px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>';
-  h+='<div style="display:flex;gap:2px;background:#0a0a0f;border-radius:6px;padding:2px">';
-  h+='<button id="'+turnId+'_btn_short" onclick="switchMode(\''+turnId+'\',\'short\')" style="padding:2px 8px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:10px;font-weight:600">📝 Кратко</button>';
-  h+='<button id="'+turnId+'_btn_full" onclick="switchMode(\''+turnId+'\',\'full\')" style="padding:2px 8px;background:transparent;color:#6b7280;border:none;border-radius:4px;font-size:10px">📄 Полно</button>';
-  h+='</div></div>';
-  h+='<div style="display:flex;gap:4px;flex-wrap:wrap">';
-  h+='<button onclick="copyConsolidated(\''+turnId+'\')" style="padding:3px 7px;background:#1e293b;color:#94a3b8;border:1px solid #1e1e2e;border-radius:5px;font-size:10px">📋</button>';
-  h+='<button onclick="makeSlides(\''+turnId+'\')" style="padding:3px 7px;background:#1e1a2e;color:#8b5cf6;border:1px solid #8b5cf633;border-radius:5px;font-size:10px">✨ Хаб</button>';
-  h+='<button onclick="openGamma(\''+turnId+'\')" style="padding:3px 7px;background:#1a0a2e;color:#a855f7;border:1px solid #a855f733;border-radius:5px;font-size:10px">🟣 Gamma</button>';
-  h+='<button onclick="openCanva(\''+turnId+'\')" style="padding:3px 7px;background:#0a1a2e;color:#3b82f6;border:1px solid #3b82f633;border-radius:5px;font-size:10px">🎨 Canva</button>';
-  h+='<button onclick="makeReveal(\''+turnId+'\')" style="padding:3px 7px;background:#0a2e1a;color:#4ade80;border:1px solid #4ade8033;border-radius:5px;font-size:10px">🎭 Reveal</button>';
-  h+='<button onclick="kimiPresent(\''+turnId+'\')" style="padding:3px 7px;background:#0a1a3e;color:#4f8ef7;border:1px solid #4f8ef733;border-radius:5px;font-size:10px">🔵 Kimi</button>';
-  h+='</div></div>';
-  h+='<div id="'+turnId+'_consolidated" style="font-size:12px;line-height:1.8;color:#e2e8f0;white-space:pre-wrap" class="pulse">Синтез...</div>';
-  h+='<div id="'+turnId+'_consolidated_short" style="display:none;font-size:12px;line-height:1.8;color:#e2e8f0;white-space:pre-wrap"></div>';
-  h+='</div>';
+  h+=`</div>`;
+  // Consolidated
+  h+=`<div id="${turnId}_consolidated_wrap" style="background:#13131a;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:14px 16px">`;
+  h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">`;
+  h+=`<span style="font-size:12px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>`;
+  h+=`<div style="display:flex;gap:2px;background:#1e1e2e;border-radius:6px;padding:2px">`;
+  h+=`<button id="${turnId}_btn_short" onclick="switchMode('${turnId}','short')" style="padding:3px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">📝 Кратко</button>`;
+  h+=`<button id="${turnId}_btn_full" onclick="switchMode('${turnId}','full')" style="padding:3px 10px;background:transparent;color:#64748b;border:none;border-radius:4px;font-size:11px;cursor:pointer">📄 Полно</button>`;
+  h+=`</div></div>`;
+  // Action buttons
+  h+=`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">`;
+  h+=`<button onclick="copyText('${turnId}_consolidated')" style="padding:4px 9px;background:#1e293b;color:#94a3b8;border:1px solid #374151;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>`;
+  h+=`<button onclick="openGamma('${turnId}')" style="padding:4px 9px;background:#1a0a2e;color:#a855f7;border:1px solid #a855f733;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>`;
+  h+=`<button onclick="openCanva('${turnId}')" style="padding:4px 9px;background:#0a1a2e;color:#3b82f6;border:1px solid #3b82f633;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>`;
+  h+=`<button onclick="makeReveal('${turnId}')" style="padding:4px 9px;background:#0a2e1a;color:#4ade80;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
+  h+=`<button onclick="kimiPresent('${turnId}')" style="padding:4px 9px;background:#0a1a3e;color:#4f8ef7;border:1px solid #4f8ef733;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>`;
+  h+=`</div>`;
+  // Text
+  h+=`<div id="${turnId}_consolidated" style="font-size:14px;line-height:1.8;color:#e2e8f0" class="pulse">Синтез...</div>`;
+  h+=`<div id="${turnId}_consolidated_short" style="display:none;font-size:14px;line-height:1.8;color:#e2e8f0"></div>`;
+  h+=`</div>`;
   el.innerHTML=h;
   document.getElementById("messages").appendChild(el);
   scrollToBottom();
 }
 
 function toggleCards(turnId){
-  const c=document.getElementById(turnId+"_cards");
-  const a=document.getElementById(turnId+"_arrow");
-  if(c.style.display==="none"){c.style.display="grid";a.textContent="▼";}
-  else{c.style.display="none";a.textContent="▶";}
+  const cards=document.getElementById(turnId+"_cards");
+  const arrow=document.getElementById(turnId+"_arrow");
+  const open=cards.style.display!=="none";
+  cards.style.display=open?"none":"grid";
+  if(arrow) arrow.textContent=open?"▶":"▼";
 }
 
-function updateAgentCard(turnId,agent,result){
-  const card=document.getElementById(turnId+"_"+agent.id);
-  const st=document.getElementById(turnId+"_"+agent.id+"_status");
-  const tx=document.getElementById(turnId+"_"+agent.id+"_text");
-  if(!card)return;
+function toggleAgentCard(cid){
+  const body=document.getElementById(cid+"_body");
+  const arr=document.getElementById(cid+"_arr");
+  if(!body) return;
+  const open=body.style.display!=="none";
+  body.style.display=open?"none":"block";
+  if(arr) arr.textContent=open?"▼":"▲";
+}
+
+function updateAgentCard(turnId, agent, result){
+  const cid=turnId+"_"+agent.id;
+  const card=document.getElementById(cid);
+  const st=document.getElementById(cid+"_status");
+  const tx=document.getElementById(cid+"_text");
+  if(!card) return;
   card.style.border="1px solid "+(result.status==="ok"?agent.color+"55":"#7f1d1d");
-  st.className=""; st.style.color=result.status==="ok"?"#4ade80":"#f87171"; st.textContent=result.status==="ok"?"✓":"✗";
-  tx.style.color=result.status==="error"?"#fca5a5":"#94a3b8"; tx.textContent=result.text;
-  // update counter
-  const btn=document.querySelector("#"+turnId+" button");
+  if(st){st.className="";st.style.color=result.status==="ok"?"#4ade80":"#f87171";st.textContent=result.status==="ok"?"✓":"✗";}
+  if(tx){tx.innerHTML=renderMd(result.text);}
+  // Update counter
+  const btn=document.querySelector(`#${turnId}_container > div > button`);
   if(btn){
-    const ok=document.querySelectorAll("[id^='"+turnId+"_'][id$='_status']");
-    const okCount=Array.from(ok).filter(e=>e.textContent==="✓").length;
     const agents=getAgents();
-    btn.innerHTML='<span id="'+turnId+'_arrow">'+(document.getElementById(turnId+"_cards").style.display==="none"?"▶":"▼")+'</span> Ответы агентов ('+okCount+'/'+agents.length+')';
-    btn.setAttribute("onclick","toggleCards('"+turnId+"')");
+    const ok=agents.filter(a=>document.getElementById(turnId+"_"+a.id+"_status")?.textContent==="✓").length;
+    const arrow=document.getElementById(turnId+"_arrow");
+    btn.innerHTML=`<span id="${turnId}_arrow">${arrow?arrow.textContent:"▶"}</span> Ответы агентов (${ok}/${agents.length})`;
   }
 }
 
-function updateConsolidated(turnId, text){
+function updateConsolidated(turnId, text, analysisHtml){
   const el=document.getElementById(turnId+"_consolidated");
-  if(el){ el.className=""; el.textContent=text; }
-  // Генерируем краткий вариант асинхронно
-  generateShortVersion(turnId, text);
-}
-
-async function generateShortVersion(turnId, fullText){
-  const shortEl=document.getElementById(turnId+"_consolidated_short");
-  if(!shortEl) return;
-  shortEl.textContent="Генерирую краткую версию...";
-  try{
-    const short=await synthesize(
-      "Ты редактор. Сократи текст до 3-5 предложений, сохранив главное. Без вводных слов. Отвечай на том же языке.",
-      [{role:"user",content:fullText}]
-    );
-    shortEl.textContent=short;
-  } catch(e){
-    // fallback — берём первые 2 предложения
-    const sentences=fullText.split(/[.!?]\s+/).filter(s=>s.trim().length>10);
-    shortEl.textContent=sentences.slice(0,3).join(". ")+(sentences.length>3?"...":"");
+  if(el){el.className="";el.innerHTML=renderMd(text);el.dataset.raw=text;}
+  if(analysisHtml){
+    let aEl=document.getElementById(turnId+"_analysis");
+    if(!aEl){
+      aEl=document.createElement("div");
+      aEl.id=turnId+"_analysis";
+      const wrap=document.getElementById(turnId+"_consolidated_wrap");
+      if(wrap) wrap.appendChild(aEl);
+    }
+    aEl.innerHTML=analysisHtml;
   }
 }
 
@@ -626,217 +984,309 @@ function switchMode(turnId, mode){
   if(mode==="short"){
     full.style.display="none"; short.style.display="block";
     btnShort.style.background="#6366f1"; btnShort.style.color="#fff";
-    btnFull.style.background="transparent"; btnFull.style.color="#6b7280";
+    btnFull.style.background="transparent"; btnFull.style.color="#64748b";
+    if(!short.dataset.generated&&full.dataset.raw){
+      short.innerHTML='<span style="color:#6b7280;font-size:12px">⏳ Генерирую краткую версию...</span>';
+      short.dataset.generated="pending";
+      generateShortVersion(turnId,full.dataset.raw);
+    }
   } else {
     full.style.display="block"; short.style.display="none";
     btnFull.style.background="#6366f1"; btnFull.style.color="#fff";
-    btnShort.style.background="transparent"; btnShort.style.color="#6b7280";
+    btnShort.style.background="transparent"; btnShort.style.color="#64748b";
   }
 }
 
-function copyConsolidated(turnId){
-  const el=document.getElementById(turnId+"_consolidated");
-  if(el) navigator.clipboard.writeText(el.textContent).then(()=>showToast("📋 Скопировано!"));
+async function generateShortVersion(turnId, fullText){
+  const shortEl=document.getElementById(turnId+"_consolidated_short");
+  if(!shortEl) return;
+  try{
+    const short=await synthesize(
+      "Сократи текст до 3-5 предложений, сохранив главное. Без вводных слов. Тот же язык.",
+      [{role:"user",content:fullText}]
+    );
+    shortEl.innerHTML=renderMd(short);
+    shortEl.dataset.generated="done";
+  }catch(e){
+    const s=fullText.split(/[.!?]\s+/).filter(x=>x.trim().length>10);
+    shortEl.innerHTML=renderMd(s.slice(0,3).join(". ")+(s.length>3?"...":""));
+    shortEl.dataset.generated="done";
+  }
 }
 
-// ── Presentations ──────────────────────────────────────────────────────────
-async function getSlideData(turnId){
-  const el=document.getElementById(turnId+"_consolidated");
-  if(!el)return null;
+function copyText(elId){
+  const el=document.getElementById(elId);
+  if(el) navigator.clipboard.writeText(el.dataset.raw||el.textContent).then(()=>showToast("📋 Скопировано!"));
+}
+
+// ════════════════════════════════════════════════════════════════
+// FILE VIEWER MODAL
+// ════════════════════════════════════════════════════════════════
+function showFileViewer(elId){
+  const el=document.getElementById(elId); if(!el) return;
+  const {b64,type,name,text}=el.dataset;
+  let modal=document.getElementById("fileViewModal");
+  if(!modal){
+    modal=document.createElement("div");
+    modal.id="fileViewModal";
+    modal.style.cssText="position:fixed;inset:0;z-index:260;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:16px";
+    document.body.appendChild(modal);
+    modal.onclick=e=>{if(e.target===modal)modal.style.display="none";};
+  }
+  let contentHtml="";
+  if(type&&type.startsWith("image/")&&b64){
+    contentHtml=`<img src="data:${type};base64,${b64}" style="max-width:100%;max-height:55vh;border-radius:8px;display:block;margin:0 auto">`;
+    if(text) contentHtml+=`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:6px">📝 OCR текст:</div><div style="background:#0a0a0f;border-radius:8px;padding:10px;font-size:13px;color:#e2e8f0;line-height:1.7;white-space:pre-wrap;max-height:200px;overflow-y:auto;border:1px solid #1e1e2e">${escHtml(text)}</div></div>`;
+  } else if(text){
+    contentHtml=`<div style="background:#0a0a0f;border-radius:8px;padding:14px;font-size:13px;color:#e2e8f0;line-height:1.8;white-space:pre-wrap;max-height:65vh;overflow-y:auto;border:1px solid #1e1e2e">${escHtml(text)}</div>`;
+  } else {
+    contentHtml=`<div style="text-align:center;padding:40px;color:#6b7280"><div style="font-size:48px;margin-bottom:12px">📎</div><div>Предпросмотр недоступен</div></div>`;
+  }
+  modal.innerHTML=`<div style="background:#13131a;border-radius:16px;padding:20px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;border:1px solid #1e1e2e">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">📎 ${escHtml(name)}</div>
+      ${text?`<button onclick="navigator.clipboard.writeText(document.getElementById('${elId}').dataset.text).then(()=>showToast('📋 Скопировано!'))" style="padding:5px 10px;background:#1e293b;color:#94a3b8;border:1px solid #374151;border-radius:6px;font-size:11px;cursor:pointer;margin:0 8px">📋 Копировать</button>`:""}
+      <button onclick="document.getElementById('fileViewModal').style.display='none'" style="background:none;border:none;color:#6b7280;font-size:22px;cursor:pointer;flex-shrink:0">✕</button>
+    </div>
+    ${contentHtml}
+  </div>`;
+  modal.style.display="flex";
+}
+
+// ════════════════════════════════════════════════════════════════
+// CHAT HISTORY RENDER
+// ════════════════════════════════════════════════════════════════
+function renderMessages(){
+  const el=document.getElementById("messages"); el.innerHTML="";
   const chat=getChat();
-  const raw=await synthesize(
-    "Генератор JSON презентаций. Возвращай ТОЛЬКО валидный JSON без markdown.",
-    [{role:"user",content:'Создай презентацию JSON.\nТема: '+(chat?chat.title:"AI Hub")+'\nТекст: '+el.textContent+'\nФормат: {"title":"...","slides":[{"type":"title","heading":"...","body":"..."},{"type":"points","heading":"...","points":["...","...","...","..."]},{"type":"quote","quote":"...","author":"AI Multi-Hub"},{"type":"points","heading":"...","points":["...","...","..."]},{"type":"conclusion","heading":"...","body":"..."}]}'}]
-  );
-  return JSON.parse(raw.replace(/```json|```/g,"").trim());
+  if(!chat||!chat.messages||!chat.messages.length){
+    el.innerHTML='<div style="text-align:center;margin-top:60px;color:#6b7280"><div style="font-size:40px;margin-bottom:12px">🧠</div><div style="font-size:16px;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">AI Multi-Hub</div><div style="font-size:12px;margin-top:6px">'+getAgents().length+' агентов · каждый через свой родной API</div></div>';
+    return;
+  }
+  const msgs=chat.messages;
+  for(let i=0;i<msgs.length;i+=2){
+    const user=msgs[i], assistant=msgs[i+1];
+    // User bubble
+    appendUserBubble(user.content||"", user.files||[]);
+    // Assistant
+    if(assistant){
+      const tid="hist_"+i;
+      const agents=getAgents();
+      const results=assistant.agentResults||{};
+      const okCount=Object.values(results).filter(r=>r&&r.status==="ok").length;
+      const cols=agents.length<=4?2:3;
+      const ad=document.createElement("div");
+      ad.className="fade";
+      let h=`<div style="margin-bottom:4px"><button onclick="toggleCards('${tid}')" style="background:none;border:none;color:#6b7280;font-size:12px;padding:2px 0;display:flex;align-items:center;gap:4px;cursor:pointer"><span id="${tid}_arrow">▶</span> Ответы агентов (${okCount}/${agents.length})</button></div>`;
+      h+=`<div id="${tid}_cards" style="display:none;grid-template-columns:repeat(${cols},1fr);gap:8px;margin-bottom:8px">`;
+      agents.forEach(a=>{
+        const r=results[a.id]||{status:"error",text:"Нет данных"};
+        const cid=tid+"_"+a.id;
+        h+=`<div id="${cid}" style="background:#13131a;border:1px solid ${r.status==="ok"?a.color+"55":"#7f1d1d"};border-radius:10px;overflow:hidden">`;
+        h+=`<div onclick="toggleAgentCard('${cid}')" style="display:flex;align-items:center;gap:6px;padding:9px 10px;cursor:pointer">`;
+        h+=`<span>${a.emoji}</span><span style="font-size:11px;font-weight:700;color:${r.status==="ok"?a.color:"#6b7280"}">${a.name}</span>`;
+        h+=`<span style="font-size:9px;background:#1e1e2e;padding:1px 5px;border-radius:3px;color:#6b7280">${a.badge}</span>`;
+        h+=`<span style="margin-left:auto;font-size:11px;color:${r.status==="ok"?"#4ade80":"#f87171"}">${r.status==="ok"?"✓":"✗"}</span>`;
+        h+=`<span id="${cid}_arr" style="font-size:9px;color:#4b5563;margin-left:2px">▼</span></div>`;
+        h+=`<div id="${cid}_body" style="display:none;border-top:1px solid #1e1e2e;padding:10px"><div style="font-size:12px;color:#94a3b8;line-height:1.7">${renderMd(r.text)}</div></div></div>`;
+      });
+      h+=`</div>`;
+      // Consolidated
+      h+=`<div id="${tid}_consolidated_wrap" style="background:#13131a;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:14px 16px">`;
+      h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">`;
+      h+=`<span style="font-size:12px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>`;
+      h+=`<div style="display:flex;gap:2px;background:#1e1e2e;border-radius:6px;padding:2px">`;
+      h+=`<button id="${tid}_btn_short" onclick="switchMode('${tid}','short')" style="padding:3px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">📝 Кратко</button>`;
+      h+=`<button id="${tid}_btn_full" onclick="switchMode('${tid}','full')" style="padding:3px 10px;background:transparent;color:#64748b;border:none;border-radius:4px;font-size:11px;cursor:pointer">📄 Полно</button>`;
+      h+=`</div></div>`;
+      h+=`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">`;
+      h+=`<button onclick="copyText('${tid}_consolidated')" style="padding:4px 9px;background:#1e293b;color:#94a3b8;border:1px solid #374151;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>`;
+      h+=`<button onclick="openGamma('${tid}')" style="padding:4px 9px;background:#1a0a2e;color:#a855f7;border:1px solid #a855f733;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>`;
+      h+=`<button onclick="openCanva('${tid}')" style="padding:4px 9px;background:#0a1a2e;color:#3b82f6;border:1px solid #3b82f633;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>`;
+      h+=`<button onclick="makeReveal('${tid}')" style="padding:4px 9px;background:#0a2e1a;color:#4ade80;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
+      h+=`<button onclick="kimiPresent('${tid}')" style="padding:4px 9px;background:#0a1a3e;color:#4f8ef7;border:1px solid #4f8ef733;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>`;
+      h+=`</div>`;
+      h+=`<div id="${tid}_consolidated" style="font-size:14px;line-height:1.8;color:#e2e8f0" data-raw="${escHtml(assistant.content)}">${renderMd(assistant.content)}</div>`;
+      h+=`<div id="${tid}_consolidated_short" style="display:none;font-size:14px;line-height:1.8;color:#e2e8f0"></div>`;
+      if(assistant.analysis) h+=`<div id="${tid}_analysis">${assistant.analysis}</div>`;
+      h+=`</div>`;
+      ad.innerHTML=h;
+      el.appendChild(ad);
+    }
+  }
+  scrollToBottom();
 }
 
-async function makeSlides(turnId){
-  showToast("✨ Генерирую слайды...");
-  try{const data=await getSlideData(turnId);showSlides(data);}catch(e){alert("Ошибка: "+e.message);}
-}
-
+// ════════════════════════════════════════════════════════════════
+// PRESENTATIONS
+// ════════════════════════════════════════════════════════════════
 function openGamma(turnId){
   const el=document.getElementById(turnId+"_consolidated");
-  if(!el)return;
-  const chat=getChat();
-  navigator.clipboard.writeText("# "+(chat?chat.title:"")+"\n\n"+el.textContent).then(()=>{
-    showToast("📋 Текст скопирован! Вставь в Gamma и нажми Generate");
+  if(!el) return;
+  navigator.clipboard.writeText(el.dataset.raw||el.textContent).then(()=>{
+    showToast("📋 Текст скопирован → открываю Gamma");
     setTimeout(()=>window.open("https://gamma.app/create","_blank"),800);
   });
 }
 
 function openCanva(turnId){
   const el=document.getElementById(turnId+"_consolidated");
-  if(!el)return;
-  const chat=getChat();
-  navigator.clipboard.writeText("# "+(chat?chat.title:"")+"\n\n"+el.textContent).then(()=>{
-    showToast("📋 Текст скопирован! Вставь в Canva → Magic Design");
+  if(!el) return;
+  navigator.clipboard.writeText(el.dataset.raw||el.textContent).then(()=>{
+    showToast("📋 Текст скопирован → открываю Canva");
     setTimeout(()=>window.open("https://www.canva.com/create/presentations/","_blank"),800);
   });
 }
 
 async function makeReveal(turnId){
-  showToast("🎭 Генерирую Reveal.js...");
+  const el=document.getElementById(turnId+"_consolidated");
+  if(!el) return;
+  const text=el.dataset.raw||el.textContent;
+  const chat=getChat();
+  showToast("🎭 Генерирую Reveal слайды...");
   try{
-    const data=await getSlideData(turnId);
-    const accent=["#6366f1","#f59e0b","#4ade80","#38bdf8"][Math.floor(Math.random()*4)];
-    let slidesHtml="";
-    data.slides.forEach(sl=>{
-      let c="";
-      if(sl.type==="title") c='<h1 style="font-size:2em;font-weight:800;margin-bottom:.4em">'+escHtml(sl.heading||"")+'</h1><p style="font-size:1em;opacity:.75">'+escHtml(sl.body||"")+'</p>';
-      else if(sl.type==="points") c='<h2 style="font-size:1.4em;font-weight:700;color:'+accent+';margin-bottom:.6em">'+escHtml(sl.heading||"")+'</h2><ul style="list-style:none;padding:0;text-align:left;display:inline-block">'+(sl.points||[]).map((p,i)=>'<li style="display:flex;align-items:flex-start;gap:8px;margin-bottom:.4em;font-size:.9em"><span style="background:'+accent+';color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:.75em;font-weight:700;flex-shrink:0">'+(i+1)+'</span>'+escHtml(p)+'</li>').join("")+'</ul>';
-      else if(sl.type==="quote") c='<div style="font-size:3em;opacity:.15;color:'+accent+'">"</div><blockquote style="font-size:1.2em;font-style:italic;line-height:1.6;font-family:Georgia,serif">'+escHtml(sl.quote||"")+'</blockquote><div style="font-size:.75em;opacity:.5;margin-top:.5em">— '+escHtml(sl.author||"")+'</div>';
-      else if(sl.type==="conclusion") c='<div style="font-size:.65em;text-transform:uppercase;letter-spacing:4px;color:'+accent+';margin-bottom:.6em">Заключение</div><h2 style="font-size:1.6em;font-weight:700;margin-bottom:.4em">'+escHtml(sl.heading||"")+'</h2><p style="font-size:.9em;opacity:.8;line-height:1.7">'+escHtml(sl.body||"")+'</p>';
-      slidesHtml+='<section style="text-align:center;padding:40px">'+c+'</section>';
-    });
-    const revealCDN="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.1";
-    const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+escHtml(data.title)+'</title><link rel="stylesheet" href="'+revealCDN+'/reveal.min.css"><link rel="stylesheet" href="'+revealCDN+'/theme/black.min.css"><style>.reveal{font-family:Segoe UI,system-ui,sans-serif}.reveal .progress{color:'+accent+'}.reveal .controls{color:'+accent+'}</style></head><body><div class="reveal"><div class="slides">'+slidesHtml+'</div></div><scr'+'ipt src="'+revealCDN+'/reveal.min.js"></scr'+'ipt><scr'+'ipt>Reveal.initialize({hash:true,controls:true,progress:true,center:true,transition:"slide"});</scr'+'ipt></body></html>';
-    const url=URL.createObjectURL(new Blob([html],{type:"text/html"}));
-    window.open(url,"_blank");
-    showToast("🎭 Reveal.js открылся!");
-  }catch(e){alert("Ошибка: "+e.message);}
+    const raw=await synthesize(
+      "Ты генератор презентаций. Возвращай ТОЛЬКО валидный JSON без markdown.",
+      [{role:"user",content:`Создай презентацию. Тема: ${chat?chat.title:"Презентация"}. Текст: ${text.slice(0,3000)}\n\nВерни ТОЛЬКО JSON:\n{"title":"Название","slides":[{"type":"title","heading":"Заголовок","body":"Подзаголовок"},{"type":"points","heading":"Раздел","points":["Тезис 1","Тезис 2","Тезис 3"]},{"type":"quote","quote":"Вывод","author":"AI Hub"},{"type":"conclusion","heading":"Итоги","body":"Финальный вывод"}]}\nСоздай 6-8 слайдов. Чередуй типы.`}]
+    );
+    const cleaned=raw.replace(/```json\s*/gi,"").replace(/```\s*/gi,"").trim();
+    const match=cleaned.match(/\{[\s\S]*\}/);
+    const data=JSON.parse(match?match[0]:cleaned);
+    buildRevealPresentation(data);
+  }catch(e){ showToast("❌ Ошибка: "+e.message); }
 }
 
 async function kimiPresent(turnId){
   const el=document.getElementById(turnId+"_consolidated");
-  if(!el)return;
+  if(!el) return;
   const keys=getKeys();
-  if(!keys.kimi && !keys.openrouter){ alert("Добавь Kimi или OpenRouter ключ в ⚙️"); return; }
+  if(!keys.kimi&&!keys.openrouter){alert("Добавь Kimi или OpenRouter ключ в ⚙️");return;}
   const chat=getChat();
-  showToast("🔵 Kimi создаёт структуру презентации...");
+  showToast("🔵 Kimi генерирует слайды...");
   try{
-    const system="Ты Kimi — эксперт по созданию презентаций. Создавай детальные, структурированные планы слайдов.";
-    const prompt=`Создай детальную структуру презентации на основе этого текста.
+    const system="Ты генератор презентаций. Возвращай ТОЛЬКО валидный JSON без markdown.";
+    const prompt=`Создай презентацию. Тема: ${chat?chat.title:"Презентация"}. Текст: ${(el.dataset.raw||el.textContent).slice(0,3000)}\n\nВерни ТОЛЬКО JSON:\n{"title":"Название","slides":[{"type":"title","heading":"Заголовок","body":"Подзаголовок"},{"type":"points","heading":"Раздел","points":["Тезис 1","Тезис 2","Тезис 3"]},{"type":"quote","quote":"Вывод","author":"Kimi"},{"type":"conclusion","heading":"Итоги","body":"Вывод"}]}\nСоздай 7-9 слайдов.`;
+    const h=[{role:"user",content:prompt}];
+    let raw;
+    if(keys.kimi) raw=await callKimi(keys.kimi,system,h);
+    else raw=await callOpenRouter(keys.openrouter,"moonshotai/kimi-k2",system,h);
+    const cleaned=raw.replace(/```json\s*/gi,"").replace(/```\s*/gi,"").trim();
+    const match=cleaned.match(/\{[\s\S]*\}/);
+    let data;
+    try{data=JSON.parse(match?match[0]:cleaned);}catch(e){showKimiModal(raw,chat?chat.title:"Презентация");return;}
+    showToast("✅ Kimi слайды готовы!");
+    buildRevealPresentation(data);
+  }catch(e){alert("Ошибка Kimi: "+e.message);}
+}
 
-Тема: ${chat?chat.title:"Презентация"}
-Текст: ${el.textContent}
+function buildRevealPresentation(data){
+  const accents=["#6366f1","#02C39A","#f59e0b","#38bdf8"];
+  const accent=accents[Math.floor(Math.random()*accents.length)];
+  let slidesHtml="";
+  (data.slides||[]).forEach(sl=>{
+    let c="";
+    if(sl.type==="title") c=`<h1 style="font-size:2em;font-weight:800;margin-bottom:.4em;line-height:1.1">${escHtml(sl.heading||"")}</h1><p style="font-size:1em;opacity:.75">${escHtml(sl.body||"")}</p>`;
+    else if(sl.type==="points") c=`<h2 style="font-size:1.4em;font-weight:700;color:${accent};margin-bottom:.6em">${escHtml(sl.heading||"")}</h2><ul style="list-style:none;padding:0;text-align:left;display:inline-block;max-width:800px">${(sl.points||[]).map((p,i)=>`<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:.5em"><span style="background:${accent};color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:.75em;font-weight:700;flex-shrink:0;margin-top:2px">${i+1}</span><span>${escHtml(p)}</span></li>`).join("")}</ul>`;
+    else if(sl.type==="quote") c=`<div style="font-size:4em;opacity:.15;color:${accent}">"</div><blockquote style="font-size:1.3em;font-style:italic;line-height:1.6;margin:-.3em 0 .6em;max-width:800px">${escHtml(sl.quote||"")}</blockquote><div style="font-size:.8em;opacity:.5">— ${escHtml(sl.author||"")}</div>`;
+    else if(sl.type==="conclusion") c=`<div style="font-size:.65em;text-transform:uppercase;letter-spacing:4px;color:${accent};margin-bottom:.6em">Заключение</div><h2 style="font-size:1.8em;font-weight:700;margin-bottom:.5em">${escHtml(sl.heading||"")}</h2><p style="font-size:1em;opacity:.8;line-height:1.7;max-width:700px">${escHtml(sl.body||"")}</p>`;
+    slidesHtml+=`<section style="text-align:center;padding:40px">${c}</section>`;
+  });
+  const cdn="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.1";
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escHtml(data.title||"Презентация")}</title><link rel="stylesheet" href="${cdn}/reveal.min.css"><link rel="stylesheet" href="${cdn}/theme/black.min.css"><style>body{margin:0}.reveal{font-family:Segoe UI,system-ui,sans-serif}.reveal .progress{color:${accent}}.reveal .controls{color:${accent}}</style></head><body><div class="reveal"><div class="slides">${slidesHtml}</div></div><script src="${cdn}/reveal.min.js"><\/script><script>Reveal.initialize({hash:false,controls:true,progress:true,center:true,transition:"slide",embedded:true});<\/script></body></html>`;
+  showRevealModal(html, data.title||"Презентация");
+}
 
-Создай 7-10 слайдов. Для каждого слайда укажи:
-- 📌 Заголовок слайда
-- 📝 Ключевые тезисы (3-5 пунктов)
-- 💡 Рекомендация по визуализации (график, схема, фото и т.д.)
+function showRevealModal(html, title){
+  window._revealHtml=html;
+  const blob=new Blob([html],{type:"text/html;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  document.getElementById("revealTitle").textContent="🎭 "+title;
+  document.getElementById("revealFrame").src=url;
+  document.getElementById("revealModal").style.display="flex";
+  showToast("🎭 Презентация готова!");
+}
 
-Оформь красиво и структурированно.`;
-    const history=[{role:"user",content:prompt}];
-    let result;
-    if(keys.kimi) result=await callKimi(keys.kimi, system, history);
-    else result=await callOpenRouter(keys.openrouter,"moonshotai/kimi-k2",system,history);
-
-    // Показываем результат в модальном окне
-    showKimiModal(result, chat?chat.title:"Презентация");
-  }catch(e){ alert("Ошибка Kimi: "+e.message); }
+function openRevealNewTab(){
+  if(window._revealHtml){const w=window.open("","_blank");if(w){w.document.write(window._revealHtml);w.document.close();}}
 }
 
 function showKimiModal(text, title){
-  let modal=document.getElementById("kimiModal");
-  if(!modal){
-    modal=document.createElement("div");
-    modal.id="kimiModal";
-    modal.style.cssText="position:fixed;inset:0;z-index:250;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:16px";
-    modal.innerHTML='<div style="background:#13131a;border:1px solid #4f8ef755;border-radius:16px;padding:22px;width:100%;max-width:600px;max-height:88vh;display:flex;flex-direction:column;gap:12px">'
-      +'<div style="display:flex;justify-content:space-between;align-items:center">'
-      +'<span style="font-size:14px;font-weight:700;color:#4f8ef7">🔵 Kimi — Структура презентации</span>'
-      +'<div style="display:flex;gap:8px">'
-      +'<button id="kimiCopyBtn" style="padding:5px 12px;background:#1e293b;color:#94a3b8;border:1px solid #1e1e2e;border-radius:7px;font-size:11px">📋 Копировать</button>'
-      +'<button onclick="document.getElementById(\'kimiModal\').style.display=\'none\'" style="background:none;border:none;color:#6b7280;font-size:20px">✕</button>'
-      +'</div></div>'
-      +'<div id="kimiModalTitle" style="font-size:12px;color:#6b7280"></div>'
-      +'<div id="kimiModalContent" style="flex:1;overflow-y:auto;font-size:12px;line-height:1.8;color:#e2e8f0;white-space:pre-wrap;background:#0a0a0f;border-radius:8px;padding:14px;border:1px solid #1e1e2e"></div>'
-      +'<div style="font-size:10px;color:#4b5563;text-align:center">Скопируй и вставь в Gamma, Canva или PowerPoint</div>'
-      +'</div>';
-    document.body.appendChild(modal);
-    document.getElementById("kimiCopyBtn").onclick=()=>{
-      navigator.clipboard.writeText(document.getElementById("kimiModalContent").textContent)
-        .then(()=>showToast("📋 Скопировано!"));
-    };
-  }
-  document.getElementById("kimiModalTitle").textContent="📊 "+title;
+  document.getElementById("kimiModalTopic").textContent=title;
   document.getElementById("kimiModalContent").textContent=text;
-  modal.style.display="flex";
+  document.getElementById("kimiCopyBtn").onclick=()=>navigator.clipboard.writeText(text).then(()=>showToast("📋 Скопировано!"));
+  document.getElementById("kimiModal").style.display="flex";
 }
-const SLIDE_THEMES=[
-  {bg:"#0f172a",text:"#e2e8f0",accent:"#6366f1"},
-  {bg:"#1c0a00",text:"#fff7ed",accent:"#f59e0b"},
-  {bg:"#052e16",text:"#dcfce7",accent:"#4ade80"},
-  {bg:"#0c1445",text:"#dbeafe",accent:"#38bdf8"},
-];
-let cSlides=[],cIdx=0,cTheme=0;
-function showSlides(data){cSlides=data.slides;cIdx=0;document.getElementById("slidesModal").style.display="flex";document.getElementById("slidesTitle").textContent="📊 "+data.title;renderSlide();}
-function renderSlide(){
-  const sl=cSlides[cIdx],th=SLIDE_THEMES[cTheme],d=document.getElementById("slideContent");
-  d.style.background=th.bg;d.style.color=th.text;
-  let h='<div style="position:absolute;top:0;left:0;width:5px;height:100%;background:'+th.accent+';border-radius:14px 0 0 14px"></div>';
-  h+='<div style="position:absolute;top:10px;right:14px;font-size:10px;opacity:.4;font-family:monospace">'+(cIdx+1)+'/'+cSlides.length+'</div>';
-  if(sl.type==="title") h+='<div style="font-size:10px;text-transform:uppercase;letter-spacing:3px;color:'+th.accent+';margin-bottom:10px;font-family:monospace">Введение</div><h1 style="font-size:22px;font-weight:700;margin:0 0 10px;line-height:1.2">'+escHtml(sl.heading||"")+'</h1><p style="font-size:13px;opacity:.75;line-height:1.7">'+escHtml(sl.body||"")+'</p>';
-  else if(sl.type==="points") h+='<h2 style="font-size:16px;font-weight:700;margin:0 0 14px;color:'+th.accent+'">'+escHtml(sl.heading||"")+'</h2><ul style="list-style:none;padding:0;display:flex;flex-direction:column;gap:8px">'+(sl.points||[]).map((p,i)=>'<li style="display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.6"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:'+th.accent+';color:#fff;font-size:9px;font-weight:700;flex-shrink:0;margin-top:1px">'+(i+1)+'</span>'+escHtml(p)+'</li>').join("")+'</ul>';
-  else if(sl.type==="quote") h+='<div style="font-size:42px;line-height:1;color:'+th.accent+';opacity:.2;margin-bottom:-4px">&ldquo;</div><blockquote style="font-size:15px;font-style:italic;line-height:1.7;margin:0 0 12px;font-family:Georgia,serif">'+escHtml(sl.quote||"")+'</blockquote><div style="font-size:10px;opacity:.5">&mdash; '+escHtml(sl.author||"")+'</div>';
-  else if(sl.type==="conclusion") h+='<div style="font-size:10px;text-transform:uppercase;letter-spacing:3px;color:'+th.accent+';margin-bottom:10px;font-family:monospace">Заключение</div><h2 style="font-size:20px;font-weight:700;margin:0 0 10px">'+escHtml(sl.heading||"")+'</h2><p style="font-size:13px;opacity:.8;line-height:1.8">'+escHtml(sl.body||"")+'</p>';
-  d.innerHTML=h;
-  document.getElementById("slideDots").innerHTML=cSlides.map((_,i)=>'<div onclick="gotoSlide('+i+')" style="width:'+(i===cIdx?16:5)+'px;height:5px;border-radius:3px;background:'+(i===cIdx?th.accent:"#374151")+';cursor:pointer;transition:width .3s"></div>').join("");
-  document.getElementById("slidePrev").disabled=cIdx===0;
-  document.getElementById("slideNext").disabled=cIdx===cSlides.length-1;
-}
-function gotoSlide(i){cIdx=i;renderSlide();}
-function prevSlide(){if(cIdx>0){cIdx--;renderSlide();}}
-function nextSlide(){if(cIdx<cSlides.length-1){cIdx++;renderSlide();}}
-function setTheme(i){cTheme=i;renderSlide();}
 
-// ── Chat management ────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+// CHAT MANAGEMENT
+// ════════════════════════════════════════════════════════════════
 function createChat(){
   const c=makeChat(); chats.unshift(c); activeChatId=c.id; saveChats(chats);
-  renderChatList(); renderMessages();
+  clearFiles(); renderChatList(); renderMessages();
   document.getElementById("chatTitle").textContent="Новая тема";
   toggleSidebar(); setTimeout(()=>document.getElementById("queryInput").focus(),100);
 }
+
 function switchChat(id){
   activeChatId=id; const chat=getChat();
   document.getElementById("chatTitle").textContent=chat?chat.title:"Новая тема";
-  renderMessages(); renderChatList(); toggleSidebar();
-}
-function deleteChat(id,e){
-  e.stopPropagation(); chats=chats.filter(c=>c.id!==id);
-  if(!chats.length) chats=[makeChat()];
-  if(activeChatId===id) activeChatId=chats[0].id;
-  saveChats(chats); renderChatList(); renderMessages();
-  document.getElementById("chatTitle").textContent=(getChat()||{title:"Новая тема"}).title;
-}
-function renderChatList(){
-  document.getElementById("chatList").innerHTML=chats.map(c=>'<div onclick="switchChat(\''+c.id+'\')" style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;margin-bottom:2px;cursor:pointer;background:'+(c.id===activeChatId?"#1e1e2e":"transparent")+';border:1px solid '+(c.id===activeChatId?"#1e1e2e":"transparent")+'"><div style="flex:1;font-size:12px;color:'+(c.id===activeChatId?"#f1f5f9":"#94a3b8")+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(c.title)+'</div><button onclick="deleteChat(\''+c.id+'\',event)" style="background:none;border:none;color:#f87171;font-size:12px;opacity:.5;padding:1px 3px">🗑</button></div>').join("");
-}
-function renderMessages(){
-  const el=document.getElementById("messages"); el.innerHTML="";
-  const chat=getChat();
-  if(!chat||!chat.messages.length){
-    el.innerHTML='<div style="text-align:center;margin-top:60px;color:#6b7280"><div style="font-size:40px;margin-bottom:12px">🧠</div><div style="font-size:16px;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">AI Multi-Hub</div><div style="font-size:12px;margin-top:6px">'+getAgents().length+' агентов · каждый через свой родной API</div></div>';
-    return;
-  }
-  const msgs=chat.messages;
-  for(let i=0;i<msgs.length;i+=2){
-    const user=msgs[i],assistant=msgs[i+1];
-    const ud=document.createElement("div");
-    ud.style.cssText="display:flex;justify-content:flex-end";
-    ud.innerHTML='<div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:14px 14px 2px 14px;padding:10px 14px;max-width:75%;font-size:13px;line-height:1.6;white-space:pre-wrap">'+escHtml(user.content)+'</div>';
-    el.appendChild(ud);
-    if(assistant){
-      const ad=document.createElement("div");
-      const tid="hist_"+i,agents=getAgents(),results=assistant.agentResults||{};
-      const okCount=Object.values(results).filter(r=>r&&r.status==="ok").length;
-      const cols=agents.length<=4?2:3;
-      let h='<div style="margin-bottom:4px"><button onclick="toggleCards(\''+tid+'\')" style="background:none;border:none;color:#6b7280;font-size:11px;padding:2px 0;display:flex;align-items:center;gap:4px"><span id="'+tid+'_arrow">▶</span> Ответы агентов ('+okCount+'/'+agents.length+')</button></div>';
-      h+='<div id="'+tid+'_cards" style="display:none;grid-template-columns:repeat('+cols+',1fr);gap:8px;margin-bottom:6px">';
-      agents.forEach(a=>{
-        const r=results[a.id]||{status:"error",text:"Нет данных"};
-        h+='<div style="background:#13131a;border:1px solid '+(r.status==="ok"?a.color+"55":"#1e1e2e")+';border-radius:10px;padding:10px"><div style="display:flex;align-items:center;gap:5px;margin-bottom:5px"><span>'+a.emoji+'</span><span style="font-size:11px;font-weight:700;color:'+(r.status==="ok"?a.color:"#6b7280")+'">'+a.name+'</span><span style="margin-left:auto;font-size:10px;color:'+(r.status==="ok"?"#4ade80":"#f87171")+'">'+(r.status==="ok"?"✓":"✗")+'</span></div><div style="font-size:10px;color:'+(r.status==="error"?"#fca5a5":"#94a3b8")+';line-height:1.6;max-height:80px;overflow-y:auto">'+escHtml(r.text||"")+'</div></div>';
-      });
-      h+='</div><div style="background:#13131a;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:12px 14px"><div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:8px">🤝 Консолидированный ответ</div><div style="font-size:12px;line-height:1.8;color:#e2e8f0;white-space:pre-wrap">'+escHtml(assistant.content)+'</div></div>';
-      ad.innerHTML=h; el.appendChild(ad);
-    }
-  }
-  scrollToBottom();
+  clearFiles(); renderMessages(); renderChatList(); toggleSidebar();
 }
 
-// ── Settings ───────────────────────────────────────────────────────────────
+function deleteChat(id,e){
+  e.stopPropagation();
+  chats=chats.filter(c=>c.id!==id);
+  if(!chats.length) chats=[makeChat()];
+  if(!chats.find(c=>c.id===activeChatId)) activeChatId=chats[0].id;
+  saveChats(chats); renderChatList(); renderMessages();
+  document.getElementById("chatTitle").textContent=getChat()?.title||"Новая тема";
+}
+
+function renderChatList(){
+  const el=document.getElementById("chatList"); el.innerHTML="";
+  chats.forEach(c=>{
+    const div=document.createElement("div");
+    div.style.cssText="display:flex;align-items:center;gap:6px;padding:8px 8px;border-radius:7px;cursor:pointer;margin-bottom:2px"+(c.id===activeChatId?";background:#1e1e2e":"");
+    div.onmouseover=()=>{if(c.id!==activeChatId)div.style.background="#13131a";};
+    div.onmouseout=()=>{if(c.id!==activeChatId)div.style.background="";};
+    div.onclick=()=>switchChat(c.id);
+    div.innerHTML=`<span style="flex:1;font-size:12px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">💬 ${escHtml(c.title)}</span><button onclick="deleteChat('${c.id}',event)" style="background:none;border:none;color:#374151;font-size:14px;cursor:pointer;flex-shrink:0">🗑</button>`;
+    el.appendChild(div);
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// EXPORT / IMPORT
+// ════════════════════════════════════════════════════════════════
+function exportConfig(){
+  const keys=getKeys();
+  const config={version:"1.0",exported:new Date().toISOString(),keys,activeAgents:activeAgentIds};
+  const blob=new Blob([JSON.stringify(config,null,2)],{type:"application/json"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download="ai-hub-config.json"; a.click();
+  URL.revokeObjectURL(url);
+  showToast("✅ Ключи экспортированы! Сохрани файл.");
+}
+
+function importConfig(input){
+  const file=input.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const config=JSON.parse(e.target.result);
+      if(!config.keys) throw new Error("Неверный формат");
+      saveKeys(config.keys);
+      if(config.activeAgents){activeAgentIds=config.activeAgents;localStorage.setItem("active_agents",JSON.stringify(activeAgentIds));}
+      showSettings();
+      showToast("✅ Ключи импортированы! Нажми Сохранить.");
+    }catch(err){alert("Ошибка импорта: "+err.message);}
+  };
+  reader.readAsText(file);
+}
+
+// ════════════════════════════════════════════════════════════════
+// SETTINGS
+// ════════════════════════════════════════════════════════════════
 function showSettings(){
   const keys=getKeys();
   document.getElementById("key_openai").value=keys.openai||"";
@@ -850,50 +1300,68 @@ function showSettings(){
   renderAgentToggles();
   document.getElementById("settingsModal").style.display="flex";
 }
+
 function hideSettings(){ document.getElementById("settingsModal").style.display="none"; }
+
 function saveSettings(){
   saveKeys({
-    openai:      document.getElementById("key_openai").value.trim(),
-    claude:      document.getElementById("key_claude").value.trim(),
-    kimi:        document.getElementById("key_kimi").value.trim(),
-    gemini:      document.getElementById("key_gemini").value.trim(),
-    openrouter:  document.getElementById("key_openrouter").value.trim(),
-    perplexity:  document.getElementById("key_perplexity").value.trim(),
-    deepseek:    document.getElementById("key_deepseek").value.trim(),
-    tavily:      document.getElementById("key_tavily").value.trim(),
+    openai:document.getElementById("key_openai").value.trim(),
+    claude:document.getElementById("key_claude").value.trim(),
+    kimi:document.getElementById("key_kimi").value.trim(),
+    gemini:document.getElementById("key_gemini").value.trim(),
+    openrouter:document.getElementById("key_openrouter").value.trim(),
+    perplexity:document.getElementById("key_perplexity").value.trim(),
+    deepseek:document.getElementById("key_deepseek").value.trim(),
+    tavily:document.getElementById("key_tavily").value.trim(),
   });
-  activeAgentIds=ALL_AGENTS.filter(a=>document.getElementById("toggle_"+a.id).checked).map(a=>a.id);
-  if(!activeAgentIds.length) activeAgentIds=[ALL_AGENTS[0].id];
   localStorage.setItem("active_agents",JSON.stringify(activeAgentIds));
-  hideSettings(); renderMessages();
-  const keys=getKeys();
-  document.getElementById("searchBadge").style.display=keys.tavily?"block":"none";
+  hideSettings();
   showToast("✅ Настройки сохранены!");
 }
+
 function renderAgentToggles(){
-  document.getElementById("agentToggles").innerHTML=ALL_AGENTS.map(a=>'<label style="display:flex;align-items:center;gap:9px;padding:8px 12px;background:#0a0a0f;border:1px solid '+(activeAgentIds.includes(a.id)?a.color+"55":"#1e1e2e")+';border-radius:9px;margin-bottom:5px;cursor:pointer"><input type="checkbox" id="toggle_'+a.id+'" '+(activeAgentIds.includes(a.id)?"checked":"")+' style="width:14px;height:14px;accent-color:'+a.color+'"><span style="font-size:13px">'+a.emoji+'</span><div style="flex:1"><div style="font-size:12px;font-weight:600;color:'+(activeAgentIds.includes(a.id)?a.color:"#94a3b8")+'">'+a.name+'</div><div style="font-size:10px;color:#6b7280">'+a.badge+'</div></div></label>').join("");
+  const el=document.getElementById("agentToggles"); el.innerHTML="";
+  ALL_AGENTS.forEach(a=>{
+    const on=activeAgentIds.includes(a.id);
+    const div=document.createElement("div");
+    div.style.cssText="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;cursor:pointer";
+    div.onclick=()=>{
+      if(activeAgentIds.includes(a.id)) activeAgentIds=activeAgentIds.filter(x=>x!==a.id);
+      else activeAgentIds.push(a.id);
+      renderAgentToggles();
+    };
+    div.innerHTML=`<span style="font-size:14px">${a.emoji}</span><div style="flex:1"><div style="font-size:12px;font-weight:600;color:${a.color}">${a.name}</div><div style="font-size:10px;color:#6b7280">${a.badge}</div></div><div style="width:20px;height:20px;border-radius:4px;background:${on?"#6366f1":"#1e1e2e"};border:1px solid ${on?"#6366f1":"#374151"};display:flex;align-items:center;justify-content:center;font-size:13px">${on?"✓":""}</div>`;
+    el.appendChild(div);
+  });
 }
 
-// ── Sidebar & Toast ────────────────────────────────────────────────────────
-function toggleSidebar(){const s=document.getElementById("sidebar");s.style.display=s.style.display==="none"?"flex":"none";}
+// ════════════════════════════════════════════════════════════════
+// TOAST & SIDEBAR
+// ════════════════════════════════════════════════════════════════
 function showToast(msg){
   let t=document.getElementById("toast");
-  if(!t){t=document.createElement("div");t.id="toast";t.style.cssText="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:10px 18px;border-radius:10px;font-size:12px;z-index:300;border:1px solid #374151;box-shadow:0 4px 20px rgba(0,0,0,.5);transition:opacity .3s;white-space:nowrap";document.body.appendChild(t);}
-  t.textContent=msg;t.style.opacity="1";clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity="0",3000);
+  if(!t){t=document.createElement("div");t.id="toast";t.style.cssText="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:10px 18px;border-radius:10px;font-size:13px;z-index:300;border:1px solid #374151;box-shadow:0 4px 20px rgba(0,0,0,.5);transition:opacity .3s;white-space:nowrap";document.body.appendChild(t);}
+  t.textContent=msg; t.style.opacity="1";
+  clearTimeout(t._t); t._t=setTimeout(()=>t.style.opacity="0",3000);
 }
 
-// ── Input ──────────────────────────────────────────────────────────────────
-document.getElementById("queryInput").addEventListener("input",function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,120)+"px";});
-document.getElementById("queryInput").addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}});
+function toggleSidebar(){
+  const s=document.getElementById("sidebar");
+  s.style.display=s.style.display==="none"?"flex":"none";
+}
 
-// ── Init ───────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════
 renderChatList();
 renderMessages();
-document.getElementById("chatTitle").textContent=(getChat()||{title:"Новая тема"}).title;
-const _initKeys=getKeys();
-document.getElementById("searchBadge").style.display=_initKeys.tavily?"block":"none";
-const _hasKeys=Object.values(_initKeys).some(v=>v&&v.trim());
-if(!_hasKeys) showSettings();
+document.getElementById("chatTitle").textContent=getChat()?.title||"Новая тема";
+
+// Auto-show settings if no keys
+const k=getKeys();
+if(!k.openai&&!k.claude&&!k.openrouter&&!k.gemini&&!k.deepseek&&!k.perplexity&&!k.kimi){
+  setTimeout(showSettings, 500);
+}
 </script>
 </body>
 </html>

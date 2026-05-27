@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>AI Multi-Hub</title>
+  <link rel="manifest" href="manifest.json"/>
+  <meta name="theme-color" content="#0a0a0f"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-title" content="AI Hub"/>
+  <link rel="apple-touch-icon" href="icon-192.png"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#f8fafc;color:#1e293b;font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+    ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:2px}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}.pulse{animation:pulse 1.2s infinite}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.fade{animation:fadeIn .3s ease}
+    button{cursor:pointer}input,textarea{outline:none;font-family:inherit}
+  </style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div id="sidebar" style="display:none;position:fixed;inset:0;z-index:100;flex-direction:row">
+  <div style="width:260px;background:#f8fafc;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;height:100%">
+    <div style="padding:14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
+      <span style="font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">🧠 AI Multi-Hub</span>
+      <button onclick="toggleSidebar()" style="background:none;border:none;color:#64748b;font-size:20px">✕</button>
+    </div>
+    <div style="padding:10px">
+      <button onclick="createChat()" style="width:100%;padding:9px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:8px;font-weight:600;font-size:12px;text-align:left">✏️ Новая тема</button>
+    </div>
+    <div id="chatList" style="flex:1;overflow-y:auto;padding:0 8px"></div>
+    <div style="padding:10px;border-top:1px solid #e2e8f0">
+      <button onclick="toggleSidebar();showSettings()" style="width:100%;padding:8px;background:#ffffff;color:#475569;border:1px solid #e2e8f0;border-radius:7px;font-size:13px">⚙️ Настройки</button>
+    </div>
+  </div>
+  <div style="flex:1;background:rgba(0,0,0,.3)" onclick="toggleSidebar()"></div>
+</div>
+
+<!-- SETTINGS MODAL -->
+<div id="settingsModal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(100,116,139,.5);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:22px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
+      <h2 style="font-size:15px">⚙️ Настройки API ключей</h2>
+      <button onclick="hideSettings()" style="background:none;border:none;color:#64748b;font-size:20px">✕</button>
+    </div>
+
+    <!-- API Keys -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px">
+      <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:2px">🔑 API Ключи (каждый AI через свой родной API)</div>
+
+      <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟢</span><span style="font-size:11px;font-weight:600;color:#10a37f">ChatGPT</span><span style="font-size:9px;color:#64748b;margin-left:auto">platform.openai.com</span></div>
+        <input type="password" id="key_openai" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #cbd5e1;border-radius:6px;color:#1e293b;font-size:12px"/>
+      </div>
+
+      <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟠</span><span style="font-size:11px;font-weight:600;color:#d97706">Claude</span><span style="font-size:9px;color:#64748b;margin-left:auto">console.anthropic.com</span></div>
+        <input type="password" id="key_claude" placeholder="sk-ant-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #cbd5e1;border-radius:6px;color:#1e293b;font-size:12px"/>
+      </div>
+
+      <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🔵</span><span style="font-size:11px;font-weight:600;color:#4f8ef7">Kimi</span><span style="font-size:9px;color:#64748b;margin-left:auto">platform.moonshot.ai</span></div>
+        <input type="password" id="key_kimi" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #cbd5e1;border-radius:6px;color:#1e293b;font-size:12px"/>
+      </div>
+
+      <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🔴</span><span style="font-size:11px;font-weight:600;color:#ea4335">Gemini</span><span style="font-size:9px;color:#64748b;margin-left:auto">aistudio.google.com · бесплатно</span></div>
+        <input type="password" id="key_gemini" placeholder="AIzaSy... (если доступен)" style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #cbd5e1;border-radius:6px;color:#1e293b;font-size:12px"/>
+        <div style="font-size:10px;color:#64748b;margin-top:4px">Нет доступа? Используй OpenRouter ↓</div>
+      </div>
+
+      <div style="background:#eff6ff;border:1px solid #4f8ef7;border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          <span>🔀</span><span style="font-size:11px;font-weight:600;color:#4f8ef7">OpenRouter</span>
+          <span style="font-size:9px;color:#4ade80;background:#052e16;padding:1px 6px;border-radius:3px;margin-left:auto">⭐ ГЛАВНЫЙ КЛЮЧ</span>
+        </div>
+        <input type="password" id="key_openrouter" placeholder="sk-or-v1-... (все агенты через него)" style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #4f8ef755;border-radius:6px;color:#f1f5f9;font-size:11px"/>
+        <div style="font-size:10px;color:#4ade80;margin-top:4px">✅ Решает CORS. Все 6 агентов работают через один ключ. openrouter.ai/keys</div>
+      </div>
+
+      <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟣</span><span style="font-size:11px;font-weight:600;color:#8b5cf6">Perplexity</span><span style="font-size:9px;color:#64748b;margin-left:auto">perplexity.ai/settings/api</span></div>
+        <input type="password" id="key_perplexity" placeholder="pplx-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #cbd5e1;border-radius:6px;color:#1e293b;font-size:12px"/>
+      </div>
+
+      <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>⚡</span><span style="font-size:11px;font-weight:600;color:#06b6d4">DeepSeek</span><span style="font-size:9px;color:#64748b;margin-left:auto">platform.deepseek.com</span></div>
+        <input type="password" id="key_deepseek" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #cbd5e1;border-radius:6px;color:#1e293b;font-size:12px"/>
+      </div>
+
+      <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🌐</span><span style="font-size:11px;font-weight:600;color:#4ade80">Tavily Search</span><span style="font-size:9px;color:#4ade80;margin-left:auto">веб-поиск · 1000/мес бесплатно</span></div>
+        <input type="password" id="key_tavily" placeholder="tvly-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #cbd5e1;border-radius:6px;color:#1e293b;font-size:12px"/>
+      </div>
+    </div>
+
+    <!-- Active agents -->
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:8px">🤖 Активные агенты</div>
+      <div id="agentToggles"></div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button onclick="exportConfig()" style="flex:1;padding:9px;background:#f0fdf4;color:#16a34a;border:1px solid #16a34a55;border-radius:8px;font-weight:600;font-size:12px;cursor:pointer">📤 Экспорт ключей</button>
+      <label style="flex:1;padding:9px;background:#eff6ff;color:#2563eb;border:1px solid #2563eb55;border-radius:8px;font-weight:600;font-size:12px;cursor:pointer;text-align:center">
+        📥 Импорт ключей
+        <input type="file" accept=".json" onchange="importConfig(this)" style="display:none">
+      </label>
+    </div>
+    <div style="font-size:10px;color:#64748b;margin-bottom:10px;padding:6px 10px;background:#f8fafc;border-radius:6px;border:1px solid #e2e8f0">
+      💡 Экспортируй ключи один раз → сохрани файл → на любом устройстве нажми Импорт
+    </div>
+    <button onclick="saveSettings()" style="width:100%;padding:11px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:9px;font-weight:700;font-size:13px">💾 Сохранить</button>
+  </div>
+</div>
+
+<!-- TOPBAR -->
+<div style="display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid #e2e8f0;flex-shrink:0;background:#ffffff">
+  <button onclick="toggleSidebar()" style="background:none;border:none;color:#94a3b8;font-size:20px">☰</button>
+  <div id="chatTitle" style="flex:1;font-size:15px;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Новая тема</div>
+  <div id="searchBadge" style="display:none;font-size:11px;color:#16a34a;background:#f0fdf4;padding:2px 8px;border-radius:4px;border:1px solid #16a34a33">🌐 поиск</div>
+  <button onclick="createChat()" style="padding:5px 12px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:7px;color:#475569;font-size:12px">+ Тема</button>
+  <button onclick="showSettings()" style="background:none;border:none;color:#94a3b8;font-size:16px">⚙️</button>
+</div>
+
+<!-- MESSAGES -->
+<div id="messages" style="flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:16px;background:#f8fafc"></div>
+
+<!-- INPUT -->
+<div style="padding:12px 14px;border-top:1px solid #e2e8f0;flex-shrink:0;background:#ffffff">
+  <div id="filePreview" style="display:none;align-items:center;gap:8px;padding:7px 10px;background:#eff6ff;border:1px solid #6366f133;border-radius:8px;margin-bottom:8px">
+    <span id="filePreviewIcon" style="font-size:16px">📄</span>
+    <div style="flex:1"><div id="filePreviewName" style="font-size:12px;font-weight:600;color:#4f46e5"></div><div id="filePreviewSize" style="font-size:10px;color:#64748b"></div></div>
+    <button onclick="clearFile()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:15px">✕</button>
+  </div>
+  <div style="display:flex;gap:8px;align-items:flex-end">
+    <label for="fileInput" style="padding:11px 12px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:12px;color:#64748b;cursor:pointer;font-size:16px;flex-shrink:0" title="Прикрепить файл">📎
+      <input type="file" id="fileInput" accept="*/*" multiple style="display:none" onchange="handleFiles(this)">
+    </label>
+    <textarea id="queryInput" rows="1" placeholder="Введи вопрос... (Enter — отправить, Shift+Enter — перенос)"
+      style="flex:1;padding:12px 16px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:12px;color:#1e293b;font-size:15px;resize:none;max-height:140px;line-height:1.6;overflow-y:auto"></textarea>
+    <button id="sendBtn" onclick="send()" style="padding:11px 16px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:10px;font-weight:700;font-size:15px;flex-shrink:0">↑</button>
+  </div>
+</div>
+
+<!-- SLIDES MODAL -->
+<div id="slidesModal" style="display:none;position:fixed;inset:0;z-index:150;background:rgba(100,116,139,.5);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:16px;width:100%;max-width:620px;max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span id="slidesTitle" style="font-size:13px;font-weight:700;color:#8b5cf6"></span>
+      <div style="display:flex;gap:5px;align-items:center">
+        <button onclick="setTheme(0)" style="width:16px;height:16px;border-radius:50%;background:#6366f1;border:2px solid #fff;cursor:pointer"></button>
+        <button onclick="setTheme(1)" style="width:16px;height:16px;border-radius:50%;background:#f59e0b;border:2px solid transparent;cursor:pointer"></button>
+        <button onclick="setTheme(2)" style="width:16px;height:16px;border-radius:50%;background:#4ade80;border:2px solid transparent;cursor:pointer"></button>
+        <button onclick="setTheme(3)" style="width:16px;height:16px;border-radius:50%;background:#38bdf8;border:2px solid transparent;cursor:pointer"></button>
+        <button onclick="document.getElementById('slidesModal').style.display='none'" style="background:none;border:none;color:#64748b;font-size:18px;margin-left:4px">✕</button>
+      </div>
+    </div>
+    <div id="slideContent" style="min-height:280px;border-radius:14px;padding:28px 32px;position:relative;overflow:hidden"></div>
+    <div style="display:flex;justify-content:center;align-items:center;gap:10px;margin-top:10px">
+      <button id="slidePrev" onclick="prevSlide()" style="padding:6px 14px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:7px;font-size:12px">←</button>
+      <div id="slideDots" style="display:flex;gap:4px;align-items:center"></div>
+      <button id="slideNext" onclick="nextSlide()" style="padding:6px 14px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:7px;font-size:12px">→</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Helpers ────────────────────────────────────────────────────────────────
+function escHtml(t){ return (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function scrollToBottom(){ const m=document.getElementById("messages"); m.scrollTop=m.scrollHeight; }
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+const STORE_KEY="ai_hub_chats_v3";
+function loadChats(){ try{return JSON.parse(localStorage.getItem(STORE_KEY))||[];}catch{return[];} }
+function saveChats(c){ try{localStorage.setItem(STORE_KEY,JSON.stringify(c));}catch{} }
+function makeChat(t="Новая тема"){ return {id:Date.now()+"_"+Math.random().toString(36).slice(2),title:t,messages:[]}; }
+
+// ── Time ───────────────────────────────────────────────────────────────────
+function getToday(){
+  const n=new Date();
+  const days=["воскресенье","понедельник","вторник","среда","четверг","пятница","суббота"];
+  const months=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+  const time=n.toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+  const tz=Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return `Сегодня ${days[n.getDay()]}, ${n.getDate()} ${months[n.getMonth()]} ${n.getFullYear()} года. Текущее время: ${time} (${tz}). `;
+}
+
+// ── Keys & State ───────────────────────────────────────────────────────────
+function getKeys(){ return JSON.parse(localStorage.getItem("ai_hub_keys_v2")||"{}"); }
+function saveKeys(k){ localStorage.setItem("ai_hub_keys_v2",JSON.stringify(k)); }
+
+let activeAgentIds = JSON.parse(localStorage.getItem("active_agents")||"null") || ["gpt","claude","kimi","gemini","perplexity","deepseek"];
+let chats = loadChats();
+if(!chats.length) chats=[makeChat()];
+let activeChatId = chats[0].id;
+let thinking = false;
+
+function getChat(){ return chats.find(c=>c.id===activeChatId); }
+function getAgents(){ return ALL_AGENTS.filter(a=>activeAgentIds.includes(a.id)); }
+
+// ── Agent definitions ──────────────────────────────────────────────────────
+const ALL_AGENTS = [
+  {id:"gpt",       name:"ChatGPT",    emoji:"🟢", color:"#10a37f", badge:"GPT-4o",
+   system:"Ты ChatGPT от OpenAI. Давай чёткие практичные ответы. ВСЕГДА используй текущую дату и время из системного контекста. Помни весь разговор."},
+  {id:"claude",    name:"Claude",     emoji:"🟠", color:"#d97706", badge:"Sonnet 4.6",
+   system:"Ты Claude Sonnet 4.6 от Anthropic. Давай аналитические ответы. КРИТИЧЕСКИ ВАЖНО: текущая дата и время указаны в начале этого сообщения — используй их как абсолютно точные. НЕ говори что у тебя нет доступа к реальному времени — оно передаётся тебе напрямую. Помни историю разговора."},
+  {id:"kimi",      name:"Kimi",       emoji:"🔵", color:"#4f8ef7", badge:"K2.6",
+   system:"Ты Kimi K2.6 от Moonshot AI. Давай глубокие детальные ответы. ВСЕГДА отвечай — никогда не оставляй пустой ответ. Используй дату и время из контекста. Помни разговор."},
+  {id:"gemini",    name:"Gemini",     emoji:"🔴", color:"#ea4335", badge:"2.5 Flash",
+   system:"Ты Google Gemini 2.5. Анализируй глубоко. ВСЕГДА используй дату и время из контекста — они точные. Если есть данные из поиска — используй их как основной источник для адресов и фактов."},
+  {id:"perplexity",name:"Perplexity", emoji:"🟣", color:"#8b5cf6", badge:"Sonar Pro",
+   system:"Ты Perplexity Sonar Pro с доступом к интернету. Давай ТОЧНЫЕ актуальные ответы. Для адресов и локальных данных — ищи в интернете и указывай только проверенную информацию с источником."},
+  {id:"deepseek",  name:"DeepSeek",   emoji:"⚡", color:"#06b6d4", badge:"V3",
+   system:"Ты DeepSeek V3. Давай логически выверенные структурированные ответы. Используй дату и время из контекста. Помни историю разговора."},
+];
+
+// ── Native API callers ─────────────────────────────────────────────────────
+async function callWithRetry(fn, attempt=1){
+  try{ return await fn(); }
+  catch(e){
+    if(attempt<3 && (e.name==="AbortError"||e.message.includes("fetch")||e.message.includes("network"))){
+      await sleep(attempt*2000);
+      return callWithRetry(fn, attempt+1);
+    }
+    throw e;
+  }
+}
+
+async function callOpenAI(key, system, history){
+  return callWithRetry(async()=>{
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+    const r=await fetch("https://api.openai.com/v1/chat/completions",{
+      method:"POST",signal:ctrl.signal,
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+      body:JSON.stringify({model:"gpt-4o",max_tokens:1000,
+        messages:[{role:"system",content:system},...history]})
+    });
+    clearTimeout(t);
+    const d=await r.json();
+    if(d.error) throw new Error(d.error.message);
+    return d.choices[0].message.content.trim();
+  });
+}
+
+async function callClaude(key, system, history){
+  return callWithRetry(async()=>{
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+    // История уже содержит изображения в нативном Claude формате через makeClaudeHistory()
+    const msgs=history.map(m=>({
+      role:m.role,
+      content:Array.isArray(m.content)?m.content:m.content
+    }));
+    const r=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",signal:ctrl.signal,
+      headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:1500,system:system,messages:msgs})
+    });
+    clearTimeout(t); const d=await r.json();
+    if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
+    return d.content.map(b=>b.text||"").join("").trim();
+  });
+}
+
+async function callKimi(key, system, history){
+  return callWithRetry(async()=>{
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),90000);
+    const r=await fetch("https://api.moonshot.ai/v1/chat/completions",{
+      method:"POST",signal:ctrl.signal,
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+      body:JSON.stringify({model:"moonshot-v1-128k",max_tokens:1000,
+        messages:[{role:"system",content:system},...history]})
+    });
+    clearTimeout(t);
+    const d=await r.json();
+    if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
+    const txt=(d.choices[0].message.content||"").trim();
+    if(!txt) throw new Error("Kimi вернул пустой ответ");
+    return txt;
+  });
+}
+
+async function callGemini(key, system, history){
+  const models=["gemini-2.5-flash","gemini-1.5-flash","gemini-1.5-flash-8b"];
+  for(let mi=0;mi<models.length;mi++){
+    for(let attempt=1;attempt<=3;attempt++){
+      try{
+        const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+        // Конвертируем историю в Gemini формат с поддержкой изображений
+        const parts=history.map(m=>{
+          const role=m.role==="assistant"?"model":"user";
+          if(Array.isArray(m.content)){
+            // Vision контент (image_url формат)
+            const gparts=[];
+            m.content.forEach(c=>{
+              if(c.type==="image_url"&&c.image_url){
+                const url=c.image_url.url;
+                const match=url.match(/^data:([^;]+);base64,(.+)$/);
+                if(match) gparts.push({inline_data:{mime_type:match[1],data:match[2]}});
+              } else if(c.type==="text"){
+                gparts.push({text:c.text});
+              }
+            });
+            return {role,parts:gparts};
+          }
+          return {role,parts:[{text:m.content}]};
+        });
+        const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[mi]}:generateContent?key=${key}`,{
+          method:"POST",signal:ctrl.signal,
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({
+            system_instruction:{parts:[{text:system}]},
+            contents:parts,
+            generationConfig:{maxOutputTokens:1000}
+          })
+        });
+        clearTimeout(t); const d=await r.json();
+        if(d.error){
+          const msg=d.error.message||"";
+          // При перегрузке — ждём и пробуем снова
+          if(msg.includes("high demand")||msg.includes("overloaded")||r.status===503||r.status===429){
+            await sleep(attempt*2000);
+            continue;
+          }
+          // При ошибке модели — пробуем следующую
+          if(msg.includes("not found")||msg.includes("deprecated")) break;
+          throw new Error(msg);
+        }
+        return (d.candidates[0].content.parts.map(p=>p.text||"").join("")).trim();
+      }catch(e){
+        if(attempt===3 && mi===models.length-1) throw e;
+        if(e.name==="AbortError") await sleep(2000);
+      }
+    }
+  }
+  throw new Error("Gemini недоступен — попробуй позже");
+}
+
+async function callPerplexity(key, system, history){
+  return callWithRetry(async()=>{
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+    const r=await fetch("https://api.perplexity.ai/chat/completions",{
+      method:"POST",signal:ctrl.signal,
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+      body:JSON.stringify({model:"sonar-pro",max_tokens:1500,
+        messages:[{role:"system",content:system},...history]})
+    });
+    clearTimeout(t); const d=await r.json();
+    if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
+    return d.choices[0].message.content.trim();
+  });
+}
+
+async function callDeepSeek(key, system, history){
+  return callWithRetry(async()=>{
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+    const r=await fetch("https://api.deepseek.com/chat/completions",{
+      method:"POST",signal:ctrl.signal,
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+      body:JSON.stringify({model:"deepseek-chat",max_tokens:1500,
+        messages:[{role:"system",content:system},...history]})
+    });
+    clearTimeout(t); const d=await r.json();
+    if(d.error) throw new Error(d.error.message);
+    return d.choices[0].message.content.trim();
+  });
+}
+
+// ── Tavily Search ──────────────────────────────────────────────────────────
+async function tavilySearch(query){
+  const keys=getKeys();
+  if(!keys.tavily) return null;
+  try{
+    const r=await fetch("https://api.tavily.com/search",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({api_key:keys.tavily,query,search_depth:"advanced",max_results:7,include_answer:true,language:"ru"})
+    });
+    const d=await r.json();
+    if(d.error) return null;
+    let ctx="";
+    if(d.answer) ctx+="Прямой ответ: "+d.answer+"\n\n";
+    if(d.results) d.results.forEach((res,i)=>{ ctx+=`[${i+1}] ${res.title}\n${res.url}\n${res.content}\n\n`; });
+    return ctx;
+  }catch(e){ return null; }
+}
+
+// ── OpenRouter fallback caller ─────────────────────────────────────────────
+async function callOpenRouter(key, model, system, history){
+  return callWithRetry(async()=>{
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+    const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{
+      method:"POST",signal:ctrl.signal,
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key,
+        "HTTP-Referer":"https://ai-multi-hub.netlify.app","X-Title":"AI Multi-Hub"},
+      body:JSON.stringify({model,max_tokens:1500,
+        messages:[{role:"system",content:system},...history]})
+    });
+    clearTimeout(t); const d=await r.json();
+    if(d.error) throw new Error(d.error.message);
+    return (d.choices[0].message.content||"").trim();
+  });
+}
+
+// ── Dispatcher ─────────────────────────────────────────────────────────────
+async function callAgent(agent, system, history){
+  const keys=getKeys();
+  // OpenRouter — приоритет (нет CORS проблем, работает из браузера)
+  if(keys.openrouter){
+    const models={
+      gpt:        "openai/gpt-4o",
+      claude:     "anthropic/claude-sonnet-4-5",
+      kimi:       "moonshotai/kimi-k2",
+      gemini:     "google/gemini-2.5-flash",
+      perplexity: "perplexity/sonar-pro",
+      deepseek:   "deepseek/deepseek-chat",
+    };
+    if(models[agent.id]) return callOpenRouter(keys.openrouter, models[agent.id], system, history);
+  }
+  // Прямые API — только если нет OpenRouter
+  switch(agent.id){
+    case "gpt":
+      if(!keys.openai) throw new Error("Нет OpenAI или OpenRouter ключа → добавь в ⚙️");
+      return callOpenAI(keys.openai, system, history);
+    case "claude":
+      if(!keys.claude) throw new Error("Нет Claude или OpenRouter ключа → добавь в ⚙️");
+      return callClaude(keys.claude, system, history);
+    case "kimi":
+      if(!keys.kimi) throw new Error("Нет Kimi или OpenRouter ключа → добавь в ⚙️");
+      return callKimi(keys.kimi, system, history);
+    case "gemini":
+      if(!keys.gemini) throw new Error("Нет Gemini или OpenRouter ключа → добавь в ⚙️");
+      return callGemini(keys.gemini, system, history);
+    case "perplexity":
+      if(!keys.perplexity) throw new Error("Нет Perplexity или OpenRouter ключа → добавь в ⚙️");
+      return callPerplexity(keys.perplexity, system, history);
+    case "deepseek":
+      if(!keys.deepseek) throw new Error("Нет DeepSeek или OpenRouter ключа → добавь в ⚙️");
+      return callDeepSeek(keys.deepseek, system, history);
+    default: throw new Error("Неизвестный агент");
+  }
+}
+
+// ── Synthesizer ────────────────────────────────────────────────────────────
+async function synthesize(system, history){
+  const keys=getKeys();
+  // OpenRouter приоритет
+  if(keys.openrouter) return callOpenRouter(keys.openrouter, "deepseek/deepseek-chat", system, history);
+  if(keys.claude)     return callClaude(keys.claude, system, history);
+  if(keys.gemini)     return callGemini(keys.gemini, system, history);
+  throw new Error("Нет доступных ключей для синтеза");
+}
+
+// ── OCR для изображений ────────────────────────────────────────────────────
+async function preprocessImageForOCR(b64, mimeType){
+  return new Promise((resolve)=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement("canvas");
+      // Масштабируем до оптимального размера для OCR
+      const maxW=2000, maxH=2000;
+      let w=img.width, h=img.height;
+      if(w>maxW||h>maxH){
+        const ratio=Math.min(maxW/w, maxH/h);
+        w=Math.round(w*ratio); h=Math.round(h*ratio);
+      }
+      canvas.width=w; canvas.height=h;
+      const ctx=canvas.getContext("2d");
+      // Белый фон
+      ctx.fillStyle="#ffffff";
+      ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img,0,0,w,h);
+      // Повышаем контраст
+      const imageData=ctx.getImageData(0,0,w,h);
+      const data=imageData.data;
+      for(let i=0;i<data.length;i+=4){
+        // Конвертируем в оттенки серого и повышаем контраст
+        const gray=0.299*data[i]+0.587*data[i+1]+0.114*data[i+2];
+        const contrast=gray<128?Math.max(0,gray-30):Math.min(255,gray+30);
+        data[i]=data[i+1]=data[i+2]=contrast;
+      }
+      ctx.putImageData(imageData,0,0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror=()=>resolve(`data:${mimeType};base64,${b64}`);
+    img.src=`data:${mimeType};base64,${b64}`;
+  });
+}
+
+async function extractImageText(b64, mimeType){
+  try{
+    if(!window.Tesseract) return null;
+    // Предобрабатываем изображение
+    const processedUrl=await preprocessImageForOCR(b64, mimeType);
+    const result=await Tesseract.recognize(
+      processedUrl,
+      "rus+eng",
+      { tessedit_pageseg_mode:"1" } // Автоматическое определение ориентации
+    );
+    const txt=(result.data.text||"").trim();
+    // Чистим мусорные символы
+    const cleaned=txt.replace(/[^\u0400-\u04FF\u0000-\u007Fa-zA-Z0-9\s.,!?:;()\-\/№%"'«»\n]/g,"").replace(/\n{3,}/g,"\n\n").trim();
+    return cleaned.length>20?cleaned:null;
+  }catch(e){
+    console.error("OCR error:",e);
+    return null;
+  }
+}
+
+// ── PDF text extraction ────────────────────────────────────────────────────
+async function extractPdfText(b64){
+  try{
+    // Настраиваем PDF.js worker
+    if(window.pdfjsLib){
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      const data = atob(b64);
+      const bytes = new Uint8Array(data.length);
+      for(let i=0;i<data.length;i++) bytes[i]=data.charCodeAt(i);
+      const pdf = await window.pdfjsLib.getDocument({data:bytes}).promise;
+      let text = "";
+      for(let p=1;p<=pdf.numPages;p++){
+        const page = await pdf.getPage(p);
+        const content = await page.getTextContent();
+        const pageText = content.items.map(item=>item.str).join(" ");
+        text += `\n--- Страница ${p} ---\n${pageText}`;
+      }
+      return text.trim();
+    }
+  }catch(e){ console.error("PDF.js error:", e); }
+  return null;
+}
+
+// ── File handling ──────────────────────────────────────────────────────────
+let currentFiles=[];
+function handleFiles(input){
+  const files=Array.from(input.files);
+  if(!files.length)return;
+  if(files.length>10){alert("Максимум 10 файлов");return;}
+  // Очищаем старые файлы перед загрузкой новых
+  currentFiles=[];
+  document.getElementById("filePreview").style.display="none";
+  let loaded=0;
+  files.forEach(f=>{
+    if(f.size>20*1024*1024){alert(f.name+": макс 20 МБ");return;}
+    const r=new FileReader();
+    r.onload=async e=>{
+      const b64=e.target.result.split(",")[1];
+      const fileObj={name:f.name,type:f.type||"application/octet-stream",b64,size:f.size,text:null};
+      if(f.type==="application/pdf"){
+        showToast("📄 Читаю PDF...");
+        const pdfText=await extractPdfText(b64);
+        if(pdfText && pdfText.length>50){
+          fileObj.text=pdfText;
+          showToast("✅ PDF прочитан: "+pdfText.length+" символов");
+        }
+      } else if(f.type.startsWith("image/")){
+        showToast("🔍 OCR: обрабатываю изображение...");
+        // Блокируем кнопку отправки пока идёт OCR
+        const sendBtn=document.getElementById("sendBtn");
+        if(sendBtn){ sendBtn.disabled=true; sendBtn.textContent="⏳"; sendBtn.style.background="#94a3b8"; }
+        const ocrText=await extractImageText(b64, f.type);
+        if(sendBtn){ sendBtn.disabled=false; sendBtn.textContent="↑"; sendBtn.style.background="linear-gradient(135deg,#6366f1,#8b5cf6)"; }
+        if(ocrText){
+          fileObj.text="[OCR текст из изображения]\n"+ocrText;
+          showToast("✅ OCR готов: "+ocrText.length+" символов");
+        } else {
+          showToast("⚠️ OCR: текст не найден (изображение без текста)");
+        }
+      } else if(f.type.startsWith("text/") || f.name.endsWith(".txt") || f.name.endsWith(".md") || f.name.endsWith(".csv")){
+        try{ fileObj.text=atob(b64); }catch(e){}
+      }
+      currentFiles.push(fileObj);
+      loaded++;
+      if(loaded===files.length) renderFilePreview();
+    };
+    r.readAsDataURL(f);
+  });
+}
+function renderFilePreview(){
+  const p=document.getElementById("filePreview");
+  if(!currentFiles.length){p.style.display="none";return;}
+  p.style.display="flex";
+  const f=currentFiles[0];
+  const icon=f.type.startsWith("image/")?"🖼️":f.type==="application/pdf"?"📄":f.type.includes("word")?"📝":f.type.includes("sheet")?"📊":"📎";
+  document.getElementById("filePreviewIcon").textContent=icon;
+  document.getElementById("filePreviewName").textContent=currentFiles.length===1?f.name:currentFiles.length+" файлов: "+currentFiles.map(x=>x.name).join(", ").slice(0,60);
+  const total=currentFiles.reduce((s,x)=>s+x.size,0);
+  document.getElementById("filePreviewSize").textContent=(total/1024).toFixed(0)+" KB · "+currentFiles.length+" файл(ов)";
+}
+function clearFile(){
+  currentFiles=[];
+  document.getElementById("fileInput").value="";
+  document.getElementById("filePreview").style.display="none";
+}
+
+// ── Send ───────────────────────────────────────────────────────────────────
+async function send(){
+  const inp=document.getElementById("queryInput");
+  const text=inp.value.trim();
+  if(!text||thinking)return;
+  const keys=getKeys();
+  const hasAnyKey=Object.values(keys).some(v=>v&&v.trim());
+  if(!hasAnyKey){alert("Добавь хотя бы один API ключ в ⚙️ Настройки");return;}
+
+  // Сохраняем файлы до отправки (чтобы не потерялись)
+  const filesToSend = [...currentFiles];
+  window._currentFilesToSend = filesToSend;
+
+  inp.value=""; inp.style.height="auto";
+  thinking=true;
+  document.getElementById("sendBtn").disabled=true;
+  document.getElementById("sendBtn").style.background="#374151";
+
+  const chat=getChat(); if(!chat)return;
+  if(chat.messages.length===0){
+    chat.title=text.slice(0,45);
+    document.getElementById("chatTitle").textContent=chat.title;
+    renderChatList();
+  }
+
+  chat.messages.push({role:"user", content:text, files:filesToSend.map(f=>({
+    name:f.name, type:f.type, size:f.size,
+    b64:f.b64,        // base64 для просмотра изображений
+    text:f.text||null  // OCR/PDF текст
+  })), ts:Date.now()});
+  saveChats(chats);
+  appendUserBubble(text, filesToSend);
+
+  const turnId="turn_"+Date.now();
+  const agents=getAgents();
+  appendTurnContainer(turnId,agents);
+
+  const history=chat.messages.map(m=>({role:m.role,content:m.content}));
+  const today=getToday();
+
+  // Tavily поиск
+  let searchCtx="";
+  if(keys.tavily){
+    showToast("🌐 Ищу в интернете...");
+    const sr=await tavilySearch(text);
+    if(sr) searchCtx="\n\n=== АКТУАЛЬНЫЕ ДАННЫЕ ИЗ ИНТЕРНЕТА ===\n"+sr+"=== КОНЕЦ ДАННЫХ ===\n\nИНСТРУКЦИЯ: Для фактических вопросов (адреса, телефоны, расписания, цены) — используй ТОЛЬКО данные выше. Не придумывай. Если данных нет — так и скажи.\n";
+  }
+
+  // Разделяем файлы
+  const imageFiles = filesToSend.filter(f => f.type.startsWith("image/") && f.b64);
+  const otherFiles = filesToSend.filter(f => !f.type.startsWith("image/"));
+
+  let fileCtx = "";
+  // Текстовые файлы и PDF
+  if(otherFiles.length > 0){
+    fileCtx += "\n\n=== ПРИКРЕПЛЁННЫЕ ФАЙЛЫ ===\n";
+    for(const f of otherFiles){
+      fileCtx += `\n[Файл: ${f.name}]\n`;
+      if(f.text && f.text.length > 50){
+        fileCtx += "Содержимое:\n" + f.text.slice(0,15000) + (f.text.length>15000?"\n...[обрезано]":"") + "\n";
+      } else {
+        fileCtx += `[Тип: ${f.type}, ${(f.size/1024).toFixed(0)} KB — текст не извлечён]\n`;
+      }
+    }
+    fileCtx += "=== КОНЕЦ ФАЙЛОВ ===\n";
+  }
+  // Изображения — OCR текст для всех, base64 для vision-агентов
+  if(imageFiles.length > 0){
+    fileCtx += "\n=== ПРИКРЕПЛЁННЫЕ ИЗОБРАЖЕНИЯ ===\n";
+    let hasOcrText = false;
+    for(const f of imageFiles){
+      fileCtx += `\n[Изображение: ${f.name} (${(f.size/1024).toFixed(0)} KB)]\n`;
+      if(f.text && f.text.length > 20){
+        fileCtx += f.text + "\n";
+        hasOcrText = true;
+      }
+    }
+    fileCtx += "=== КОНЕЦ ИЗОБРАЖЕНИЙ ===\n";
+    if(hasOcrText){
+      fileCtx += "КРИТИЧЕСКИ ВАЖНО: Отвечай СТРОГО на основе текста из изображений выше. Игнорируй любые предыдущие темы.\n";
+    }
+  }
+
+  const enrichedMsg = text + searchCtx + fileCtx;
+  const baseHistory = [...history.slice(0,-1), {role:"user", content:enrichedMsg}];
+
+  // Vision история для OpenAI/OpenRouter (image_url формат)
+  const makeVisionHistory = () => {
+    if(!imageFiles.length) return baseHistory;
+    const content = [];
+    imageFiles.forEach(f => content.push({type:"image_url",image_url:{url:`data:${f.type};base64,${f.b64}`}}));
+    content.push({type:"text", text:enrichedMsg});
+    return [...history.slice(0,-1), {role:"user", content}];
+  };
+
+  // Vision история для Claude (нативный формат)
+  const makeClaudeHistory = () => {
+    if(!imageFiles.length) return baseHistory;
+    const content = [];
+    imageFiles.forEach(f => {
+      const mt = f.type==="image/jpg"?"image/jpeg":f.type;
+      content.push({type:"image",source:{type:"base64",media_type:mt,data:f.b64}});
+    });
+    content.push({type:"text",text:enrichedMsg});
+    return [...history.slice(0,-1), {role:"user", content}];
+  };
+
+  const enrichedHistory = baseHistory;
+
+  // Параллельные запросы
+  const results={};
+  // Агенты с поддержкой vision (изображений)
+  const visionAgents=new Set(["gpt","claude","gemini","perplexity"]);
+  await Promise.all(agents.map(async(agent)=>{
+    try{
+      let agentHistory;
+      if(imageFiles.length > 0 && visionAgents.has(agent.id)){
+        // Vision агенты получают изображения напрямую
+        if(agent.id==="claude") agentHistory=makeClaudeHistory();
+        else agentHistory=makeVisionHistory(); // image_url формат для остальных
+      } else {
+        // Kimi и DeepSeek — без изображений, только текст
+        agentHistory=enrichedHistory;
+      }
+      const ans=await callAgent(agent, today+agent.system, agentHistory);
+      results[agent.id]={status:"ok",text:ans};
+    }catch(e){
+      results[agent.id]={status:"error",text:e.message};
+    }
+    updateAgentCard(turnId,agent,results[agent.id]);
+  }));
+
+  // Синтез
+  const okAgents=agents.filter(a=>results[a.id]?.status==="ok");
+  const parts=okAgents.map(a=>a.name+": "+results[a.id].text).join("\n\n---\n\n");
+  let consolidated="";
+  try{
+    consolidated=await synthesize(
+      today+"Ты эксперт-редактор. Твоя задача — создать ОДИН финальный ответ на вопрос пользователя, используя лучшее из ответов нескольких AI. ПРАВИЛА: 1) Не повторяй одно и то же разными словами 2) Не перечисляй кто что сказал 3) Пиши как единый связный текст 4) Если есть конкретные факты — используй самые точные 5) Будь краток но полон 6) Отвечай на том же языке что и вопрос пользователя.",
+      [{role:"user",content:"Вопрос пользователя: "+text+"\n\nОтветы AI:\n"+parts+"\n\nНапиши единый финальный ответ без повторов:"}]
+    );
+  }catch(e){
+    consolidated=okAgents.length>0?results[okAgents[0].id].text:"Не удалось получить ответ.";
+  }
+
+  // Анализ разногласий и голосование
+  let analysisHtml="";
+  if(okAgents.length>=2){
+    try{
+      const analysisRaw=await synthesize(
+        "Ты аналитик консенсуса. Отвечай ТОЛЬКО в формате JSON без markdown.",
+        [{role:"user",content:`Проанализируй ответы ${okAgents.length} AI на вопрос: "${text}"
+
+Ответы:
+${okAgents.map(a=>a.name+": "+results[a.id].text.slice(0,300)).join("\n\n")}
+
+Верни JSON:
+{
+  "consensus_pct": число от 0 до 100 (насколько AI согласны),
+  "majority_view": "краткое изложение мнения большинства (1 предложение)",
+  "minority_view": "мнение меньшинства если есть (1 предложение или null)",
+  "key_disagreement": "в чём главное расхождение (1 предложение или null)",
+  "votes_agree": число AI которые согласны с большинством,
+  "votes_disagree": число AI которые не согласны
+}`}]
+      );
+      const analysis=JSON.parse(analysisRaw.replace(/```json|```/g,"").trim());
+      const pct=Math.min(100,Math.max(0,analysis.consensus_pct||70));
+      const barW=Math.round(pct/100*200);
+      const color=pct>=75?"#16a34a":pct>=50?"#d97706":"#dc2626";
+      const emoji=pct>=75?"✅":pct>=50?"⚠️":"❌";
+
+      analysisHtml=`<div style="margin-top:12px;padding:12px;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0">
+        <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:10px">🗳️ АНАЛИЗ МНЕНИЙ</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div style="flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width .5s"></div>
+          </div>
+          <span style="font-size:12px;font-weight:700;color:${color}">${pct}% согласны</span>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          ${okAgents.map(a=>`<span title="${a.name}" style="font-size:18px">${a.emoji}</span>`).join("")}
+          <span style="font-size:12px;color:#475569;margin-left:4px">${analysis.votes_agree||okAgents.length} за · ${analysis.votes_disagree||0} против</span>
+        </div>
+        ${analysis.majority_view?`<div style="font-size:12px;color:#1e293b;margin-bottom:4px">${emoji} <b>Большинство:</b> ${escHtml(analysis.majority_view)}</div>`:""}
+        ${analysis.minority_view?`<div style="font-size:12px;color:#d97706;margin-bottom:4px">⚠️ <b>Меньшинство:</b> ${escHtml(analysis.minority_view)}</div>`:""}
+        ${analysis.key_disagreement?`<div style="font-size:11px;color:#94a3b8;font-style:italic">🔍 ${escHtml(analysis.key_disagreement)}</div>`:""}
+      </div>`;
+    }catch(e){ /* Если анализ не удался — не показываем */ }
+  }
+
+  updateConsolidated(turnId, consolidated, analysisHtml);
+  chat.messages.push({role:"assistant",content:consolidated,analysis:analysisHtml,ts:Date.now(),agentResults:results});
+  saveChats(chats);
+  // Не очищаем файлы автоматически — пользователь сам закрывает через ✕
+  thinking=false;
+  document.getElementById("sendBtn").disabled=false;
+  document.getElementById("sendBtn").style.background="linear-gradient(135deg,#6366f1,#8b5cf6)";
+  scrollToBottom();
+}
+
+// ── DOM helpers ────────────────────────────────────────────────────────────
+function appendUserBubble(text, files){
+  const el=document.createElement("div");
+  el.className="fade"; el.style.cssText="display:flex;justify-content:flex-end;margin-bottom:4px";
+  const inner=document.createElement("div");
+  inner.style.cssText="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:16px 16px 2px 16px;padding:12px 16px;max-width:78%;font-size:15px;line-height:1.7";
+  if(files && files.length>0){
+    const bubbleId="bubble_"+Date.now();
+    const wrap=document.createElement("div");
+    wrap.style.cssText="margin-bottom:8px;display:flex;flex-direction:column;gap:6px";
+    files.forEach((f,fi)=>{
+      const fid=bubbleId+"_"+fi;
+      if(f.type&&f.type.startsWith("image/")&&f.b64){
+        // Показываем миниатюру изображения
+        const imgWrap=document.createElement("div");
+        imgWrap.style.cssText="border-radius:10px;overflow:hidden;max-width:220px;cursor:pointer";
+        imgWrap.onclick=()=>showFileModal(fid);
+        const img=document.createElement("img");
+        img.src="data:"+f.type+";base64,"+f.b64;
+        img.style.cssText="width:100%;max-height:150px;object-fit:cover;display:block";
+        const lbl=document.createElement("div");
+        lbl.style.cssText="background:rgba(0,0,0,.5);padding:4px 8px;font-size:10px;color:#fff";
+        lbl.textContent=f.name;
+        imgWrap.appendChild(img); imgWrap.appendChild(lbl);
+        wrap.appendChild(imgWrap);
+      } else {
+        const btn=document.createElement("div");
+        btn.style.cssText="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);border-radius:8px;padding:7px 10px;cursor:pointer;max-width:280px";
+        btn.onclick=()=>showFileModal(fid);
+        const icon=f.type==="application/pdf"?"📄":"📎";
+        btn.innerHTML='<span style="font-size:20px">'+icon+'</span><div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(f.name)+'</div><div style="font-size:10px;opacity:.75">'+(f.text?"Нажми чтобы прочитать":"Файл")+' · '+(f.size?(f.size/1024).toFixed(0)+' KB':'')+' 👁</div></div>';
+        wrap.appendChild(btn);
+      }
+      // Скрытый data-элемент для модального просмотра
+      const data=document.createElement("div");
+      data.id=fid; data.style.display="none";
+      data.dataset.b64=f.b64||""; data.dataset.type=f.type||"";
+      data.dataset.name=f.name; data.dataset.text=f.text||"";
+      wrap.appendChild(data);
+    });
+    inner.appendChild(wrap);
+    if(text){
+      const sep=document.createElement("div");
+      sep.style.cssText="height:1px;background:rgba(255,255,255,0.2);margin-bottom:8px";
+      inner.appendChild(sep);
+    }
+  }
+  if(text){
+    const t=document.createElement("div");
+    t.style.whiteSpace="pre-wrap"; t.textContent=text;
+    inner.appendChild(t);
+  }
+  el.appendChild(inner);
+  document.getElementById("messages").appendChild(el);
+  scrollToBottom();
+}
+
+function appendTurnContainer(turnId,agents){
+  const el=document.createElement("div");
+  el.className="fade"; el.id=turnId;
+  const cols=agents.length<=2?2:agents.length<=4?2:3;
+  let h='<div style="margin-bottom:4px"><button onclick="toggleCards(\''+turnId+'\')" style="background:none;border:none;color:#64748b;font-size:11px;padding:2px 0;display:flex;align-items:center;gap:4px"><span id="'+turnId+'_arrow">▶</span> Ответы агентов (0/'+agents.length+')</button></div>';
+  h+='<div id="'+turnId+'_cards" style="display:none;grid-template-columns:repeat('+cols+',1fr);gap:8px;margin-bottom:6px">';
+  agents.forEach(a=>{
+    h+='<div id="'+turnId+'_'+a.id+'" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:12px">';
+    h+='<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px"><span>'+a.emoji+'</span><span style="font-size:11px;font-weight:700;color:#64748b">'+a.name+'</span><span style="font-size:9px;background:#1e1e2e;padding:1px 5px;border-radius:4px;color:#64748b">'+a.badge+'</span>';
+    h+='<span id="'+turnId+'_'+a.id+'_status" style="margin-left:auto;font-size:11px" class="pulse">•••</span></div>';
+    h+='<div id="'+turnId+'_'+a.id+'_text" style="font-size:13px;color:#475569;line-height:1.7;max-height:90px;overflow-y:auto">Обрабатывается...</div></div>';
+  });
+  h+='</div>';
+  h+='<div style="background:#ffffff;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">';
+  // Заголовок + переключатель Кратко/Полно
+  h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+  h+='<span style="font-size:12px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>';
+  h+='<div style="display:flex;gap:2px;background:#e2e8f0;border-radius:6px;padding:2px">';
+  h+='<button id="'+turnId+'_btn_short" onclick="switchMode(\''+turnId+'\',\'short\')" style="padding:3px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">📝 Кратко</button>';
+  h+='<button id="'+turnId+'_btn_full" onclick="switchMode(\''+turnId+'\',\'full\')" style="padding:3px 10px;background:transparent;color:#64748b;border:none;border-radius:4px;font-size:11px;cursor:pointer">📄 Полно</button>';
+  h+='</div></div>';
+  // Кнопки презентаций — отдельная строка
+  h+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">';
+  h+='<button onclick="copyConsolidated(\''+turnId+'\')" style="padding:4px 9px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>';
+  
+  h+='<button onclick="openGamma(\''+turnId+'\')" style="padding:4px 9px;background:#faf5ff;color:#9333ea;border:1px solid #9333ea33;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>';
+  h+='<button onclick="openCanva(\''+turnId+'\')" style="padding:4px 9px;background:#eff6ff;color:#2563eb;border:1px solid #2563eb33;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>';
+  h+='<button onclick="makeReveal(\''+turnId+'\')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #16a34a33;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>';
+  h+='<button onclick="kimiPresent(\''+turnId+'\')" style="padding:4px 9px;background:#eff6ff;color:#1d4ed8;border:1px solid #1d4ed833;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>';
+  h+='</div>';
+  // Текст ответа
+  h+='<div id="'+turnId+'_consolidated" style="font-size:14px;line-height:1.9;color:#1e293b;white-space:pre-wrap" class="pulse">Синтез...</div>';
+  h+='<div id="'+turnId+'_consolidated_short" style="display:none;font-size:14px;line-height:1.9;color:#1e293b;white-space:pre-wrap"></div>';
+  h+='</div>';
+  el.innerHTML=h;
+  document.getElementById("messages").appendChild(el);
+  scrollToBottom();
+}
+
+function toggleCards(turnId){
+  const c=document.getElementById(turnId+"_cards");
+  const a=document.getElementById(turnId+"_arrow");
+  if(c.style.display==="none"){c.style.display="grid";a.textContent="▼";}
+  else{c.style.display="none";a.textContent="▶";}
+}
+
+function updateAgentCard(turnId,agent,result){
+  const card=document.getElementById(turnId+"_"+agent.id);
+  const st=document.getElementById(turnId+"_"+agent.id+"_status");
+  const tx=document.getElementById(turnId+"_"+agent.id+"_text");
+  if(!card)return;
+  card.style.border="1px solid "+(result.status==="ok"?agent.color+"55":"#7f1d1d");
+  st.className=""; st.style.color=result.status==="ok"?"#4ade80":"#f87171"; st.textContent=result.status==="ok"?"✓":"✗";
+  tx.style.color=result.status==="error"?"#fca5a5":"#94a3b8"; tx.textContent=result.text;
+  // update counter
+  const btn=document.querySelector("#"+turnId+" button");
+  if(btn){
+    const ok=document.querySelectorAll("[id^='"+turnId+"_'][id$='_status']");
+    const okCount=Array.from(ok).filter(e=>e.textContent==="✓").length;
+    const agents=getAgents();
+    btn.innerHTML='<span id="'+turnId+'_arrow">'+(document.getElementById(turnId+"_cards").style.display==="none"?"▶":"▼")+'</span> Ответы агентов ('+okCount+'/'+agents.length+')';
+    btn.setAttribute("onclick","toggleCards('"+turnId+"')");
+  }
+}
+
+function updateConsolidated(turnId, text, analysisHtml){
+  const el=document.getElementById(turnId+"_consolidated");
+  if(el){ el.className=""; el.textContent=text; }
+  // Показываем блок анализа
+  if(analysisHtml){
+    let analysisEl=document.getElementById(turnId+"_analysis");
+    if(!analysisEl){
+      analysisEl=document.createElement("div");
+      analysisEl.id=turnId+"_analysis";
+      el && el.parentNode && el.parentNode.insertBefore(analysisEl, el.nextSibling);
+    }
+    analysisEl.innerHTML=analysisHtml;
+  }
+  // Генерируем краткий вариант асинхронно
+  generateShortVersion(turnId, text);
+}
+
+async function generateShortVersion(turnId, fullText){
+  const shortEl=document.getElementById(turnId+"_consolidated_short");
+  if(!shortEl) return;
+  shortEl.textContent="Генерирую краткую версию...";
+  try{
+    const short=await synthesize(
+      "Ты редактор. Сократи текст до 3-5 предложений, сохранив главное. Без вводных слов. Отвечай на том же языке.",
+      [{role:"user",content:fullText}]
+    );
+    shortEl.textContent=short;
+  } catch(e){
+    // fallback — берём первые 2 предложения
+    const sentences=fullText.split(/[.!?]\s+/).filter(s=>s.trim().length>10);
+    shortEl.textContent=sentences.slice(0,3).join(". ")+(sentences.length>3?"...":"");
+  }
+}
+
+function switchMode(turnId, mode){
+  const full=document.getElementById(turnId+"_consolidated");
+  const short=document.getElementById(turnId+"_consolidated_short");
+  const btnFull=document.getElementById(turnId+"_btn_full");
+  const btnShort=document.getElementById(turnId+"_btn_short");
+  if(!full||!short) return;
+  if(mode==="short"){
+    full.style.display="none"; short.style.display="block";
+    btnShort.style.background="#6366f1"; btnShort.style.color="#fff";
+    btnFull.style.background="transparent"; btnFull.style.color="#64748b";
+  } else {
+    full.style.display="block"; short.style.display="none";
+    btnFull.style.background="#6366f1"; btnFull.style.color="#fff";
+    btnShort.style.background="transparent"; btnShort.style.color="#64748b";
+  }
+}
+
+function copyConsolidated(turnId){
+  const el=document.getElementById(turnId+"_consolidated");
+  if(el) navigator.clipboard.writeText(el.textContent).then(()=>showToast("📋 Скопировано!"));
+}
+function copyText(elId){
+  const el=document.getElementById(elId);
+  if(el) navigator.clipboard.writeText(el.textContent).then(()=>showToast("📋 Скопировано!"));
+}
+
+// ── Presentations ──────────────────────────────────────────────────────────
+async function getSlideData(turnId){
+  const el=document.getElementById(turnId+"_consolidated");
+  if(!el)return null;
+  const chat=getChat();
+  const raw=await synthesize(
+    "Генератор JSON презентаций. Возвращай ТОЛЬКО валидный JSON без markdown.",
+    [{role:"user",content:'Создай презентацию JSON.\nТема: '+(chat?chat.title:"AI Hub")+'\nТекст: '+el.textContent+'\nФормат: {"title":"...","slides":[{"type":"title","heading":"...","body":"..."},{"type":"points","heading":"...","points":["...","...","...","..."]},{"type":"quote","quote":"...","author":"AI Multi-Hub"},{"type":"points","heading":"...","points":["...","...","..."]},{"type":"conclusion","heading":"...","body":"..."}]}'}]
+  );
+  return JSON.parse(raw.replace(/```json|```/g,"").trim());
+}
+
+async function makeSlides(turnId){
+  showPresentationLoader("✨", "Хаб", "Генерирую слайды...");
+  try{const data=await getSlideData(turnId);showSlides(data);}catch(e){alert("Ошибка: "+e.message);}
+}
+
+function openGamma(turnId){
+  const el=document.getElementById(turnId+"_consolidated");
+  if(!el)return;
+  const chat=getChat();
+  navigator.clipboard.writeText("# "+(chat?chat.title:"")+"\n\n"+el.textContent).then(()=>{
+    showToast("📋 Текст скопирован! Вставь в Gamma и нажми Generate");
+    setTimeout(()=>window.open("https://gamma.app/create","_blank"),800);
+  });
+}
+
+function openCanva(turnId){
+  const el=document.getElementById(turnId+"_consolidated");
+  if(!el)return;
+  const chat=getChat();
+  navigator.clipboard.writeText("# "+(chat?chat.title:"")+"\n\n"+el.textContent).then(()=>{
+    showToast("📋 Текст скопирован! Вставь в Canva → Magic Design");
+    setTimeout(()=>window.open("https://www.canva.com/create/presentations/","_blank"),800);
+  });
+}
+
+async function makeReveal(turnId){
+  showPresentationLoader("🎭", "Reveal", "Генерирую структуру слайдов...");
+  try{
+    const data=await getSlideData(turnId);
+    const accent=["#6366f1","#f59e0b","#4ade80","#38bdf8"][Math.floor(Math.random()*4)];
+    let slidesHtml="";
+    data.slides.forEach(sl=>{
+      let c="";
+      if(sl.type==="title") c='<h1 style="font-size:2em;font-weight:800;margin-bottom:.4em">'+escHtml(sl.heading||"")+'</h1><p style="font-size:1em;opacity:.75">'+escHtml(sl.body||"")+'</p>';
+      else if(sl.type==="points") c='<h2 style="font-size:1.4em;font-weight:700;color:'+accent+';margin-bottom:.6em">'+escHtml(sl.heading||"")+'</h2><ul style="list-style:none;padding:0;text-align:left;display:inline-block">'+(sl.points||[]).map((p,i)=>'<li style="display:flex;align-items:flex-start;gap:8px;margin-bottom:.4em;font-size:.9em"><span style="background:'+accent+';color:#fff;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:.75em;font-weight:700;flex-shrink:0">'+(i+1)+'</span>'+escHtml(p)+'</li>').join("")+'</ul>';
+      else if(sl.type==="quote") c='<div style="font-size:3em;opacity:.15;color:'+accent+'">"</div><blockquote style="font-size:1.2em;font-style:italic;line-height:1.6;font-family:Georgia,serif">'+escHtml(sl.quote||"")+'</blockquote><div style="font-size:.75em;opacity:.5;margin-top:.5em">— '+escHtml(sl.author||"")+'</div>';
+      else if(sl.type==="conclusion") c='<div style="font-size:.65em;text-transform:uppercase;letter-spacing:4px;color:'+accent+';margin-bottom:.6em">Заключение</div><h2 style="font-size:1.6em;font-weight:700;margin-bottom:.4em">'+escHtml(sl.heading||"")+'</h2><p style="font-size:.9em;opacity:.8;line-height:1.7">'+escHtml(sl.body||"")+'</p>';
+      slidesHtml+='<section style="text-align:center;padding:40px">'+c+'</section>';
+    });
+    const revealCDN="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.1";
+    const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+escHtml(data.title)+'</title><link rel="stylesheet" href="'+revealCDN+'/reveal.min.css"><link rel="stylesheet" href="'+revealCDN+'/theme/black.min.css"><style>body{margin:0}.reveal{font-family:Segoe UI,system-ui,sans-serif}.reveal .progress{color:'+accent+'}.reveal .controls{color:'+accent+'}</style></head><body><div class="reveal"><div class="slides">'+slidesHtml+'</div></div><scr'+'ipt src="'+revealCDN+'/reveal.min.js"></scr'+'ipt><scr'+'ipt>Reveal.initialize({hash:false,controls:true,progress:true,center:true,transition:"slide",embedded:true});</scr'+'ipt></body></html>';
+
+    // Показываем в модальном окне вместо новой вкладки
+    showRevealModal(html, data.title);
+  }catch(e){alert("Ошибка: "+e.message);}
+}
+
+function showRevealModal(html, title){
+  window._revealHtml=html;
+  hidePresentationLoader();
+  // Открываем в новой вкладке — iframe блокирует внешние CDN скрипты
+  const w=window.open("","_blank");
+  if(w){
+    w.document.write(html);
+    w.document.close();
+    showToast("🎭 Презентация открылась в новой вкладке!");
+  } else {
+    // Popup заблокирован — показываем кнопку
+    let modal=document.getElementById("revealModal");
+    if(!modal){
+      modal=document.createElement("div");
+      modal.id="revealModal";
+      modal.style.cssText="position:fixed;inset:0;z-index:250;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:16px";
+      document.body.appendChild(modal);
+    }
+    modal.innerHTML='<div style="background:#ffffff;border-radius:20px;padding:40px;text-align:center;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+      +'<div style="font-size:56px;margin-bottom:16px">🎭</div>'
+      +'<div style="font-size:18px;font-weight:700;color:#1e293b;margin-bottom:8px">'+escHtml(title)+'</div>'
+      +'<div style="font-size:14px;color:#64748b;margin-bottom:28px;line-height:1.6">Браузер заблокировал открытие.<br>Нажми кнопку ниже чтобы открыть презентацию:</div>'
+      +'<button onclick="openRevealNewTab()" style="width:100%;padding:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px">↗ Открыть презентацию</button>'
+      +'<button onclick="document.getElementById(\'revealModal\').style.display=\'none\'" style="width:100%;padding:10px;background:none;border:1px solid #e2e8f0;border-radius:10px;color:#64748b;font-size:13px;cursor:pointer">Закрыть</button>'
+      +'</div>';
+    modal.style.display="flex";
+  }
+}
+
+function openRevealNewTab(){
+  if(window._revealHtml){
+    const w=window.open("","_blank");
+    w.document.write(window._revealHtml);
+    w.document.close();
+  }
+}
+
+async function kimiPresent(turnId){
+  const el=document.getElementById(turnId+"_consolidated");
+  if(!el)return;
+  const keys=getKeys();
+  if(!keys.kimi && !keys.openrouter){ alert("Добавь Kimi или OpenRouter ключ в ⚙️"); return; }
+  const chat=getChat();
+  showPresentationLoader("🔵", "Kimi", "Kimi создаёт презентацию...");
+  try{
+    const system="Ты генератор презентаций. Возвращай ТОЛЬКО валидный JSON без markdown, без пояснений.";
+    const prompt="Создай презентацию в JSON формате.\nТема: "+(chat?chat.title:"Презентация")+"\nТекст: "+el.textContent.slice(0,3000)+"\n\nВерни ТОЛЬКО JSON (без markdown):\n{\n  \"title\": \"Название\",\n  \"slides\": [\n    {\"type\":\"title\",\"heading\":\"Заголовок\",\"body\":\"Подзаголовок\"},\n    {\"type\":\"points\",\"heading\":\"Раздел\",\"points\":[\"Тезис 1\",\"Тезис 2\",\"Тезис 3\",\"Тезис 4\"]},\n    {\"type\":\"quote\",\"quote\":\"Ключевой вывод\",\"author\":\"AI Multi-Hub\"},\n    {\"type\":\"points\",\"heading\":\"Раздел 2\",\"points\":[\"Пункт 1\",\"Пункт 2\",\"Пункт 3\"]},\n    {\"type\":\"conclusion\",\"heading\":\"Итоги\",\"body\":\"Финальный вывод\"}\n  ]\n}\nСоздай 7-9 слайдов. Чередуй типы: title, points, quote, points, conclusion.";
+    const history=[{role:"user",content:prompt}];
+    let raw;
+    if(keys.kimi){ raw=await callKimi(keys.kimi, system, history); }
+    else { raw=await callOpenRouter(keys.openrouter,"moonshotai/kimi-k2",system,history); }
+    // Парсим JSON
+    let data;
+    try{
+      const cleaned=raw.replace(/```json\s*/gi,"").replace(/```\s*/gi,"").trim();
+      const match=cleaned.match(/\{[\s\S]*\}/);
+      data=JSON.parse(match?match[0]:cleaned);
+    }catch(e){
+      showKimiModal(raw, chat?chat.title:"Презентация");
+      return;
+    }
+    hidePresentationLoader(); showToast("✅ Kimi слайды готовы!");
+    openRevealFromData(data);
+  }catch(e){ alert("Ошибка Kimi: "+e.message); }
+}
+
+function openRevealFromData(data){
+  const accents=["#6366f1","#02C39A","#f59e0b","#38bdf8"];
+  const accent=accents[Math.floor(Math.random()*accents.length)];
+  let slidesHtml="";
+  (data.slides||[]).forEach(sl=>{
+    let c="";
+    if(sl.type==="title") c='<h1 style="font-size:2em;font-weight:800;margin-bottom:.4em;line-height:1.1">'+escHtml(sl.heading||"")+'</h1><p style="font-size:1em;opacity:.75;line-height:1.6">'+escHtml(sl.body||"")+'</p>';
+    else if(sl.type==="points") c='<h2 style="font-size:1.4em;font-weight:700;color:'+accent+';margin-bottom:.6em">'+escHtml(sl.heading||"")+'</h2><ul style="list-style:none;padding:0;text-align:left;display:inline-block;max-width:800px">'+( sl.points||[]).map((p,i)=>'<li style="display:flex;align-items:flex-start;gap:10px;margin-bottom:.5em;font-size:.95em"><span style="background:'+accent+';color:#fff;border-radius:50%;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;font-size:.75em;font-weight:700;flex-shrink:0;margin-top:2px">'+( i+1)+'</span><span>'+escHtml(p)+'</span></li>').join("")+'</ul>';
+    else if(sl.type==="quote") c='<div style="font-size:4em;opacity:.15;color:'+accent+';line-height:1">&ldquo;</div><blockquote style="font-size:1.3em;font-style:italic;line-height:1.6;margin:-.3em 0 .6em;font-family:Georgia,serif;max-width:800px">'+escHtml(sl.quote||"")+'</blockquote><div style="font-size:.8em;opacity:.5">&mdash; '+escHtml(sl.author||"Kimi AI")+'</div>';
+    else if(sl.type==="conclusion") c='<div style="font-size:.65em;text-transform:uppercase;letter-spacing:4px;color:'+accent+';margin-bottom:.6em">Заключение</div><h2 style="font-size:1.8em;font-weight:700;margin-bottom:.5em">'+escHtml(sl.heading||"")+'</h2><p style="font-size:1em;opacity:.8;line-height:1.7;max-width:700px">'+escHtml(sl.body||"")+'</p>';
+    slidesHtml+='<section style="text-align:center;padding:40px">'+c+'</section>';
+  });
+  const cdn="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.1";
+  const html='<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+escHtml(data.title||"Kimi Презентация")+'</title><link rel="stylesheet" href="'+cdn+'/reveal.min.css"><link rel="stylesheet" href="'+cdn+'/theme/black.min.css"><style>body{margin:0}.reveal{font-family:Segoe UI,system-ui,sans-serif}.reveal .progress{color:'+accent+'}.reveal .controls{color:'+accent+'}</style></head><body><div class="reveal"><div class="slides">'+slidesHtml+'</div></div><scr'+'ipt src="'+cdn+'/reveal.min.js"></scr'+'ipt><scr'+'ipt>Reveal.initialize({hash:false,controls:true,progress:true,center:true,transition:"slide",embedded:true});</scr'+'ipt></body></html>';
+  showRevealModal(html, data.title||"Kimi Презентация");
+}
+
+function showKimiModal(text, title){
+  let modal=document.getElementById("kimiModal");
+  if(!modal){
+    modal=document.createElement("div");
+    modal.id="kimiModal";
+    modal.style.cssText="position:fixed;inset:0;z-index:250;background:rgba(100,116,139,.5);display:flex;align-items:center;justify-content:center;padding:16px";
+    modal.innerHTML='<div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:22px;width:100%;max-width:600px;max-height:88vh;display:flex;flex-direction:column;gap:12px">'
+      +'<div style="display:flex;justify-content:space-between;align-items:center">'
+      +'<span style="font-size:14px;font-weight:700;color:#4f8ef7">🔵 Kimi — Структура презентации</span>'
+      +'<div style="display:flex;gap:8px">'
+      +'<button id="kimiCopyBtn" style="padding:5px 12px;background:#1e293b;color:#94a3b8;border:1px solid #e2e8f0;border-radius:7px;font-size:11px">📋 Копировать</button>'
+      +'<button onclick="document.getElementById(\'kimiModal\').style.display=\'none\'" style="background:none;border:none;color:#64748b;font-size:20px">✕</button>'
+      +'</div></div>'
+      +'<div id="kimiModalTitle" style="font-size:13px;color:#64748b"></div>'
+      +'<div id="kimiModalContent" style="flex:1;overflow-y:auto;font-size:14px;line-height:1.9;color:#1e293b;white-space:pre-wrap;background:#f8fafc;border-radius:8px;padding:14px;border:1px solid #e2e8f0"></div>'
+      +'<div style="font-size:10px;color:#4b5563;text-align:center">Скопируй и вставь в Gamma, Canva или PowerPoint</div>'
+      +'</div>';
+    document.body.appendChild(modal);
+    document.getElementById("kimiCopyBtn").onclick=()=>{
+      navigator.clipboard.writeText(document.getElementById("kimiModalContent").textContent)
+        .then(()=>showToast("📋 Скопировано!"));
+    };
+  }
+  document.getElementById("kimiModalTitle").textContent="📊 "+title;
+  document.getElementById("kimiModalContent").textContent=text;
+  modal.style.display="flex";
+}
+const SLIDE_THEMES=[
+  {bg:"#0f172a",text:"#e2e8f0",accent:"#6366f1"},
+  {bg:"#1c0a00",text:"#fff7ed",accent:"#f59e0b"},
+  {bg:"#052e16",text:"#dcfce7",accent:"#4ade80"},
+  {bg:"#0c1445",text:"#dbeafe",accent:"#38bdf8"},
+];
+let cSlides=[],cIdx=0,cTheme=0;
+function showSlides(data){cSlides=data.slides;cIdx=0;document.getElementById("slidesModal").style.display="flex";document.getElementById("slidesTitle").textContent="📊 "+data.title;renderSlide();}
+function renderSlide(){
+  const sl=cSlides[cIdx],th=SLIDE_THEMES[cTheme],d=document.getElementById("slideContent");
+  d.style.background=th.bg;d.style.color=th.text;
+  let h='<div style="position:absolute;top:0;left:0;width:5px;height:100%;background:'+th.accent+';border-radius:14px 0 0 14px"></div>';
+  h+='<div style="position:absolute;top:10px;right:14px;font-size:10px;opacity:.4;font-family:monospace">'+(cIdx+1)+'/'+cSlides.length+'</div>';
+  if(sl.type==="title") h+='<div style="font-size:10px;text-transform:uppercase;letter-spacing:3px;color:'+th.accent+';margin-bottom:10px;font-family:monospace">Введение</div><h1 style="font-size:22px;font-weight:700;margin:0 0 10px;line-height:1.2">'+escHtml(sl.heading||"")+'</h1><p style="font-size:13px;opacity:.75;line-height:1.7">'+escHtml(sl.body||"")+'</p>';
+  else if(sl.type==="points") h+='<h2 style="font-size:16px;font-weight:700;margin:0 0 14px;color:'+th.accent+'">'+escHtml(sl.heading||"")+'</h2><ul style="list-style:none;padding:0;display:flex;flex-direction:column;gap:8px">'+(sl.points||[]).map((p,i)=>'<li style="display:flex;align-items:flex-start;gap:8px;font-size:12px;line-height:1.6"><span style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:'+th.accent+';color:#fff;font-size:9px;font-weight:700;flex-shrink:0;margin-top:1px">'+(i+1)+'</span>'+escHtml(p)+'</li>').join("")+'</ul>';
+  else if(sl.type==="quote") h+='<div style="font-size:42px;line-height:1;color:'+th.accent+';opacity:.2;margin-bottom:-4px">&ldquo;</div><blockquote style="font-size:15px;font-style:italic;line-height:1.7;margin:0 0 12px;font-family:Georgia,serif">'+escHtml(sl.quote||"")+'</blockquote><div style="font-size:10px;opacity:.5">&mdash; '+escHtml(sl.author||"")+'</div>';
+  else if(sl.type==="conclusion") h+='<div style="font-size:10px;text-transform:uppercase;letter-spacing:3px;color:'+th.accent+';margin-bottom:10px;font-family:monospace">Заключение</div><h2 style="font-size:20px;font-weight:700;margin:0 0 10px">'+escHtml(sl.heading||"")+'</h2><p style="font-size:13px;opacity:.8;line-height:1.8">'+escHtml(sl.body||"")+'</p>';
+  d.innerHTML=h;
+  document.getElementById("slideDots").innerHTML=cSlides.map((_,i)=>'<div onclick="gotoSlide('+i+')" style="width:'+(i===cIdx?16:5)+'px;height:5px;border-radius:3px;background:'+(i===cIdx?th.accent:"#374151")+';cursor:pointer;transition:width .3s"></div>').join("");
+  document.getElementById("slidePrev").disabled=cIdx===0;
+  document.getElementById("slideNext").disabled=cIdx===cSlides.length-1;
+}
+function gotoSlide(i){cIdx=i;renderSlide();}
+function prevSlide(){if(cIdx>0){cIdx--;renderSlide();}}
+function nextSlide(){if(cIdx<cSlides.length-1){cIdx++;renderSlide();}}
+function setTheme(i){cTheme=i;renderSlide();}
+
+// ── Chat management ────────────────────────────────────────────────────────
+function createChat(){
+  const c=makeChat(); chats.unshift(c); activeChatId=c.id; saveChats(chats);
+  renderChatList(); renderMessages();
+  document.getElementById("chatTitle").textContent="Новая тема";
+  clearFile(); // Очищаем вложения при создании новой темы
+  toggleSidebar(); setTimeout(()=>document.getElementById("queryInput").focus(),100);
+}
+function switchChat(id){
+  activeChatId=id; const chat=getChat();
+  document.getElementById("chatTitle").textContent=chat?chat.title:"Новая тема";
+  clearFile(); // Очищаем вложения при переключении темы
+  renderMessages(); renderChatList(); toggleSidebar();
+}
+function deleteChat(id,e){
+  e.stopPropagation(); chats=chats.filter(c=>c.id!==id);
+  if(!chats.length) chats=[makeChat()];
+  if(activeChatId===id) activeChatId=chats[0].id;
+  saveChats(chats); renderChatList(); renderMessages();
+  document.getElementById("chatTitle").textContent=(getChat()||{title:"Новая тема"}).title;
+}
+function renderChatList(){
+  document.getElementById("chatList").innerHTML=chats.map(c=>'<div onclick="switchChat(\''+c.id+'\')" style="display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:8px;margin-bottom:2px;cursor:pointer;background:'+(c.id===activeChatId?"#1e1e2e":"transparent")+';border:1px solid '+(c.id===activeChatId?"#1e1e2e":"transparent")+'"><div style="flex:1;font-size:13px;color:'+(c.id===activeChatId?"#f1f5f9":"#94a3b8")+';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(c.title)+'</div><button onclick="deleteChat(\''+c.id+'\',event)" style="background:none;border:none;color:#f87171;font-size:12px;opacity:.5;padding:1px 3px">🗑</button></div>').join("");
+}
+function renderMessages(){
+  const el=document.getElementById("messages"); el.innerHTML="";
+  const chat=getChat();
+  if(!chat||!chat.messages.length){
+    el.innerHTML='<div style="text-align:center;margin-top:60px;color:#64748b"><div style="font-size:40px;margin-bottom:12px">🧠</div><div style="font-size:16px;font-weight:700;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">AI Multi-Hub</div><div style="font-size:12px;margin-top:6px">'+getAgents().length+' агентов · каждый через свой родной API</div></div>';
+    return;
+  }
+  const msgs=chat.messages;
+  for(let i=0;i<msgs.length;i+=2){
+    const user=msgs[i],assistant=msgs[i+1];
+    // User bubble with files
+    const ud=document.createElement("div");
+    ud.style.cssText="display:flex;justify-content:flex-end;margin-bottom:4px";
+    let filesHtml="";
+    if(user.files && user.files.length>0){
+      filesHtml='<div style="margin-bottom:8px;display:flex;flex-direction:column;gap:6px">';
+      user.files.forEach((f,fi)=>{
+        const icon=f.type&&f.type.startsWith("image/")?"🖼️":f.type==="application/pdf"?"📄":f.type&&f.type.includes("word")?"📝":"📎";
+        const histId="hist_file_"+i+"_"+fi;
+        // Если изображение — показываем миниатюру
+        if(f.type&&f.type.startsWith("image/")&&f.b64){
+          filesHtml+='<div style="border-radius:10px;overflow:hidden;max-width:220px;cursor:pointer" onclick="showFileModal(\''+histId+'\')">';
+          filesHtml+='<img src="data:'+f.type+';base64,'+f.b64+'" style="width:100%;max-height:150px;object-fit:cover;display:block">';
+          filesHtml+='<div style="background:rgba(0,0,0,.5);padding:4px 8px;font-size:10px;color:#fff">'+escHtml(f.name)+'</div>';
+          filesHtml+='</div>';
+          // Скрытый элемент для модального просмотра
+          filesHtml+='<div id="'+histId+'" style="display:none" data-b64="'+f.b64+'" data-type="'+f.type+'" data-name="'+escHtml(f.name)+'" data-text="'+escHtml(f.text||"")+'"></div>';
+        } else {
+          // Кнопка для других файлов
+          filesHtml+='<div onclick="showFileModal(\''+histId+'\')" style="display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);border-radius:8px;padding:7px 10px;cursor:pointer;max-width:280px">';
+          filesHtml+='<span style="font-size:20px">'+icon+'</span>';
+          filesHtml+='<div style="flex:1;min-width:0"><div style="font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+escHtml(f.name)+'</div>';
+          filesHtml+='<div style="font-size:10px;opacity:.75">'+(f.text?"Текст доступен":"Нет текста")+' · '+(f.size?(f.size/1024).toFixed(0)+' KB':'')+'</div></div>';
+          filesHtml+='<span style="font-size:11px;opacity:.7">👁</span>';
+          filesHtml+='</div>';
+          filesHtml+='<div id="'+histId+'" style="display:none" data-b64="'+(f.b64||"")+'" data-type="'+(f.type||"")+'" data-name="'+escHtml(f.name)+'" data-text="'+escHtml(f.text||"")+'"></div>';
+        }
+      });
+      filesHtml+='</div>';
+      if(user.content) filesHtml+='<div style="height:1px;background:rgba(255,255,255,0.2);margin-bottom:8px"></div>';
+    }
+    ud.innerHTML='<div style="background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border-radius:16px 16px 2px 16px;padding:12px 16px;max-width:78%;font-size:15px;line-height:1.7">'+filesHtml+(user.content?'<div style="white-space:pre-wrap">'+escHtml(user.content)+'</div>':'')+'</div>';
+    el.appendChild(ud);
+    // Assistant response
+    if(assistant){
+      const ad=document.createElement("div");
+      ad.className="fade";
+      const tid="hist_"+i;
+      const agents=getAgents();
+      const results=assistant.agentResults||{};
+      const okCount=Object.values(results).filter(r=>r&&r.status==="ok").length;
+      const cols=agents.length<=4?2:3;
+      // Agent cards (collapsed)
+      let h='<div style="margin-bottom:6px"><button onclick="toggleCards(\''+tid+'\')" style="background:none;border:none;color:#64748b;font-size:12px;padding:3px 0;display:flex;align-items:center;gap:4px;font-weight:500;cursor:pointer"><span id="'+tid+'_arrow">▶</span> Ответы агентов ('+okCount+'/'+agents.length+')</button></div>';
+      h+='<div id="'+tid+'_cards" style="display:none;grid-template-columns:repeat('+cols+',1fr);gap:8px;margin-bottom:8px">';
+      agents.forEach(a=>{
+        const r=results[a.id]||{status:"error",text:"Нет данных"};
+        h+='<div style="background:#f8fafc;border:1px solid '+(r.status==="ok"?a.color+"55":"#e2e8f0")+';border-radius:12px;padding:12px">';
+        h+='<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">';
+        h+='<span style="font-size:14px">'+a.emoji+'</span>';
+        h+='<span style="font-size:12px;font-weight:700;color:'+(r.status==="ok"?a.color:"#475569")+'">'+a.name+'</span>';
+        h+='<span style="font-size:9px;background:#f1f5f9;padding:1px 6px;border-radius:4px;color:#64748b;margin-left:2px">'+a.badge+'</span>';
+        h+='<span style="margin-left:auto;font-size:11px;color:'+(r.status==="ok"?"#16a34a":"#dc2626")+'">'+(r.status==="ok"?"✓":"✗")+'</span>';
+        h+='</div>';
+        h+='<div style="font-size:12px;color:'+(r.status==="error"?"#dc2626":"#334155")+';line-height:1.6;max-height:90px;overflow-y:auto">'+escHtml(r.text||"")+'</div>';
+        h+='</div>';
+      });
+      h+='</div>';
+      // Consolidated answer with all buttons
+      h+='<div style="background:#ffffff;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">';
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+      h+='<span style="font-size:12px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>';
+      h+='<div style="display:flex;gap:2px;background:#e2e8f0;border-radius:6px;padding:2px">';
+      h+='<button onclick="switchMode(\''+tid+'\',\'short\')" id="'+tid+'_btn_short" style="padding:3px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">📝 Кратко</button>';
+      h+='<button onclick="switchMode(\''+tid+'\',\'full\')" id="'+tid+'_btn_full" style="padding:3px 10px;background:transparent;color:#64748b;border:none;border-radius:4px;font-size:11px;cursor:pointer">📄 Полно</button>';
+      h+='</div></div>';
+      // Presentation buttons
+      h+='<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">';
+      h+='<button onclick="copyText(\''+tid+'_consolidated\')" style="padding:4px 9px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>';
+      
+      h+='<button onclick="openGamma(\''+tid+'\')" style="padding:4px 9px;background:#faf5ff;color:#9333ea;border:1px solid #9333ea33;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>';
+      h+='<button onclick="openCanva(\''+tid+'\')" style="padding:4px 9px;background:#eff6ff;color:#2563eb;border:1px solid #2563eb33;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>';
+      h+='<button onclick="makeReveal(\''+tid+'\')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #16a34a33;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>';
+      h+='<button onclick="kimiPresent(\''+tid+'\')" style="padding:4px 9px;background:#eff6ff;color:#1d4ed8;border:1px solid #1d4ed833;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>';
+      h+='</div>';
+      // Text
+      h+='<div id="'+tid+'_consolidated" style="font-size:14px;line-height:1.9;color:#1e293b;white-space:pre-wrap">'+escHtml(assistant.content)+'</div>';
+      h+='<div id="'+tid+'_consolidated_short" style="display:none;font-size:14px;line-height:1.9;color:#1e293b;white-space:pre-wrap"></div>';
+      if(assistant.analysis) h+='<div id="'+tid+'_analysis">'+assistant.analysis+'</div>';
+      h+='</div>';
+      ad.innerHTML=h;
+      el.appendChild(ad);
+      // Generate short version for history
+      generateShortVersion(tid, assistant.content);
+    }
+  }
+  scrollToBottom();
+}
+
+// ── File viewer modal ──────────────────────────────────────────────────────
+function showFileModal(elId){
+  const el=document.getElementById(elId);
+  if(!el)return;
+  const b64=el.dataset.b64;
+  const type=el.dataset.type;
+  const name=el.dataset.name;
+  const text=el.dataset.text;
+
+  let modal=document.getElementById("fileViewModal");
+  if(!modal){
+    modal=document.createElement("div");
+    modal.id="fileViewModal";
+    modal.style.cssText="position:fixed;inset:0;z-index:260;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:16px";
+    document.body.appendChild(modal);
+    modal.onclick=e=>{ if(e.target===modal) modal.style.display="none"; };
+  }
+
+  let contentHtml="";
+  if(type&&type.startsWith("image/")&&b64){
+    // Показываем изображение
+    contentHtml='<img src="data:'+type+';base64,'+b64+'" style="max-width:100%;max-height:60vh;border-radius:8px;display:block;margin:0 auto">';
+    if(text){
+      contentHtml+='<div style="margin-top:16px"><div style="font-size:12px;font-weight:700;color:#6366f1;margin-bottom:6px">📝 Распознанный текст (OCR):</div>';
+      contentHtml+='<div style="background:#f8fafc;border-radius:8px;padding:12px;font-size:13px;color:#1e293b;line-height:1.7;white-space:pre-wrap;max-height:200px;overflow-y:auto;border:1px solid #e2e8f0">'+escHtml(text)+'</div></div>';
+    }
+  } else if(text){
+    // Показываем текст (PDF, txt и т.д.)
+    contentHtml='<div style="background:#f8fafc;border-radius:8px;padding:14px;font-size:13px;color:#1e293b;line-height:1.8;white-space:pre-wrap;max-height:65vh;overflow-y:auto;border:1px solid #e2e8f0">'+escHtml(text)+'</div>';
+  } else {
+    contentHtml='<div style="text-align:center;padding:40px;color:#64748b"><div style="font-size:48px;margin-bottom:12px">📎</div><div>Предпросмотр недоступен</div></div>';
+  }
+
+  modal.innerHTML='<div style="background:#ffffff;border-radius:16px;padding:20px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">'
+    +'<div style="font-size:13px;font-weight:700;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">📎 '+escHtml(name)+'</div>'
+    +(text?'<button onclick="navigator.clipboard.writeText(document.getElementById(\''+elId+'\').dataset.text).then(()=>showToast(\'📋 Текст скопирован!\'))" style="padding:5px 12px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:7px;font-size:11px;cursor:pointer;margin:0 8px">📋 Копировать текст</button>':'')
+    +'<button onclick="document.getElementById(\'fileViewModal\').style.display=\'none\'" style="background:none;border:none;color:#64748b;font-size:22px;cursor:pointer;flex-shrink:0">✕</button>'
+    +'</div>'
+    +contentHtml
+    +'</div>';
+  modal.style.display="flex";
+}
+function exportConfig(){
+  const keys = getKeys();
+  const activeAgents = JSON.parse(localStorage.getItem("active_agents")||"[]");
+  const config = { version:"1.0", exported: new Date().toISOString(), keys, activeAgents };
+  const blob = new Blob([JSON.stringify(config, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "ai-hub-config.json"; a.click();
+  URL.revokeObjectURL(url);
+  showToast("✅ Конфиг экспортирован! Сохрани файл ai-hub-config.json");
+}
+
+function importConfig(input){
+  const file = input.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const config = JSON.parse(e.target.result);
+      if(!config.keys) throw new Error("Неверный формат файла");
+      saveKeys(config.keys);
+      if(config.activeAgents && config.activeAgents.length){
+        localStorage.setItem("active_agents", JSON.stringify(config.activeAgents));
+      }
+      // Обновляем поля в форме
+      showSettings();
+      showToast("✅ Ключи импортированы! Нажми Сохранить.");
+    } catch(err){
+      alert("Ошибка импорта: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+function showSettings(){
+  const keys=getKeys();
+  document.getElementById("key_openai").value=keys.openai||"";
+  document.getElementById("key_claude").value=keys.claude||"";
+  document.getElementById("key_kimi").value=keys.kimi||"";
+  document.getElementById("key_gemini").value=keys.gemini||"";
+  document.getElementById("key_openrouter").value=keys.openrouter||"";
+  document.getElementById("key_perplexity").value=keys.perplexity||"";
+  document.getElementById("key_deepseek").value=keys.deepseek||"";
+  document.getElementById("key_tavily").value=keys.tavily||"";
+  renderAgentToggles();
+  document.getElementById("settingsModal").style.display="flex";
+}
+function hideSettings(){ document.getElementById("settingsModal").style.display="none"; }
+function saveSettings(){
+  saveKeys({
+    openai:      document.getElementById("key_openai").value.trim(),
+    claude:      document.getElementById("key_claude").value.trim(),
+    kimi:        document.getElementById("key_kimi").value.trim(),
+    gemini:      document.getElementById("key_gemini").value.trim(),
+    openrouter:  document.getElementById("key_openrouter").value.trim(),
+    perplexity:  document.getElementById("key_perplexity").value.trim(),
+    deepseek:    document.getElementById("key_deepseek").value.trim(),
+    tavily:      document.getElementById("key_tavily").value.trim(),
+  });
+  activeAgentIds=ALL_AGENTS.filter(a=>document.getElementById("toggle_"+a.id).checked).map(a=>a.id);
+  if(!activeAgentIds.length) activeAgentIds=[ALL_AGENTS[0].id];
+  localStorage.setItem("active_agents",JSON.stringify(activeAgentIds));
+  hideSettings(); renderMessages();
+  const keys=getKeys();
+  document.getElementById("searchBadge").style.display=keys.tavily?"block":"none";
+  showToast("✅ Настройки сохранены!");
+}
+function renderAgentToggles(){
+  document.getElementById("agentToggles").innerHTML=ALL_AGENTS.map(a=>'<label style="display:flex;align-items:center;gap:9px;padding:8px 12px;background:#0a0a0f;border:1px solid '+(activeAgentIds.includes(a.id)?a.color+"55":"#1e1e2e")+';border-radius:9px;margin-bottom:5px;cursor:pointer"><input type="checkbox" id="toggle_'+a.id+'" '+(activeAgentIds.includes(a.id)?"checked":"")+' style="width:14px;height:14px;accent-color:'+a.color+'"><span style="font-size:13px">'+a.emoji+'</span><div style="flex:1"><div style="font-size:12px;font-weight:600;color:'+(activeAgentIds.includes(a.id)?a.color:"#94a3b8")+'">'+a.name+'</div><div style="font-size:10px;color:#64748b">'+a.badge+'</div></div></label>').join("");
+}
+
+// ── Presentation loader ────────────────────────────────────────────────────
+function showPresentationLoader(emoji, name, text){
+  let loader=document.getElementById("presLoader");
+  if(!loader){
+    loader=document.createElement("div");
+    loader.id="presLoader";
+    loader.style.cssText="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:12px 20px;border-radius:12px;font-size:13px;z-index:300;border:1px solid #374151;box-shadow:0 4px 20px rgba(0,0,0,.5);display:flex;align-items:center;gap:10px;white-space:nowrap";
+    document.body.appendChild(loader);
+  }
+  loader.innerHTML='<span style="font-size:20px">'+emoji+'</span><div><div style="font-weight:600;font-size:13px">'+name+'</div><div style="font-size:11px;color:#94a3b8">'+text+'</div></div><div class="pulse" style="width:8px;height:8px;background:#6366f1;border-radius:50%"></div>';
+  loader.style.display="flex";
+  loader.style.opacity="1";
+  clearTimeout(loader._t);
+  // Автоскрываем через 30 сек на случай ошибки
+  loader._t=setTimeout(()=>hidePresentationLoader(),30000);
+}
+function hidePresentationLoader(){
+  const loader=document.getElementById("presLoader");
+  if(loader){ loader.style.opacity="0"; setTimeout(()=>loader.style.display="none",300); }
+}
+
+// ── Sidebar & Toast ────────────────────────────────────────────────────────
+function toggleSidebar(){const s=document.getElementById("sidebar");s.style.display=s.style.display==="none"?"flex":"none";}
+function showToast(msg){
+  let t=document.getElementById("toast");
+  if(!t){t=document.createElement("div");t.id="toast";t.style.cssText="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:10px 18px;border-radius:10px;font-size:12px;z-index:300;border:1px solid #374151;box-shadow:0 4px 20px rgba(0,0,0,.5);transition:opacity .3s;white-space:nowrap";document.body.appendChild(t);}
+  t.textContent=msg;t.style.opacity="1";clearTimeout(t._t);t._t=setTimeout(()=>t.style.opacity="0",3000);
+}
+
+// ── Input ──────────────────────────────────────────────────────────────────
+document.getElementById("queryInput").addEventListener("input",function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,120)+"px";});
+document.getElementById("queryInput").addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+renderChatList();
+renderMessages();
+document.getElementById("chatTitle").textContent=(getChat()||{title:"Новая тема"}).title;
+const _initKeys=getKeys();
+document.getElementById("searchBadge").style.display=_initKeys.tavily?"block":"none";
+const _hasKeys=Object.values(_initKeys).some(v=>v&&v.trim());
+if(!_hasKeys) showSettings();
+</script>
+</body>
+</html>

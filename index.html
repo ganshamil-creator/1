@@ -13,8 +13,8 @@
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{background:#0a0a0f;color:#f1f5f9;font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-    ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#374151;border-radius:2px}
+    body{background:#f8fafc;color:#1e293b;font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+    ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:2px}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}.pulse{animation:pulse 1.2s infinite}
     @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}.fade{animation:fadeIn .3s ease}
     button{cursor:pointer}input,textarea{outline:none;font-family:inherit}
@@ -25,8 +25,8 @@
 
 <!-- SIDEBAR -->
 <div id="sidebar" style="display:none;position:fixed;inset:0;z-index:100;flex-direction:row">
-  <div style="width:260px;background:#0d0d14;border-right:1px solid #1e1e2e;display:flex;flex-direction:column;height:100%">
-    <div style="padding:14px;border-bottom:1px solid #1e1e2e;display:flex;align-items:center;justify-content:space-between">
+  <div style="width:260px;background:#ffffff;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;height:100%">
+    <div style="padding:14px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
       <span style="font-weight:800;font-size:15px;background:linear-gradient(135deg,#6366f1,#8b5cf6);-webkit-background-clip:text;-webkit-text-fill-color:transparent">🧠 AI Multi-Hub</span>
       <button onclick="toggleSidebar()" style="background:none;border:none;color:#6b7280;font-size:20px">✕</button>
     </div>
@@ -34,16 +34,16 @@
       <button onclick="createChat()" style="width:100%;padding:9px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:8px;font-weight:600;font-size:13px;text-align:left">✏️ Новая тема</button>
     </div>
     <div id="chatList" style="flex:1;overflow-y:auto;padding:0 8px"></div>
-    <div style="padding:10px;border-top:1px solid #1e1e2e">
-      <button onclick="toggleSidebar();showSettings()" style="width:100%;padding:8px;background:transparent;color:#6b7280;border:1px solid #1e1e2e;border-radius:7px;font-size:13px">⚙️ Настройки</button>
+    <div style="padding:10px;border-top:1px solid #e2e8f0">
+      <button onclick="toggleSidebar();showSettings()" style="width:100%;padding:8px;background:#f8fafc;color:#475569;border:1px solid #e2e8f0;border-radius:7px;font-size:13px">⚙️ Настройки</button>
     </div>
   </div>
-  <div style="flex:1;background:rgba(0,0,0,.6)" onclick="toggleSidebar()"></div>
+  <div style="flex:1;background:rgba(0,0,0,.3)" onclick="toggleSidebar()"></div>
 </div>
 
 <!-- SETTINGS MODAL -->
-<div id="settingsModal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:16px">
-  <div style="background:#13131a;border:1px solid #1e1e2e;border-radius:16px;padding:22px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto">
+<div id="settingsModal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(100,116,139,.6);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:22px;width:100%;max-width:480px;max-height:90vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px">
       <h2 style="font-size:15px">⚙️ Настройки API ключей</h2>
       <button onclick="hideSettings()" style="background:none;border:none;color:#6b7280;font-size:20px">✕</button>
@@ -51,49 +51,49 @@
     <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:10px">🔑 API Ключи (каждый AI через свой родной API)</div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px" id="keyFields">
       <!-- ChatGPT -->
-      <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟢</span><span style="font-size:11px;font-weight:600;color:#10a37f">ChatGPT</span><span style="font-size:9px;color:#6b7280;margin-left:auto">platform.openai.com</span></div>
-        <input type="password" id="key_openai" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
+        <input type="password" id="key_openai" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
       </div>
       <!-- Claude -->
-      <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟠</span><span style="font-size:11px;font-weight:600;color:#d97706">Claude</span><span style="font-size:9px;color:#6b7280;margin-left:auto">console.anthropic.com</span></div>
-        <input type="password" id="key_claude" placeholder="sk-ant-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
+        <input type="password" id="key_claude" placeholder="sk-ant-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
       </div>
       <!-- Kimi -->
-      <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🔵</span><span style="font-size:11px;font-weight:600;color:#4f8ef7">Kimi</span><span style="font-size:9px;color:#6b7280;margin-left:auto">platform.moonshot.ai</span></div>
-        <input type="password" id="key_kimi" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
+        <input type="password" id="key_kimi" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
       </div>
       <!-- Gemini -->
-      <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🔴</span><span style="font-size:11px;font-weight:600;color:#ea4335">Gemini</span><span style="font-size:9px;color:#6b7280;margin-left:auto">aistudio.google.com · бесплатно</span></div>
-        <input type="password" id="key_gemini" placeholder="AIzaSy..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
+        <input type="password" id="key_gemini" placeholder="AIzaSy..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
         <div style="font-size:10px;color:#6b7280;margin-top:4px">Нет доступа? Используй OpenRouter ↓</div>
       </div>
       <!-- OpenRouter -->
-      <div style="background:#0a0a0f;border:1px solid #4f8ef7;border-radius:8px;padding:10px">
+      <div style="background:#eff6ff;border:1px solid #4f8ef7;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
           <span>🔀</span><span style="font-size:11px;font-weight:600;color:#4f8ef7">OpenRouter</span>
           <span style="font-size:9px;color:#4ade80;background:#052e16;padding:1px 6px;border-radius:3px;margin-left:auto">⭐ ГЛАВНЫЙ КЛЮЧ</span>
         </div>
-        <input type="password" id="key_openrouter" placeholder="sk-or-v1-... (все агенты через него)" style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #4f8ef755;border-radius:6px;color:#f1f5f9;font-size:12px"/>
+        <input type="password" id="key_openrouter" placeholder="sk-or-v1-... (все агенты через него)" style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #4f8ef755;border-radius:6px;color:#1e293b;font-size:12px"/>
         <div style="font-size:10px;color:#4ade80;margin-top:4px">✅ Решает CORS. Все 6 агентов через один ключ. openrouter.ai/keys</div>
       </div>
       <!-- Perplexity -->
-      <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟣</span><span style="font-size:11px;font-weight:600;color:#8b5cf6">Perplexity</span><span style="font-size:9px;color:#6b7280;margin-left:auto">perplexity.ai/settings/api</span></div>
-        <input type="password" id="key_perplexity" placeholder="pplx-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
+        <input type="password" id="key_perplexity" placeholder="pplx-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
       </div>
       <!-- DeepSeek -->
-      <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>⚡</span><span style="font-size:11px;font-weight:600;color:#06b6d4">DeepSeek</span><span style="font-size:9px;color:#6b7280;margin-left:auto">platform.deepseek.com</span></div>
-        <input type="password" id="key_deepseek" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
+        <input type="password" id="key_deepseek" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
       </div>
       <!-- Tavily -->
-      <div style="background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;padding:10px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🌐</span><span style="font-size:11px;font-weight:600;color:#4ade80">Tavily Search</span><span style="font-size:9px;color:#4ade80;margin-left:auto">веб-поиск · 1000/мес бесплатно</span></div>
-        <input type="password" id="key_tavily" placeholder="tvly-..." style="width:100%;padding:7px 10px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px"/>
+        <input type="password" id="key_tavily" placeholder="tvly-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
       </div>
     </div>
 
@@ -111,7 +111,7 @@
         <input type="file" accept=".json" onchange="importConfig(this)" style="display:none">
       </label>
     </div>
-    <div style="font-size:10px;color:#6b7280;margin-bottom:12px;padding:6px 10px;background:#0a0a0f;border-radius:6px;border:1px solid #1e1e2e">
+    <div style="font-size:10px;color:#6b7280;margin-bottom:12px;padding:6px 10px;background:#f8fafc;border-radius:6px;border:1px solid #1e1e2e">
       💡 Экспортируй ключи один раз → сохрани файл → на любом устройстве нажми Импорт
     </div>
 
@@ -134,8 +134,8 @@
 </div>
 
 <!-- KIMI MODAL -->
-<div id="kimiModal" style="display:none;position:fixed;inset:0;z-index:250;background:rgba(0,0,0,.85);align-items:center;justify-content:center;padding:16px">
-  <div style="background:#13131a;border:1px solid #4f8ef755;border-radius:16px;padding:22px;width:100%;max-width:640px;max-height:85vh;display:flex;flex-direction:column;gap:12px">
+<div id="kimiModal" style="display:none;position:fixed;inset:0;z-index:250;background:rgba(100,116,139,.6);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:16px;padding:22px;width:100%;max-width:640px;max-height:85vh;display:flex;flex-direction:column;gap:12px">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <span style="font-size:14px;font-weight:700;color:#4f8ef7">🔵 Kimi — Структура презентации</span>
       <div style="display:flex;gap:8px">
@@ -143,37 +143,37 @@
         <button onclick="document.getElementById('kimiModal').style.display='none'" style="background:none;border:none;color:#6b7280;font-size:20px">✕</button>
       </div>
     </div>
-    <div style="font-size:11px;color:#6b7280;padding:4px 8px;background:#0a0a0f;border-radius:6px" id="kimiModalTopic"></div>
-    <div id="kimiModalContent" style="flex:1;overflow-y:auto;font-size:13px;line-height:1.8;color:#e2e8f0;white-space:pre-wrap;background:#0a0a0f;border-radius:8px;padding:14px;border:1px solid #1e1e2e"></div>
+    <div style="font-size:11px;color:#6b7280;padding:4px 8px;background:#f8fafc;border-radius:6px" id="kimiModalTopic"></div>
+    <div id="kimiModalContent" style="flex:1;overflow-y:auto;font-size:13px;line-height:1.8;color:#1e293b;white-space:pre-wrap;background:#f8fafc;border-radius:8px;padding:14px;border:1px solid #e2e8f0"></div>
     <div style="font-size:10px;color:#6b7280;text-align:center">Скопируй и вставь в Gamma, Canva или PowerPoint</div>
   </div>
 </div>
 
 <!-- TOPBAR -->
-<div style="display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid #1e1e2e;flex-shrink:0;background:#0a0a0f;gap:10px">
+<div style="display:flex;align-items:center;padding:12px 14px;border-bottom:1px solid #e2e8f0;flex-shrink:0;background:#ffffff;gap:10px">
   <button onclick="toggleSidebar()" style="background:none;border:none;color:#6b7280;font-size:18px;padding:2px">☰</button>
-  <span id="chatTitle" style="flex:1;font-size:14px;font-weight:600;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Новая тема</span>
+  <span id="chatTitle" style="flex:1;font-size:17px;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Новая тема</span>
   <div id="searchBadge" style="display:none;font-size:11px;color:#4ade80;background:#052e16;padding:2px 8px;border-radius:4px;border:1px solid #4ade8033">🌐 поиск</div>
-  <button onclick="toggleSearch()" id="searchBtn" style="padding:5px 10px;background:#1e293b;border:1px solid #1e1e2e;border-radius:6px;color:#94a3b8;font-size:11px">🔍</button>
-  <button onclick="toggleTranslateBar()" id="translateBtn" style="padding:5px 10px;background:#1e293b;border:1px solid #1e1e2e;border-radius:6px;color:#94a3b8;font-size:11px">🌐</button>
-  <button onclick="showSettings()" style="padding:5px 10px;background:#1e293b;border:1px solid #1e1e2e;border-radius:6px;color:#94a3b8;font-size:18px;line-height:1">⚙️</button>
+  <button onclick="toggleSearch()" id="searchBtn" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:12px">🔍</button>
+  <button onclick="toggleTranslateBar()" id="translateBtn" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:12px">🌐</button>
+  <button onclick="showSettings()" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:18px;line-height:1">⚙️</button>
 </div>
 
 <!-- MESSAGES -->
-<div id="messages" style="flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:14px"></div>
+<div id="messages" style="flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:16px;background:#f8fafc"></div>
 
 <!-- FILE PREVIEW -->
-<div id="filePreview" style="display:none;margin:4px 12px;padding:8px 12px;background:#0c1445;border:1px solid #6366f133;border-radius:8px;flex-shrink:0;align-items:center;gap:8px">
+<div id="filePreview" style="display:none;margin:4px 12px;padding:8px 12px;background:#eff6ff;border:1px solid #6366f133;border-radius:8px;flex-shrink:0;align-items:center;gap:8px">
   <span id="filePreviewIcon" style="font-size:20px">📎</span>
   <div style="flex:1;min-width:0">
-    <div id="filePreviewName" style="font-size:12px;font-weight:600;color:#c7d2fe;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <div id="filePreviewName" style="font-size:12px;font-weight:600;color:#4f46e5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
     <div id="filePreviewSize" style="font-size:10px;color:#6b7280"></div>
   </div>
   <button onclick="clearFiles()" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:16px">✕</button>
 </div>
 
 <!-- TRANSLATE BAR - показывается когда есть файлы -->
-<div id="translateBar" style="display:none;padding:6px 12px;background:#0a0a0f;border-top:1px solid #1e1e2e;flex-shrink:0;gap:6px;flex-wrap:wrap;align-items:center">
+<div id="translateBar" style="display:none;padding:6px 12px;background:#ffffff;border-top:1px solid #e2e8f0;flex-shrink:0;gap:6px;flex-wrap:wrap;align-items:center">
   <span style="font-size:11px;color:#6b7280">🌐 Перевести на:</span>
   <button onclick="translateTo('русский')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇷🇺 РУС</button>
   <button onclick="translateTo('английский')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇬🇧 ENG</button>
@@ -185,9 +185,26 @@
   <button onclick="translateTo('турецкий')" style="padding:3px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:5px;color:#94a3b8;font-size:11px;cursor:pointer">🇹🇷 TUR</button>
 </div>
 <!-- TRANSLATE BAR -->
-<div id="translateBar" style="display:none;padding:6px 12px;background:#0a0a0f;border-top:1px solid #1e1e2e;flex-shrink:0;align-items:center;gap:8px;flex-wrap:wrap">
-  <span style="font-size:12px;color:#6b7280;white-space:nowrap">🌐 Перевести на:</span>
-  <select id="translateLang" style="padding:4px 8px;background:#13131a;border:1px solid #1e1e2e;border-radius:6px;color:#f1f5f9;font-size:12px;flex:1;min-width:140px">
+<!-- AGENT FULLSCREEN MODAL -->
+<div id="agentFullModal" style="display:none;position:fixed;inset:0;z-index:270;background:rgba(0,0,0,.7);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#ffffff;border-radius:16px;width:100%;max-width:800px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #e2e8f0;flex-shrink:0">
+      <span id="agentFullEmoji" style="font-size:22px"></span>
+      <span id="agentFullName" style="font-size:16px;font-weight:700;color:#1e293b;flex:1"></span>
+      <div id="agentFullNav" style="display:flex;gap:6px"></div>
+      <button onclick="document.getElementById('agentFullModal').style.display='none'" style="background:none;border:none;color:#94a3b8;font-size:24px;cursor:pointer;line-height:1">✕</button>
+    </div>
+    <div id="agentFullContent" style="flex:1;overflow-y:auto;padding:20px;font-size:16px;line-height:1.9;color:#1e293b"></div>
+    <div style="padding:10px 18px;border-top:1px solid #e2e8f0;display:flex;gap:8px;flex-shrink:0">
+      <button onclick="copyAgentFullText()" style="padding:6px 14px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:7px;font-size:12px;cursor:pointer">📋 Копировать</button>
+      <button onclick="document.getElementById('agentFullModal').style.display='none'" style="padding:6px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<div id="translateBar" style="display:none;padding:6px 12px;background:#ffffff;border-top:1px solid #e2e8f0;flex-shrink:0;align-items:center;gap:8px;flex-wrap:wrap">
+  <span style="font-size:12px;color:#475569;white-space:nowrap">🌐 Перевести на:</span>
+  <select id="translateLang" style="padding:4px 8px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px;flex:1;min-width:140px">
     <option value="русский">🇷🇺 Русский</option>
     <option value="английский">🇬🇧 Английский</option>
     <option value="немецкий">🇩🇪 Немецкий</option>
@@ -208,10 +225,10 @@
   <button onclick="hideTranslateBar()" style="background:none;border:none;color:#6b7280;font-size:16px;cursor:pointer">✕</button>
 </div>
 
-<div id="inputArea" style="padding:10px 12px;border-top:1px solid #1e1e2e;flex-shrink:0;background:#0a0a0f;display:flex;align-items:flex-end;gap:8px">
+<div id="inputArea" style="padding:10px 12px;border-top:1px solid #e2e8f0;flex-shrink:0;background:#ffffff;display:flex;align-items:flex-end;gap:8px">
   <input type="file" id="fileInput" accept="*/*" multiple style="display:none" onchange="handleFiles(this)">
-  <button onclick="document.getElementById('fileInput').click()" style="padding:10px;background:#13131a;border:1px solid #1e1e2e;border-radius:10px;color:#94a3b8;font-size:18px;flex-shrink:0">📎</button>
-  <textarea id="queryInput" placeholder="Введи вопрос... (Enter — отправить, Shift+Enter — перенос)" style="flex:1;padding:10px 14px;background:#13131a;border:1px solid #1e1e2e;border-radius:10px;color:#f1f5f9;font-size:14px;resize:none;max-height:120px;min-height:44px;line-height:1.5;overflow-y:auto" rows="1"
+  <button onclick="document.getElementById('fileInput').click()" style="padding:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;color:#64748b;font-size:18px;flex-shrink:0">📎</button>
+  <textarea id="queryInput" placeholder="Введи вопрос... (Enter — отправить, Shift+Enter — перенос)" style="flex:1;padding:10px 14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;color:#1e293b;font-size:16px;resize:none;max-height:140px;min-height:48px;line-height:1.6;overflow-y:auto" rows="1"
     onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"
     oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
   <button id="sendBtn" onclick="send()" style="padding:10px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:10px;color:#fff;font-size:18px;flex-shrink:0">↑</button>
@@ -226,14 +243,14 @@ function escHtml(t){ return (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").r
 function renderMd(text){
   if(!text) return "";
   let t = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  t = t.replace(/^### (.+)$/gm,'<b style="font-size:13px;color:#8b5cf6;display:block;margin:8px 0 3px">$1</b>');
-  t = t.replace(/^## (.+)$/gm, '<b style="font-size:15px;color:#e2e8f0;display:block;margin:10px 0 4px;border-bottom:1px solid #1e1e2e;padding-bottom:3px">$1</b>');
-  t = t.replace(/^# (.+)$/gm,  '<b style="font-size:17px;color:#f1f5f9;display:block;margin:12px 0 5px">$1</b>');
+  t = t.replace(/^### (.+)$/gm,'<b style="font-size:13px;color:#7c3aed;display:block;margin:8px 0 3px">$1</b>');
+  t = t.replace(/^## (.+)$/gm, '<b style="font-size:15px;color:#1e293b;display:block;margin:10px 0 4px;border-bottom:1px solid #e2e8f0;padding-bottom:3px">$1</b>');
+  t = t.replace(/^# (.+)$/gm,  '<b style="font-size:17px;color:#111827;display:block;margin:12px 0 5px">$1</b>');
   t = t.replace(/[*][*]([^*]+)[*][*]/g,'<b>$1</b>');
   t = t.replace(/[*]([^*<>]{1,100})[*]/g,'<i>$1</i>');
   t = t.replace(/^- (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="color:#6366f1;flex-shrink:0">•</span><span>$1</span></div>');
   t = t.replace(/^([0-9]+)[.] (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="color:#6366f1;font-weight:600;flex-shrink:0">$1.</span><span>$2</span></div>');
-  t = t.replace(/^---+$/gm,'<hr style="border:none;border-top:1px solid #374151;margin:8px 0">');
+  t = t.replace(/^---+$/gm,'<hr style="border:none;border-top:1px solid #e2e8f0;margin:8px 0">');
   t = t.replace(/\n/g,'<br>');
   return t;
 }
@@ -385,8 +402,14 @@ async function callGemini(key, system, history){
 async function callPerplexity(key, system, history){
   return callWithRetry(async()=>{
     const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+    // Perplexity поддерживает vision через image_url
     const msgs=history.map(m=>{
-      if(Array.isArray(m.content)) return {role:m.role,content:m.content.find(c=>c.type==="text")?.text||""};
+      if(Array.isArray(m.content)){
+        // Оставляем только текст и image_url (не base64 documents)
+        const filtered=m.content.filter(c=>c.type==="text"||c.type==="image_url");
+        if(filtered.length===1&&filtered[0].type==="text") return {role:m.role,content:filtered[0].text};
+        return {role:m.role,content:filtered};
+      }
       return m;
     });
     const r=await fetch("https://api.perplexity.ai/chat/completions",{
@@ -402,7 +425,7 @@ async function callPerplexity(key, system, history){
 
 async function callDeepSeek(key, system, history){
   return callWithRetry(async()=>{
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),60000);
     const msgs=history.map(m=>{
       if(Array.isArray(m.content)) return {role:m.role,content:m.content.find(c=>c.type==="text")?.text||""};
       return m;
@@ -410,7 +433,7 @@ async function callDeepSeek(key, system, history){
     const r=await fetch("https://api.deepseek.com/chat/completions",{
       method:"POST",signal:ctrl.signal,
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:"deepseek-chat",max_tokens:1200,messages:[{role:"system",content:system},...msgs]})
+      body:JSON.stringify({model:"deepseek-chat",max_tokens:2000,messages:[{role:"system",content:system},...msgs]})
     });
     clearTimeout(t); const d=await r.json();
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
@@ -785,8 +808,8 @@ async function send(){
   let consolidated="";
   try{
     consolidated=await synthesize(
-      "Ты редактор. Создай ОДИН финальный ответ, используя лучшее из ответов нескольких AI. Не повторяй одно и то же. Пиши единым текстом. Отвечай на языке вопроса.",
-      [{role:"user",content:"Вопрос: "+text+"\n\nОтветы AI:\n"+parts+"\n\nНапиши финальный ответ:"}]
+      "Ты главный редактор. Создай ПОЛНЫЙ финальный ответ используя лучшее из всех AI. ПРАВИЛА: 1) Включи ВСЕ важные детали и факты 2) Не сокращай — отвечай так же подробно как лучший из агентов 3) Структурируй если нужно 4) Язык — тот же что у вопроса 5) НЕ пиши вводных фраз типа 'На основе ответов'",
+      [{role:"user",content:"Вопрос: "+text+"\n\nОтветы AI (используй лучший материал из каждого):\n"+parts+"\n\nНапиши полный детальный финальный ответ:"}]
     );
   }catch(e){ consolidated=okAgents.length>0?results[okAgents[0].id].text:"Нет ответа."; }
 
@@ -813,7 +836,7 @@ async function send(){
       const color=pct>=75?"#4ade80":pct>=50?"#f59e0b":"#f87171";
       const agreeStr=(analysis.agents_agree||[]).join(", ");
       const disagreeStr=(analysis.agents_disagree||[]).join(", ");
-      const html=`<div style="margin-top:12px;padding:10px 12px;background:#0a0a0f;border-radius:8px;border:1px solid #1e1e2e">
+      const html=`<div style="margin-top:12px;padding:10px 12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0">
         <div style="font-size:11px;font-weight:700;color:#64748b;margin-bottom:8px">🗳️ АНАЛИЗ МНЕНИЙ</div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
           <div style="flex:1;height:6px;background:#1e1e2e;border-radius:3px"><div style="width:${pct}%;height:100%;background:${color};border-radius:3px"></div></div>
@@ -886,38 +909,39 @@ function appendTurnContainer(turnId, agents, cols){
   h+=`<div id="${turnId}_cards" style="display:none;grid-template-columns:repeat(${cols},1fr);gap:8px;margin-bottom:8px">`;
   agents.forEach(a=>{
     const cid=turnId+"_"+a.id;
-    h+=`<div id="${cid}" style="background:#13131a;border:1px solid #1e1e2e;border-radius:10px;overflow:hidden">`;
+    h+=`<div id="${cid}" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">`;
     h+=`<div onclick="toggleAgentCard('${cid}')" style="display:flex;align-items:center;gap:6px;padding:9px 10px;cursor:pointer">`;
     h+=`<span style="font-size:14px">${a.emoji}</span>`;
-    h+=`<span style="font-size:11px;font-weight:700;color:#94a3b8">${a.name}</span>`;
-    h+=`<span style="font-size:9px;background:#1e1e2e;padding:1px 5px;border-radius:3px;color:#6b7280">${a.badge}</span>`;
+    h+=`<span style="font-size:14px;font-weight:700;color:#334155">${a.name}</span>`;
+    h+=`<span style="font-size:9px;background:#f1f5f9;padding:1px 5px;border-radius:3px;color:#64748b">${a.badge}</span>`;
     h+=`<span id="${cid}_status" style="margin-left:auto;font-size:11px" class="pulse">•••</span>`;
     h+=`<span id="${cid}_arr" style="font-size:9px;color:#4b5563;margin-left:2px">▼</span>`;
     h+=`</div>`;
-    h+=`<div id="${cid}_body" style="display:none;border-top:1px solid #1e1e2e;padding:10px">`;
-    h+=`<div id="${cid}_text" style="font-size:12px;color:#94a3b8;line-height:1.7">Обрабатывается...</div>`;
+    h+=`<div id="${cid}_body" style="display:none;border-top:1px solid #f1f5f9;padding:10px">`;
+    h+=`<div style="display:flex;justify-content:flex-end;margin-bottom:6px"><button onclick="openAgentFull('${turnId}','${a.id}')" style="padding:3px 9px;background:#f1f5f9;color:#6366f1;border:1px solid #6366f133;border-radius:5px;font-size:11px;cursor:pointer">⛶ На весь экран</button></div>`;
+    h+=`<div id="${cid}_text" style="font-size:15px;color:#334155;line-height:1.9">Обрабатывается...</div>`;
     h+=`</div></div>`;
   });
   h+=`</div>`;
   // Consolidated
-  h+=`<div id="${turnId}_consolidated_wrap" style="background:#13131a;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:14px 16px">`;
+  h+=`<div id="${turnId}_consolidated_wrap" style="background:#ffffff;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">`;
   h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">`;
   h+=`<span style="font-size:12px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>`;
-  h+=`<div style="display:flex;gap:2px;background:#1e1e2e;border-radius:6px;padding:2px">`;
-  h+=`<button id="${turnId}_btn_short" onclick="switchMode('${turnId}','short')" style="padding:3px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">📝 Кратко</button>`;
-  h+=`<button id="${turnId}_btn_full" onclick="switchMode('${turnId}','full')" style="padding:3px 10px;background:transparent;color:#64748b;border:none;border-radius:4px;font-size:11px;cursor:pointer">📄 Полно</button>`;
+  h+=`<div style="display:flex;gap:2px;background:#f1f5f9;border-radius:6px;padding:2px">`;
+  h+=`<button id="${turnId}_btn_short" onclick="switchMode('${turnId}','short')" style="padding:3px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer">📝 Кратко</button>`;
+  h+=`<button id="${turnId}_btn_full" onclick="switchMode('${turnId}','full')" style="padding:3px 10px;background:transparent;color:#94a3b8;border:none;border-radius:4px;font-size:11px;cursor:pointer">📄 Полно</button>`;
   h+=`</div></div>`;
   // Action buttons
   h+=`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">`;
-  h+=`<button onclick="copyText('${turnId}_consolidated')" style="padding:4px 9px;background:#1e293b;color:#94a3b8;border:1px solid #374151;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>`;
-  h+=`<button onclick="openGamma('${turnId}')" style="padding:4px 9px;background:#1a0a2e;color:#a855f7;border:1px solid #a855f733;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>`;
-  h+=`<button onclick="openCanva('${turnId}')" style="padding:4px 9px;background:#0a1a2e;color:#3b82f6;border:1px solid #3b82f633;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>`;
-  h+=`<button onclick="makeReveal('${turnId}')" style="padding:4px 9px;background:#0a2e1a;color:#4ade80;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
-  h+=`<button onclick="kimiPresent('${turnId}')" style="padding:4px 9px;background:#0a1a3e;color:#4f8ef7;border:1px solid #4f8ef733;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>`;
+  h+=`<button onclick="copyText('${turnId}_consolidated')" style="padding:4px 9px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>`;
+  h+=`<button onclick="openGamma('${turnId}')" style="padding:4px 9px;background:#faf5ff;color:#9333ea;border:1px solid #a855f733;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>`;
+  h+=`<button onclick="openCanva('${turnId}')" style="padding:4px 9px;background:#eff6ff;color:#2563eb;border:1px solid #3b82f633;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>`;
+  h+=`<button onclick="makeReveal('${turnId}')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
+  h+=`<button onclick="kimiPresent('${turnId}')" style="padding:4px 9px;background:#eff6ff;color:#1d4ed8;border:1px solid #4f8ef733;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>`;
   h+=`</div>`;
   // Text
-  h+=`<div id="${turnId}_consolidated" style="font-size:14px;line-height:1.8;color:#e2e8f0" class="pulse">Синтез...</div>`;
-  h+=`<div id="${turnId}_consolidated_short" style="display:none;font-size:14px;line-height:1.8;color:#e2e8f0"></div>`;
+  h+=`<div id="${turnId}_consolidated" style="font-size:16px;line-height:2.0;color:#1e293b" class="pulse">Синтез...</div>`;
+  h+=`<div id="${turnId}_consolidated_short" style="display:none;font-size:16px;line-height:2.0;color:#1e293b"></div>`;
   h+=`</div>`;
   el.innerHTML=h;
   document.getElementById("messages").appendChild(el);
@@ -930,6 +954,37 @@ function toggleCards(turnId){
   const open=cards.style.display!=="none";
   cards.style.display=open?"none":"grid";
   if(arrow) arrow.textContent=open?"▶":"▼";
+}
+
+// ── Fullscreen agent view ──────────────────────────────────────
+let _fullTurnId=null, _fullAgentId=null;
+
+function openAgentFull(turnId, agentId){
+  _fullTurnId=turnId; _fullAgentId=agentId;
+  const agents=getAgents();
+  const agent=agents.find(a=>a.id===agentId);
+  const tx=document.getElementById(turnId+"_"+agentId+"_text");
+  if(!agent||!tx) return;
+  document.getElementById("agentFullEmoji").textContent=agent.emoji;
+  document.getElementById("agentFullName").textContent=agent.name+" · "+agent.badge;
+  document.getElementById("agentFullContent").innerHTML=tx.innerHTML;
+  // Navigation buttons
+  const nav=document.getElementById("agentFullNav");
+  nav.innerHTML="";
+  agents.forEach(a=>{
+    const btn=document.createElement("button");
+    btn.textContent=a.emoji;
+    btn.title=a.name;
+    btn.style.cssText=`padding:4px 8px;border:1px solid ${a.id===agentId?"#6366f1":"#e2e8f0"};border-radius:6px;background:${a.id===agentId?"#6366f1":"#f8fafc"};color:${a.id===agentId?"#fff":"#475569"};font-size:14px;cursor:pointer`;
+    btn.onclick=()=>openAgentFull(turnId,a.id);
+    nav.appendChild(btn);
+  });
+  document.getElementById("agentFullModal").style.display="flex";
+}
+
+function copyAgentFullText(){
+  const el=document.getElementById("agentFullContent");
+  if(el) navigator.clipboard.writeText(el.innerText).then(()=>showToast("📋 Скопировано!"));
 }
 
 function toggleAgentCard(cid){
@@ -1036,13 +1091,13 @@ function showFileViewer(elId){
   let contentHtml="";
   if(type&&type.startsWith("image/")&&b64){
     contentHtml=`<img src="data:${type};base64,${b64}" style="max-width:100%;max-height:55vh;border-radius:8px;display:block;margin:0 auto">`;
-    if(text) contentHtml+=`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:6px">📝 OCR текст:</div><div style="background:#0a0a0f;border-radius:8px;padding:10px;font-size:13px;color:#e2e8f0;line-height:1.7;white-space:pre-wrap;max-height:200px;overflow-y:auto;border:1px solid #1e1e2e">${escHtml(text)}</div></div>`;
+    if(text) contentHtml+=`<div style="margin-top:12px"><div style="font-size:11px;font-weight:700;color:#6366f1;margin-bottom:6px">📝 OCR текст:</div><div style="background:#f8fafc;border-radius:8px;padding:10px;font-size:13px;color:#1e293b;line-height:1.7;white-space:pre-wrap;max-height:200px;overflow-y:auto;border:1px solid #1e1e2e">${escHtml(text)}</div></div>`;
   } else if(text){
-    contentHtml=`<div style="background:#0a0a0f;border-radius:8px;padding:14px;font-size:13px;color:#e2e8f0;line-height:1.8;white-space:pre-wrap;max-height:65vh;overflow-y:auto;border:1px solid #1e1e2e">${escHtml(text)}</div>`;
+    contentHtml=`<div style="background:#f8fafc;border-radius:8px;padding:14px;font-size:13px;color:#1e293b;line-height:1.8;white-space:pre-wrap;max-height:65vh;overflow-y:auto;border:1px solid #1e1e2e">${escHtml(text)}</div>`;
   } else {
     contentHtml=`<div style="text-align:center;padding:40px;color:#6b7280"><div style="font-size:48px;margin-bottom:12px">📎</div><div>Предпросмотр недоступен</div></div>`;
   }
-  modal.innerHTML=`<div style="background:#13131a;border-radius:16px;padding:20px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;border:1px solid #1e1e2e">
+  modal.innerHTML=`<div style="background:#ffffff;border-radius:16px;padding:20px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;border:1px solid #e2e8f0">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
       <div style="font-size:13px;font-weight:700;color:#e2e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">📎 ${escHtml(name)}</div>
       ${text?`<button onclick="navigator.clipboard.writeText(document.getElementById('${elId}').dataset.text).then(()=>showToast('📋 Скопировано!'))" style="padding:5px 10px;background:#1e293b;color:#94a3b8;border:1px solid #374151;border-radius:6px;font-size:11px;cursor:pointer;margin:0 8px">📋 Копировать</button>`:""}
@@ -1085,29 +1140,29 @@ function renderMessages(){
         h+=`<div id="${cid}" style="background:#13131a;border:1px solid ${r.status==="ok"?a.color+"55":"#7f1d1d"};border-radius:10px;overflow:hidden">`;
         h+=`<div onclick="toggleAgentCard('${cid}')" style="display:flex;align-items:center;gap:6px;padding:9px 10px;cursor:pointer">`;
         h+=`<span>${a.emoji}</span><span style="font-size:11px;font-weight:700;color:${r.status==="ok"?a.color:"#6b7280"}">${a.name}</span>`;
-        h+=`<span style="font-size:9px;background:#1e1e2e;padding:1px 5px;border-radius:3px;color:#6b7280">${a.badge}</span>`;
+        h+=`<span style="font-size:9px;background:#f1f5f9;padding:1px 5px;border-radius:3px;color:#64748b">${a.badge}</span>`;
         h+=`<span style="margin-left:auto;font-size:11px;color:${r.status==="ok"?"#4ade80":"#f87171"}">${r.status==="ok"?"✓":"✗"}</span>`;
         h+=`<span id="${cid}_arr" style="font-size:9px;color:#4b5563;margin-left:2px">▼</span></div>`;
-        h+=`<div id="${cid}_body" style="display:none;border-top:1px solid #1e1e2e;padding:10px"><div style="font-size:12px;color:#94a3b8;line-height:1.7">${renderMd(r.text)}</div></div></div>`;
+        h+=`<div id="${cid}_body" style="display:none;border-top:1px solid #f1f5f9;padding:10px"><div style="font-size:15px;color:#334155;line-height:1.9">${renderMd(r.text)}</div></div></div>`;
       });
       h+=`</div>`;
       // Consolidated
-      h+=`<div id="${tid}_consolidated_wrap" style="background:#13131a;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:14px 16px">`;
+      h+=`<div id="${tid}_consolidated_wrap" style="background:#ffffff;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">`;
       h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">`;
       h+=`<span style="font-size:12px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>`;
-      h+=`<div style="display:flex;gap:2px;background:#1e1e2e;border-radius:6px;padding:2px">`;
-      h+=`<button id="${tid}_btn_short" onclick="switchMode('${tid}','short')" style="padding:3px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer">📝 Кратко</button>`;
-      h+=`<button id="${tid}_btn_full" onclick="switchMode('${tid}','full')" style="padding:3px 10px;background:transparent;color:#64748b;border:none;border-radius:4px;font-size:11px;cursor:pointer">📄 Полно</button>`;
+      h+=`<div style="display:flex;gap:2px;background:#f1f5f9;border-radius:6px;padding:2px">`;
+      h+=`<button id="${tid}_btn_short" onclick="switchMode('${tid}','short')" style="padding:3px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer">📝 Кратко</button>`;
+      h+=`<button id="${tid}_btn_full" onclick="switchMode('${tid}','full')" style="padding:3px 10px;background:transparent;color:#94a3b8;border:none;border-radius:4px;font-size:11px;cursor:pointer">📄 Полно</button>`;
       h+=`</div></div>`;
       h+=`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">`;
-      h+=`<button onclick="copyText('${tid}_consolidated')" style="padding:4px 9px;background:#1e293b;color:#94a3b8;border:1px solid #374151;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>`;
-      h+=`<button onclick="openGamma('${tid}')" style="padding:4px 9px;background:#1a0a2e;color:#a855f7;border:1px solid #a855f733;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>`;
-      h+=`<button onclick="openCanva('${tid}')" style="padding:4px 9px;background:#0a1a2e;color:#3b82f6;border:1px solid #3b82f633;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>`;
-      h+=`<button onclick="makeReveal('${tid}')" style="padding:4px 9px;background:#0a2e1a;color:#4ade80;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
-      h+=`<button onclick="kimiPresent('${tid}')" style="padding:4px 9px;background:#0a1a3e;color:#4f8ef7;border:1px solid #4f8ef733;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>`;
+      h+=`<button onclick="copyText('${tid}_consolidated')" style="padding:4px 9px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>`;
+      h+=`<button onclick="openGamma('${tid}')" style="padding:4px 9px;background:#faf5ff;color:#9333ea;border:1px solid #a855f733;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>`;
+      h+=`<button onclick="openCanva('${tid}')" style="padding:4px 9px;background:#eff6ff;color:#2563eb;border:1px solid #3b82f633;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>`;
+      h+=`<button onclick="makeReveal('${tid}')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
+      h+=`<button onclick="kimiPresent('${tid}')" style="padding:4px 9px;background:#eff6ff;color:#1d4ed8;border:1px solid #4f8ef733;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>`;
       h+=`</div>`;
-      h+=`<div id="${tid}_consolidated" style="font-size:14px;line-height:1.8;color:#e2e8f0" data-raw="${escHtml(assistant.content)}">${renderMd(assistant.content)}</div>`;
-      h+=`<div id="${tid}_consolidated_short" style="display:none;font-size:14px;line-height:1.8;color:#e2e8f0"></div>`;
+      h+=`<div id="${tid}_consolidated" style="font-size:16px;line-height:2.0;color:#1e293b" data-raw="${escHtml(assistant.content)}">${renderMd(assistant.content)}</div>`;
+      h+=`<div id="${tid}_consolidated_short" style="display:none;font-size:16px;line-height:2.0;color:#1e293b"></div>`;
       if(assistant.analysis) h+=`<div id="${tid}_analysis">${assistant.analysis}</div>`;
       h+=`</div>`;
       ad.innerHTML=h;
@@ -1250,7 +1305,7 @@ function renderChatList(){
     div.onmouseover=()=>{if(c.id!==activeChatId)div.style.background="#13131a";};
     div.onmouseout=()=>{if(c.id!==activeChatId)div.style.background="";};
     div.onclick=()=>switchChat(c.id);
-    div.innerHTML=`<span style="flex:1;font-size:12px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">💬 ${escHtml(c.title)}</span><button onclick="deleteChat('${c.id}',event)" style="background:none;border:none;color:#374151;font-size:14px;cursor:pointer;flex-shrink:0">🗑</button>`;
+    div.innerHTML=`<span style="flex:1;font-size:13px;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">💬 ${escHtml(c.title)}</span><button onclick="deleteChat('${c.id}',event)" style="background:none;border:none;color:#374151;font-size:14px;cursor:pointer;flex-shrink:0">🗑</button>`;
     el.appendChild(div);
   });
 }
@@ -1324,7 +1379,7 @@ function renderAgentToggles(){
   ALL_AGENTS.forEach(a=>{
     const on=activeAgentIds.includes(a.id);
     const div=document.createElement("div");
-    div.style.cssText="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#0a0a0f;border:1px solid #1e1e2e;border-radius:8px;cursor:pointer";
+    div.style.cssText="display:flex;align-items:center;gap:10px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer";
     div.onclick=()=>{
       if(activeAgentIds.includes(a.id)) activeAgentIds=activeAgentIds.filter(x=>x!==a.id);
       else activeAgentIds.push(a.id);
@@ -1340,7 +1395,7 @@ function renderAgentToggles(){
 // ════════════════════════════════════════════════════════════════
 function showToast(msg){
   let t=document.getElementById("toast");
-  if(!t){t=document.createElement("div");t.id="toast";t.style.cssText="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:10px 18px;border-radius:10px;font-size:13px;z-index:300;border:1px solid #374151;box-shadow:0 4px 20px rgba(0,0,0,.5);transition:opacity .3s;white-space:nowrap";document.body.appendChild(t);}
+  if(!t){t=document.createElement("div");t.id="toast";t.style.cssText="position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;color:#f1f5f9;padding:10px 18px;border-radius:10px;font-size:14px;z-index:300;border:1px solid #374151;box-shadow:0 4px 20px rgba(0,0,0,.5);transition:opacity .3s;white-space:nowrap";document.body.appendChild(t);}
   t.textContent=msg; t.style.opacity="1";
   clearTimeout(t._t); t._t=setTimeout(()=>t.style.opacity="0",3000);
 }

@@ -10,7 +10,146 @@
   <meta name="apple-mobile-web-app-title" content="AI Hub"/>
   <link rel="apple-touch-icon" href="icon-192.png"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDsGW3WtnfY9Uv5GDXbVu6c4YJ1OJ9mmmU",
+      authDomain: "ai-hub-21af9.firebaseapp.com",
+      projectId: "ai-hub-21af9",
+      storageBucket: "ai-hub-21af9.firebasestorage.app",
+      messagingSenderId: "223206587851",
+      appId: "1:223206587851:web:3725b7b9d08c7f9fef4a4e"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Уникальный ID устройства/пользователя (хранится в localStorage)
+    let userId = localStorage.getItem("ai_hub_user_id");
+    if(!userId){ userId = "user_"+Date.now()+"_"+Math.random().toString(36).slice(2); localStorage.setItem("ai_hub_user_id", userId); }
+
+    // ── CLOUD SYNC API ──────────────────────────────────────────
+    window.cloudSync = {
+      userId,
+
+      // Сохранить все чаты в облако
+      async saveChats(chats){
+        try{
+          // Сохраняем каждый чат отдельным документом
+          for(const chat of chats){
+            const chatRef = doc(db, "users", userId, "chats", chat.id);
+            // Не сохраняем base64 файлы в облако (слишком большие)
+            const chatToSave = {
+              ...chat,
+              messages: (chat.messages||[]).map(m=>({
+                ...m,
+                files: (m.files||[]).map(f=>({name:f.name,type:f.type,size:f.size,text:f.text||null}))
+                // b64 не сохраняем
+              }))
+            };
+            await setDoc(chatRef, {data: JSON.stringify(chatToSave), updatedAt: Date.now()});
+          }
+          console.log("☁️ Сохранено в облако:", chats.length, "тем");
+        }catch(e){ console.error("Cloud save error:", e); }
+      },
+
+      // Загрузить все чаты из облака
+      async loadChats(){
+        try{
+          const chatsRef = collection(db, "users", userId, "chats");
+          const snapshot = await getDocs(chatsRef);
+          if(snapshot.empty) return null;
+          const chats = [];
+          snapshot.forEach(doc=>{ try{ chats.push(JSON.parse(doc.data().data)); }catch(e){} });
+          chats.sort((a,b)=>(b.messages?.[0]?.ts||0)-(a.messages?.[0]?.ts||0));
+          console.log("☁️ Загружено из облака:", chats.length, "тем");
+          return chats.length>0?chats:null;
+        }catch(e){ console.error("Cloud load error:", e); return null; }
+      },
+
+      // Удалить чат из облака
+      async deleteChat(chatId){
+        try{
+          await deleteDoc(doc(db, "users", userId, "chats", chatId));
+        }catch(e){}
+      },
+
+      // Сохранить настройки
+      async saveSettings(keys, agentIds){
+        try{
+          await setDoc(doc(db, "users", userId, "settings", "main"), {
+            keys: JSON.stringify(keys),
+            agentIds: JSON.stringify(agentIds),
+            updatedAt: Date.now()
+          });
+        }catch(e){}
+      },
+
+      // Загрузить настройки
+      async loadSettings(){
+        try{
+          const snap = await getDoc(doc(db, "users", userId, "settings", "main"));
+          if(snap.exists()){
+            const data = snap.data();
+            return {
+              keys: data.keys?JSON.parse(data.keys):{},
+              agentIds: data.agentIds?JSON.parse(data.agentIds):null
+            };
+          }
+        }catch(e){}
+        return null;
+      }
+    };
+
+    // Загружаем данные из облака при старте
+    window.addEventListener("DOMContentLoaded", async()=>{
+      showToast("☁️ Загружаю из облака...");
+
+      // Загружаем настройки
+      const settings = await window.cloudSync.loadSettings();
+      if(settings){
+        if(settings.keys && Object.keys(settings.keys).length>0){
+          localStorage.setItem("ai_hub_keys_v2", JSON.stringify(settings.keys));
+        }
+        if(settings.agentIds){
+          localStorage.setItem("active_agents", JSON.stringify(settings.agentIds));
+        }
+      }
+
+      // Загружаем чаты
+      const cloudChats = await window.cloudSync.loadChats();
+      if(cloudChats && cloudChats.length>0){
+        // Мержим с локальными (облачные приоритетнее)
+        const localStr = localStorage.getItem("ai_hub_chats_v4");
+        const localChats = localStr?JSON.parse(localStr):[];
+        const merged = [...cloudChats];
+        // Добавляем локальные которых нет в облаке
+        localChats.forEach(lc=>{
+          if(!merged.find(cc=>cc.id===lc.id)) merged.push(lc);
+        });
+        merged.sort((a,b)=>(b.messages?.[0]?.ts||0)-(a.messages?.[0]?.ts||0));
+        localStorage.setItem("ai_hub_chats_v4", JSON.stringify(merged));
+        // Обновляем UI
+        window._reloadChats && window._reloadChats();
+        showToast("✅ Синхронизировано: "+cloudChats.length+" тем");
+      } else {
+        showToast("☁️ Облако готово");
+      }
+
+      // Автосинхронизация каждые 30 секунд
+      setInterval(async()=>{
+        const chats = JSON.parse(localStorage.getItem("ai_hub_chats_v4")||"[]");
+        if(chats.length>0) await window.cloudSync.saveChats(chats);
+      }, 30000);
+    });
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <!-- Export libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#f8fafc;color:#1e293b;font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
@@ -263,7 +402,11 @@ function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
 // ════════════════════════════════════════════════════════════════
 const STORE_KEY = "ai_hub_chats_v4";
 function loadChats(){ try{return JSON.parse(localStorage.getItem(STORE_KEY))||[];}catch{return[];} }
-function saveChats(c){ try{localStorage.setItem(STORE_KEY,JSON.stringify(c));}catch{} }
+function saveChats(c){
+  try{ localStorage.setItem(STORE_KEY,JSON.stringify(c)); }catch{}
+  // Асинхронно сохраняем в облако
+  if(window.cloudSync) window.cloudSync.saveChats(c).catch(()=>{});
+}
 function makeChat(){ return {id:Date.now()+"_"+Math.random().toString(36).slice(2),title:"Новая тема",messages:[]}; }
 function getKeys(){ return JSON.parse(localStorage.getItem("ai_hub_keys_v2")||"{}"); }
 function saveKeys(k){ localStorage.setItem("ai_hub_keys_v2",JSON.stringify(k)); }
@@ -939,6 +1082,15 @@ function appendTurnContainer(turnId, agents, cols){
   h+=`<button onclick="makeReveal('${turnId}')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
   h+=`<button onclick="kimiPresent('${turnId}')" style="padding:4px 9px;background:#eff6ff;color:#1d4ed8;border:1px solid #4f8ef733;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>`;
   h+=`</div>`;
+
+  // Export buttons
+  h+=`<div style="display:flex;gap:5px;flex-wrap:wrap;padding:8px 0 4px;border-top:1px solid #f1f5f9">`;
+  h+=`<span style="font-size:11px;color:#94a3b8;align-self:center">💾</span>`;
+  h+=`<button onclick="exportWord('${turnId}')" style="padding:4px 10px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Word</button>`;
+  h+=`<button onclick="exportExcel('${turnId}')" style="padding:4px 10px;background:#1a4731;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📊 Excel</button>`;
+  h+=`<button onclick="exportTxt('${turnId}')" style="padding:4px 10px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📄 TXT</button>`;
+  h+=`<button onclick="exportHtml('${turnId}')" style="padding:4px 10px;background:#4a1d96;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">🌐 HTML</button>`;
+  h+=`</div>`;
   // Text
   h+=`<div id="${turnId}_consolidated" style="font-size:16px;line-height:2.0;color:#1e293b" class="pulse">Синтез...</div>`;
   h+=`<div id="${turnId}_consolidated_short" style="display:none;font-size:16px;line-height:2.0;color:#1e293b"></div>`;
@@ -1161,6 +1313,15 @@ function renderMessages(){
       h+=`<button onclick="makeReveal('${tid}')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
       h+=`<button onclick="kimiPresent('${tid}')" style="padding:4px 9px;background:#eff6ff;color:#1d4ed8;border:1px solid #4f8ef733;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>`;
       h+=`</div>`;
+
+  // Export buttons
+  h+=`<div style="display:flex;gap:5px;flex-wrap:wrap;padding:8px 0 4px;border-top:1px solid #f1f5f9">`;
+  h+=`<span style="font-size:11px;color:#94a3b8;align-self:center">💾</span>`;
+  h+=`<button onclick="exportWord('${tid}')" style="padding:4px 10px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Word</button>`;
+  h+=`<button onclick="exportExcel('${tid}')" style="padding:4px 10px;background:#1a4731;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📊 Excel</button>`;
+  h+=`<button onclick="exportTxt('${tid}')" style="padding:4px 10px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📄 TXT</button>`;
+  h+=`<button onclick="exportHtml('${tid}')" style="padding:4px 10px;background:#4a1d96;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">🌐 HTML</button>`;
+  h+=`</div>`;
       h+=`<div id="${tid}_consolidated" style="font-size:16px;line-height:2.0;color:#1e293b" data-raw="${escHtml(assistant.content)}">${renderMd(assistant.content)}</div>`;
       h+=`<div id="${tid}_consolidated_short" style="display:none;font-size:16px;line-height:2.0;color:#1e293b"></div>`;
       if(assistant.analysis) h+=`<div id="${tid}_analysis">${assistant.analysis}</div>`;
@@ -1295,6 +1456,8 @@ function deleteChat(id,e){
   if(!chats.find(c=>c.id===activeChatId)) activeChatId=chats[0].id;
   saveChats(chats); renderChatList(); renderMessages();
   document.getElementById("chatTitle").textContent=getChat()?.title||"Новая тема";
+  // Удаляем из облака
+  if(window.cloudSync) window.cloudSync.deleteChat(id).catch(()=>{});
 }
 
 function renderChatList(){
@@ -1311,7 +1474,126 @@ function renderChatList(){
 }
 
 // ════════════════════════════════════════════════════════════════
-// EXPORT / IMPORT
+// ════════════════════════════════════════════════════════════════
+// EXPORT TO FILES (Word, Excel, TXT, HTML)
+// ════════════════════════════════════════════════════════════════
+
+function getExportContent(turnId){
+  const el=document.getElementById(turnId+"_consolidated");
+  const chat=getChat();
+  return {text:el?.dataset?.raw||el?.innerText||"", title:chat?.title||"AI Multi-Hub", date:new Date().toLocaleDateString("ru-RU")};
+}
+
+function downloadBlob(blob, filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=filename; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+function escRtf(s){ return (s||"").replace(/\\/g,"\\\\").replace(/\{/g,"\\{").replace(/\}/g,"\\}"); }
+
+// Word — через RTF (открывается в Word/LibreOffice без библиотек)
+function exportWord(turnId){
+  const {text,title,date}=getExportContent(turnId);
+  if(!text){showToast("❌ Нет текста");return;}
+  // Пробуем docx если загружен, иначе RTF
+  if(window.docx) exportWordDocx(turnId,text,title,date);
+  else exportRtf(turnId,text,title,date);
+}
+
+async function exportWordDocx(turnId,text,title,date){
+  try{
+    const {Document,Paragraph,TextRun,HeadingLevel,AlignmentType,Packer}=window.docx;
+    const lines=text.split("\n");
+    const paragraphs=[
+      new Paragraph({text:title,heading:HeadingLevel.HEADING_1,alignment:AlignmentType.CENTER}),
+      new Paragraph({children:[new TextRun({text:"Дата: "+date,color:"888888",size:20})],alignment:AlignmentType.CENTER}),
+      new Paragraph({text:""}),
+    ];
+    lines.forEach(line=>{
+      const t=line.trim();
+      if(!t){paragraphs.push(new Paragraph({text:""}));return;}
+      if(t.startsWith("### ")) paragraphs.push(new Paragraph({text:t.slice(4),heading:HeadingLevel.HEADING_3}));
+      else if(t.startsWith("## ")) paragraphs.push(new Paragraph({text:t.slice(3),heading:HeadingLevel.HEADING_2}));
+      else if(t.startsWith("# ")) paragraphs.push(new Paragraph({text:t.slice(2),heading:HeadingLevel.HEADING_1}));
+      else if(t.startsWith("- ")||t.startsWith("• ")) paragraphs.push(new Paragraph({text:t.slice(2),bullet:{level:0}}));
+      else{
+        const parts=t.split(/\*\*([^*]+)\*\*/g);
+        const runs=parts.map((p,i)=>new TextRun({text:p,bold:i%2===1,size:24}));
+        paragraphs.push(new Paragraph({children:runs}));
+      }
+    });
+    const doc=new Document({sections:[{properties:{},children:paragraphs}]});
+    const blob=await Packer.toBlob(doc);
+    downloadBlob(blob,title.replace(/[^\wа-яёА-ЯЁ ]/g,"_").slice(0,50)+".docx");
+    showToast("✅ Word (.docx) скачан!");
+  }catch(e){ exportRtf(turnId,text,title,date); }
+}
+
+function exportRtf(turnId,text,title,date){
+  if(!text){const c=getExportContent(turnId);text=c.text;title=c.title;date=c.date;}
+  let rtf="{\\rtf1\\ansi\\ansicpg1251\\deff0\n{\\fonttbl{\\f0\\froman Times New Roman;}}\n{\\colortbl;\\red0\\green0\\blue0;\\red79\\green70\\blue229;}\n\\f0\\fs24\\widowctrl\\hyphauto\n";
+  rtf+=`{\\b\\fs36\\cf2 ${escRtf(title)}}\\par\n{\\i\\cf1 ${escRtf("Дата: "+date)}}\\par\\par\n`;
+  text.split("\n").forEach(line=>{
+    const t=line.trim();
+    if(!t){rtf+="\\par\n";return;}
+    if(t.startsWith("### ")) rtf+=`{\\b\\fs26\\cf2 ${escRtf(t.slice(4))}}\\par\n`;
+    else if(t.startsWith("## ")) rtf+=`{\\b\\fs28\\cf2 ${escRtf(t.slice(3))}}\\par\n`;
+    else if(t.startsWith("# ")) rtf+=`{\\b\\fs32\\cf2 ${escRtf(t.slice(2))}}\\par\n`;
+    else if(t.startsWith("- ")||t.startsWith("• ")) rtf+=`\\bullet\\tab${escRtf(t.slice(2))}\\par\n`;
+    else{
+      // Жирный текст
+      const clean=t.replace(/\*\*([^*]+)\*\*/g,(m,s)=>"{\\b "+escRtf(s)+"}").replace(/\*([^*]+)\*/g,(m,s)=>"{\\i "+escRtf(s)+"}");
+      rtf+=clean+"\\par\n";
+    }
+  });
+  rtf+="}";
+  downloadBlob(new Blob([rtf],{type:"application/rtf"}),title.replace(/[^\wа-яёА-ЯЁ ]/g,"_").slice(0,50)+".rtf");
+  showToast("✅ RTF скачан — открой в Word!");
+}
+
+function exportExcel(turnId){
+  const {text,title,date}=getExportContent(turnId);
+  if(!text){showToast("❌ Нет текста");return;}
+  if(!window.XLSX){showToast("❌ Excel библиотека не загружена");return;}
+  try{
+    const lines=text.split("\n").filter(l=>l.trim());
+    const rows=[[title],["Дата: "+date],[""],[["Содержимое"]],
+      ...lines.map(l=>{
+        const t=l.trim();
+        if(!t) return [""];
+        return [t.replace(/^#+\s*/,"").replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/^[-•]\s*/,"• ")];
+      })
+    ];
+    const wb=XLSX.utils.book_new();
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws["!cols"]=[{wch:120}];
+    XLSX.utils.book_append_sheet(wb,ws,"AI Hub");
+    XLSX.writeFile(wb,title.replace(/[^\wа-яёА-ЯЁ ]/g,"_").slice(0,50)+".xlsx");
+    showToast("✅ Excel (.xlsx) скачан!");
+  }catch(e){showToast("❌ Ошибка: "+e.message);}
+}
+
+function exportTxt(turnId){
+  const {text,title,date}=getExportContent(turnId);
+  if(!text){showToast("❌ Нет текста");return;}
+  const clean=text.replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1");
+  const sep="=".repeat(Math.min(title.length,60));
+  downloadBlob(new Blob([title+"\n"+sep+"\nДата: "+date+"\n\n"+clean],{type:"text/plain;charset=utf-8"}),title.replace(/[^\wа-яёА-ЯЁ ]/g,"_").slice(0,50)+".txt");
+  showToast("✅ TXT скачан!");
+}
+
+function exportHtml(turnId){
+  const {text,title,date}=getExportContent(turnId);
+  if(!text){showToast("❌ Нет текста");return;}
+  const body=renderMd(text);
+  const html=`<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>${escHtml(title)}</title><style>body{font-family:Segoe UI,Arial,sans-serif;max-width:820px;margin:40px auto;padding:24px;line-height:1.9;color:#1e293b;font-size:16px}h1,h2,h3{color:#4f46e5}hr{border:none;border-top:1px solid #e2e8f0;margin:16px 0}p{margin:8px 0}</style></head><body><h1>${escHtml(title)}</h1><p style="color:#94a3b8;font-size:14px">📅 ${date} · AI Multi-Hub</p><hr>${body}</body></html>`;
+  downloadBlob(new Blob([html],{type:"text/html;charset=utf-8"}),title.replace(/[^\wа-яёА-ЯЁ ]/g,"_").slice(0,50)+".html");
+  showToast("✅ HTML скачан!");
+}
+
+// ════════════════════════════════════════════════════════════════
+// EXPORT / IMPORT config
 // ════════════════════════════════════════════════════════════════
 function exportConfig(){
   const keys=getKeys();
@@ -1359,7 +1641,7 @@ function showSettings(){
 function hideSettings(){ document.getElementById("settingsModal").style.display="none"; }
 
 function saveSettings(){
-  saveKeys({
+  const newKeys = {
     openai:document.getElementById("key_openai").value.trim(),
     claude:document.getElementById("key_claude").value.trim(),
     kimi:document.getElementById("key_kimi").value.trim(),
@@ -1368,10 +1650,13 @@ function saveSettings(){
     perplexity:document.getElementById("key_perplexity").value.trim(),
     deepseek:document.getElementById("key_deepseek").value.trim(),
     tavily:document.getElementById("key_tavily").value.trim(),
-  });
+  };
+  saveKeys(newKeys);
   localStorage.setItem("active_agents",JSON.stringify(activeAgentIds));
+  // Сохраняем в облако
+  if(window.cloudSync) window.cloudSync.saveSettings(newKeys, activeAgentIds).catch(()=>{});
   hideSettings();
-  showToast("✅ Настройки сохранены!");
+  showToast("✅ Настройки сохранены и синхронизированы!");
 }
 
 function renderAgentToggles(){
@@ -1411,6 +1696,17 @@ function toggleSidebar(){
 renderChatList();
 renderMessages();
 document.getElementById("chatTitle").textContent=getChat()?.title||"Новая тема";
+
+// Hook для перезагрузки после облачной синхронизации
+window._reloadChats = ()=>{
+  chats = loadChats();
+  if(!chats.length) chats=[makeChat()];
+  activeChatId = chats[0].id;
+  renderChatList();
+  renderMessages();
+  document.getElementById("chatTitle").textContent=getChat()?.title||"Новая тема";
+  showToast("🔄 Темы обновлены из облака!");
+};
 
 // Auto-show settings if no keys
 const k=getKeys();

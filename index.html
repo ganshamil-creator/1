@@ -462,6 +462,42 @@ async function callWithRetry(fn, attempt=1){
   }
 }
 
+// ── Умный расчёт токенов ──────────────────────────────────────
+// Анализирует запрос и возвращает нужный лимит токенов
+function calcTokens(history){
+  const lastMsg = history && history.length>0 ? 
+    (history[history.length-1].content || "") : "";
+  const text = Array.isArray(lastMsg) ? 
+    (lastMsg.find(c=>c.type==="text")?.text||"") : lastMsg;
+  const t = text.toLowerCase();
+  
+  // Ключевые слова для большого объёма
+  const bigKeywords = [
+    "слайд","slide","презентац","presentation","промпт для",
+    "подробно","детально","полный","полностью","развёрнут",
+    "20 ","15 ","12 ","10 слайд","страниц","план урок",
+    "бизнес план","стратег","анализ рынк","отчёт","report",
+    "essay","реферат","курсов","дипломн","диссертац",
+    "перечисли все","список всех","перечисли каждый",
+    "подробный план","детальный план"
+  ];
+  
+  const mediumKeywords = [
+    "объясни","расскажи подробнее","опиши","сравни",
+    "проанализируй","составь","напиши статью","напиши текст"
+  ];
+  
+  // Также учитываем длину запроса
+  const len = text.length;
+  
+  const isBig = bigKeywords.some(k => t.includes(k));
+  const isMedium = mediumKeywords.some(k => t.includes(k)) || len > 300;
+  
+  if(isBig) return 8000;      // Презентации, большие документы
+  if(isMedium) return 3000;   // Развёрнутые объяснения
+  return 1500;                 // Обычные вопросы — быстро
+}
+
 // ── Proxy helper (для мобильных) ──────────────────────────────
 function getProxyUrl(){
   // Определяем какой прокси использовать
@@ -485,7 +521,7 @@ const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
 
 async function callOpenAI(key, system, history){
   return callWithRetry(async()=>{
-    const body=JSON.stringify({model:"gpt-4o",max_tokens:1200,messages:[{role:"system",content:system},...history]});
+    const body=JSON.stringify({model:"gpt-4o",max_tokens:calcTokens(history),messages:[{role:"system",content:system},...history]});
     let d;
     if(isMobile){
       d=await proxyFetch("https://api.openai.com/v1/chat/completions",{"Authorization":"Bearer "+key},body);
@@ -505,7 +541,7 @@ async function callOpenAI(key, system, history){
 
 async function callClaude(key, system, history){
   return callWithRetry(async()=>{
-    const body=JSON.stringify({model:"claude-sonnet-4-5",max_tokens:1200,system,messages:history});
+    const body=JSON.stringify({model:"claude-sonnet-4-5",max_tokens:calcTokens(history),system,messages:history});
     let d;
     if(isMobile){
       d=await proxyFetch("https://api.anthropic.com/v1/messages",{"x-api-key":key,"anthropic-version":"2023-06-01"},body);
@@ -529,7 +565,7 @@ async function callKimi(key, system, history){
     const r=await fetch("https://api.moonshot.ai/v1/chat/completions",{
       method:"POST",signal:ctrl.signal,
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:"moonshot-v1-128k",max_tokens:1200,messages:[{role:"system",content:system},...history]})
+      body:JSON.stringify({model:"moonshot-v1-128k",max_tokens:calcTokens(history),messages:[{role:"system",content:system},...history]})
     });
     clearTimeout(t); const d=await r.json();
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
@@ -559,7 +595,7 @@ async function callGemini(key, system, history){
           }
           return {role,parts:[{text:m.content}]};
         });
-        const gBody=JSON.stringify({system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:1200}});
+        const gBody=JSON.stringify({system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:calcTokens(history)}});
         let d;
         if(isMobile){
           d=await proxyFetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[mi]}:generateContent?key=${key}`,{},gBody);
@@ -596,7 +632,7 @@ async function callPerplexity(key, system, history){
       }
       return m;
     });
-    const pBody=JSON.stringify({model:"sonar-pro",max_tokens:1200,messages:[{role:"system",content:system},...msgs]});
+    const pBody=JSON.stringify({model:"sonar-pro",max_tokens:calcTokens(msgs),messages:[{role:"system",content:system},...msgs]});
     let d;
     if(isMobile){
       d=await proxyFetch("https://api.perplexity.ai/chat/completions",{"Authorization":"Bearer "+key},pBody);
@@ -621,7 +657,7 @@ async function callDeepSeek(key, system, history){
       if(Array.isArray(m.content)) return {role:m.role,content:m.content.find(c=>c.type==="text")?.text||""};
       return m;
     });
-    const dsBody=JSON.stringify({model:"deepseek-chat",max_tokens:2000,messages:[{role:"system",content:system},...msgs]});
+    const dsBody=JSON.stringify({model:"deepseek-chat",max_tokens:calcTokens(msgs),messages:[{role:"system",content:system},...msgs]});
     let d;
     if(isMobile){
       d=await proxyFetch("https://api.deepseek.com/chat/completions",{"Authorization":"Bearer "+key},dsBody);
@@ -666,7 +702,7 @@ async function callOpenRouter(key, model, system, history){
     const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{
       method:"POST",signal:ctrl.signal,
       headers:{"Content-Type":"application/json","Authorization":"Bearer "+key,"HTTP-Referer":"https://ai-hub.vercel.app"},
-      body:JSON.stringify({model,max_tokens:1200,messages:[{role:"system",content:system},...msgs]})
+      body:JSON.stringify({model,max_tokens:calcTokens(msgs),messages:[{role:"system",content:system},...msgs]})
     });
     clearTimeout(t); const d=await r.json();
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));

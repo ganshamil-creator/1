@@ -1733,33 +1733,37 @@ async function openVisualize(turnId){
 
   try{
     // Просим AI сгенерировать HTML визуализацию
-    const system = `Ты эксперт по визуализации данных и HTML. 
-Твоя задача — создать красивую интерактивную HTML визуализацию на основе текста.
+    const system = `Ты эксперт по созданию HTML визуализаций. Создай красивый интерактивный HTML документ.
 
-ПРАВИЛА:
-1. Верни ТОЛЬКО валидный HTML документ (<!DOCTYPE html>...) без markdown
-2. CSS встроен в <style>, JS в <script>
-3. Используй красивые цвета, шрифты Google Fonts, анимации
-4. Для word search / поиска слов — покажи сетку с выделенными цветными ячейками
-5. Для списков — красивые карточки или таблицы
-6. Для текста с выделением — покажи текст с цветными маркерами
-7. Для данных — графики или таблицы
-8. Документ должен хорошо выглядеть в iframe 900×500px
-9. Добавь заголовок и описание
-10. Всегда добавляй кнопку "Распечатать" @media print`;
+КРИТИЧЕСКИ ВАЖНО — верни ТОЛЬКО чистый HTML начиная с <!DOCTYPE html>, без markdown, без объяснений.
 
-    const prompt = `Создай HTML визуализацию для следующего результата.
+Для word search задания:
+- Нарисуй сетку букв таблицей (каждая буква в ячейке td)
+- Найденные слова выдели разными цветами (background-color)
+- Добавь легенду со списком слов и их цветами
+- Сделай компактно чтобы всё поместилось
+
+Для текста с выделением:
+- Покажи текст с цветными span.mark
+
+Для таблиц/списков:
+- Красивые карточки или таблица с zebra striping
+
+Общие правила:
+- Подключи Google Fonts: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+- Белый фон, цветные акценты
+- Добавь кнопку @media print { .no-print{display:none} }
+- Документ должен корректно отображаться в srcdoc iframe`;
+
+    const prompt = `Создай HTML визуализацию.
 
 Тема: ${title}
-Тип задания: ${detectTaskType(text)}
+Тип: ${detectTaskType(text)}
 
-Содержимое (результат работы AI):
-${text.slice(0, 4000)}
+Результат работы AI (это нужно визуализировать):
+${text.slice(0, 3000)}
 
-${currentFiles.length > 0 ? `Исходный файл: ${currentFiles[0]?.name || "файл"}` : ""}
-
-Создай интерактивную HTML страницу которая красиво показывает этот результат.
-Верни ТОЛЬКО HTML без markdown или объяснений.`;
+Верни ТОЛЬКО HTML документ без markdown.`;
 
     const result = await synthesize(system, [{role:"user", content:prompt}]);
 
@@ -1777,13 +1781,11 @@ ${currentFiles.length > 0 ? `Исходный файл: ${currentFiles[0]?.name 
       _vizHtml = cleaned;
     }
 
-    // Показываем в iframe
+    // Показываем в iframe через srcdoc
     document.getElementById("vizTitle").textContent = "🎨 " + title;
     const iframe = document.createElement("iframe");
     iframe.style.cssText = "width:100%;height:550px;border:none;display:block";
-    iframe.sandbox = "allow-scripts allow-same-origin";
-    const blob = new Blob([_vizHtml], {type:"text/html;charset=utf-8"});
-    iframe.src = URL.createObjectURL(blob);
+    iframe.srcdoc = _vizHtml;
     document.getElementById("vizContent").innerHTML = "";
     document.getElementById("vizContent").appendChild(iframe);
     showToast("✅ Визуализация готова!");

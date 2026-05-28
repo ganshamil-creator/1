@@ -1264,6 +1264,7 @@ function appendTurnContainer(turnId, agents, cols){
   // Action buttons
   h+=`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">`;
   h+=`<button onclick="copyText('${turnId}_consolidated')" style="padding:4px 9px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>`;
+  h+=`<button onclick="openVisualize('${turnId}')" style="padding:4px 9px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">🎨 Визуализировать</button>`;
   h+=`<button onclick="openGamma('${turnId}')" style="padding:4px 9px;background:#faf5ff;color:#9333ea;border:1px solid #a855f733;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>`;
   h+=`<button onclick="openCanva('${turnId}')" style="padding:4px 9px;background:#eff6ff;color:#2563eb;border:1px solid #3b82f633;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>`;
   h+=`<button onclick="makeReveal('${turnId}')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
@@ -1495,6 +1496,7 @@ function renderMessages(){
       h+=`</div></div>`;
       h+=`<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">`;
       h+=`<button onclick="copyText('${tid}_consolidated')" style="padding:4px 9px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>`;
+      h+=`<button onclick="openVisualize('${tid}')" style="padding:4px 9px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">🎨 Визуализировать</button>`;
       h+=`<button onclick="openGamma('${tid}')" style="padding:4px 9px;background:#faf5ff;color:#9333ea;border:1px solid #a855f733;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>`;
       h+=`<button onclick="openCanva('${tid}')" style="padding:4px 9px;background:#eff6ff;color:#2563eb;border:1px solid #3b82f633;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>`;
       h+=`<button onclick="makeReveal('${tid}')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
@@ -1595,7 +1597,30 @@ function buildRevealPresentation(data){
     slidesHtml+=`<section style="text-align:center;padding:40px">${c}</section>`;
   });
   const cdn="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.1";
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escHtml(data.title||"Презентация")}</title><link rel="stylesheet" href="${cdn}/reveal.min.css"><link rel="stylesheet" href="${cdn}/theme/black.min.css"><style>body{margin:0}.reveal{font-family:Segoe UI,system-ui,sans-serif}.reveal .progress{color:${accent}}.reveal .controls{color:${accent}}</style></head><body><div class="reveal"><div class="slides">${slidesHtml}</div></div><script src="${cdn}/reveal.min.js"><\/script><script>Reveal.initialize({hash:false,controls:true,progress:true,center:true,transition:"slide",embedded:true});<\/script></body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${escHtml(data.title||"Презентация")}</title><link rel="stylesheet" href="${cdn}/reveal.min.css"><link rel="stylesheet" href="${cdn}/theme/black.min.css"><style>body{margin:0}.reveal{font-family:Segoe UI,system-ui,sans-serif}.reveal .progress{color:${accent}}.reveal .controls{color:${accent}}</style></head><body><div class="reveal"><div class="slides">${slidesHtml}</div></div><script src="${cdn}/reveal.min.js"><\/script><script>Reveal.initialize({hash:false,controls:true,progress:true,center:true,transition:"slide",embedded:true});<\/script>
+<!-- ═══════════════════════════════════════════════
+     VISUALIZATION MODAL
+     ═══════════════════════════════════════════════ -->
+<div id="vizModal" style="display:none;position:fixed;inset:0;z-index:280;background:rgba(15,23,42,.95);flex-direction:column;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#ffffff;border-radius:20px;width:100%;max-width:900px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,.5)">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);flex-shrink:0">
+      <span style="font-size:22px">🎨</span>
+      <div style="flex:1">
+        <div id="vizTitle" style="font-size:16px;font-weight:700;color:#fff">Визуализация результата</div>
+        <div id="vizSubtitle" style="font-size:12px;color:rgba(255,255,255,.7)">AI Multi-Hub</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="vizDownloadHtml()" style="padding:6px 14px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">⬇ HTML</button>
+        <button onclick="vizPrint()" style="padding:6px 14px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">🖨 Печать</button>
+        <button onclick="closeVizModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;cursor:pointer;width:36px;height:36px;border-radius:8px;line-height:1">✕</button>
+      </div>
+    </div>
+    <!-- Content area -->
+    <div id="vizContent" style="flex:1;overflow:auto;padding:0"></div>
+  </div>
+</div>
+</body></html>`;
   showRevealModal(html, data.title||"Презентация");
 }
 
@@ -1662,8 +1687,146 @@ function renderChatList(){
 
 // ════════════════════════════════════════════════════════════════
 // ════════════════════════════════════════════════════════════════
-// EXPORT TO FILES (Word, Excel, TXT, HTML)
+// VISUALIZATION ENGINE
 // ════════════════════════════════════════════════════════════════
+
+let _vizHtml = "";
+
+function closeVizModal(){
+  document.getElementById("vizModal").style.display="none";
+}
+
+function vizPrint(){
+  const w=window.open("","_blank");
+  if(w){ w.document.write(_vizHtml); w.document.close(); setTimeout(()=>w.print(),500); }
+}
+
+function vizDownloadHtml(){
+  const title=document.getElementById("vizTitle").textContent||"visualization";
+  const blob=new Blob([_vizHtml],{type:"text/html;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url;
+  a.download=title.replace(/[^\wа-яёА-ЯЁ ]/g,"_").slice(0,50)+".html";
+  a.click(); URL.revokeObjectURL(url);
+  showToast("✅ HTML скачан!");
+}
+
+async function openVisualize(turnId){
+  const el=document.getElementById(turnId+"_consolidated");
+  if(!el){ showToast("❌ Нет данных"); return; }
+  const text = el.dataset.raw || el.innerText || "";
+  if(!text){ showToast("❌ Нет текста для визуализации"); return; }
+
+  const chat = getChat();
+  const title = chat?.title || "Результат";
+
+  // Показываем модал с загрузкой
+  document.getElementById("vizTitle").textContent = "🎨 Генерирую визуализацию...";
+  document.getElementById("vizSubtitle").textContent = title;
+  document.getElementById("vizContent").innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:300px;gap:16px">
+      <div style="width:48px;height:48px;border:4px solid #e2e8f0;border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite"></div>
+      <div style="font-size:15px;color:#64748b">AI анализирует содержимое и строит визуализацию...</div>
+    </div>
+    <style>@keyframes spin{to{transform:rotate(360deg)}}</style>`;
+  document.getElementById("vizModal").style.display="flex";
+
+  try{
+    // Просим AI сгенерировать HTML визуализацию
+    const system = `Ты эксперт по визуализации данных и HTML. 
+Твоя задача — создать красивую интерактивную HTML визуализацию на основе текста.
+
+ПРАВИЛА:
+1. Верни ТОЛЬКО валидный HTML документ (<!DOCTYPE html>...) без markdown
+2. CSS встроен в <style>, JS в <script>
+3. Используй красивые цвета, шрифты Google Fonts, анимации
+4. Для word search / поиска слов — покажи сетку с выделенными цветными ячейками
+5. Для списков — красивые карточки или таблицы
+6. Для текста с выделением — покажи текст с цветными маркерами
+7. Для данных — графики или таблицы
+8. Документ должен хорошо выглядеть в iframe 900×500px
+9. Добавь заголовок и описание
+10. Всегда добавляй кнопку "Распечатать" @media print`;
+
+    const prompt = `Создай HTML визуализацию для следующего результата.
+
+Тема: ${title}
+Тип задания: ${detectTaskType(text)}
+
+Содержимое (результат работы AI):
+${text.slice(0, 4000)}
+
+${currentFiles.length > 0 ? `Исходный файл: ${currentFiles[0]?.name || "файл"}` : ""}
+
+Создай интерактивную HTML страницу которая красиво показывает этот результат.
+Верни ТОЛЬКО HTML без markdown или объяснений.`;
+
+    const result = await synthesize(system, [{role:"user", content:prompt}]);
+
+    // Чистим от markdown если есть
+    const cleaned = result
+      .replace(/^```html\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
+
+    if(!cleaned.includes("<html") && !cleaned.includes("<!DOCTYPE")){
+      // Оборачиваем в базовый HTML если AI вернул только фрагмент
+      _vizHtml = wrapInHtml(cleaned, title);
+    } else {
+      _vizHtml = cleaned;
+    }
+
+    // Показываем в iframe
+    document.getElementById("vizTitle").textContent = "🎨 " + title;
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "width:100%;height:550px;border:none;display:block";
+    iframe.sandbox = "allow-scripts allow-same-origin";
+    const blob = new Blob([_vizHtml], {type:"text/html;charset=utf-8"});
+    iframe.src = URL.createObjectURL(blob);
+    document.getElementById("vizContent").innerHTML = "";
+    document.getElementById("vizContent").appendChild(iframe);
+    showToast("✅ Визуализация готова!");
+
+  }catch(e){
+    document.getElementById("vizContent").innerHTML = `
+      <div style="padding:30px;text-align:center;color:#dc2626">
+        <div style="font-size:40px;margin-bottom:12px">❌</div>
+        <div style="font-size:15px">Ошибка: ${escHtml(e.message)}</div>
+        <div style="font-size:13px;color:#64748b;margin-top:8px">Попробуй ещё раз или задай вопрос с более структурированным ответом</div>
+      </div>`;
+    showToast("❌ Ошибка визуализации");
+  }
+}
+
+function detectTaskType(text){
+  const t = text.toLowerCase();
+  if(t.includes("word search") || t.includes("поиск слов") || t.includes("найди слова")) return "word_search";
+  if(t.includes("таблица") || t.includes("table") || t.includes("строк")) return "table";
+  if(t.includes("выдели") || t.includes("highlight") || t.includes("цвет")) return "highlight";
+  if(t.includes("список") || t.includes("list") || /\d+\./.test(t)) return "list";
+  if(t.includes("перевод") || t.includes("translation")) return "translation";
+  return "document";
+}
+
+function wrapInHtml(content, title){
+  return `<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>${escHtml(title)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:Inter,sans-serif;margin:20px;line-height:1.7;color:#1e293b;max-width:860px}
+h1,h2,h3{color:#6366f1}table{border-collapse:collapse;width:100%}
+td,th{padding:8px 12px;border:1px solid #e2e8f0}th{background:#6366f1;color:#fff}
+tr:nth-child(even){background:#f8fafc}.hl{background:#fef08a;border-radius:3px;padding:1px 3px}
+@media print{button{display:none}}
+</style></head><body>
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+<h1 style="margin:0">${escHtml(title)}</h1>
+<button onclick="window.print()" style="padding:6px 16px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer">🖨 Печать</button>
+</div>
+${content}
+</body></html>`;
+}
+
+
 
 function getExportContent(turnId){
   const el=document.getElementById(turnId+"_consolidated");
@@ -1774,7 +1937,30 @@ function exportHtml(turnId){
   const {text,title,date}=getExportContent(turnId);
   if(!text){showToast("❌ Нет текста");return;}
   const body=renderMd(text);
-  const html=`<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>${escHtml(title)}</title><style>body{font-family:Segoe UI,Arial,sans-serif;max-width:820px;margin:40px auto;padding:24px;line-height:1.9;color:#1e293b;font-size:16px}h1,h2,h3{color:#4f46e5}hr{border:none;border-top:1px solid #e2e8f0;margin:16px 0}p{margin:8px 0}</style></head><body><h1>${escHtml(title)}</h1><p style="color:#94a3b8;font-size:14px">📅 ${date} · AI Multi-Hub</p><hr>${body}</body></html>`;
+  const html=`<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8"><title>${escHtml(title)}</title><style>body{font-family:Segoe UI,Arial,sans-serif;max-width:820px;margin:40px auto;padding:24px;line-height:1.9;color:#1e293b;font-size:16px}h1,h2,h3{color:#4f46e5}hr{border:none;border-top:1px solid #e2e8f0;margin:16px 0}p{margin:8px 0}</style></head><body><h1>${escHtml(title)}</h1><p style="color:#94a3b8;font-size:14px">📅 ${date} · AI Multi-Hub</p><hr>${body}
+<!-- ═══════════════════════════════════════════════
+     VISUALIZATION MODAL
+     ═══════════════════════════════════════════════ -->
+<div id="vizModal" style="display:none;position:fixed;inset:0;z-index:280;background:rgba(15,23,42,.95);flex-direction:column;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#ffffff;border-radius:20px;width:100%;max-width:900px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,.5)">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);flex-shrink:0">
+      <span style="font-size:22px">🎨</span>
+      <div style="flex:1">
+        <div id="vizTitle" style="font-size:16px;font-weight:700;color:#fff">Визуализация результата</div>
+        <div id="vizSubtitle" style="font-size:12px;color:rgba(255,255,255,.7)">AI Multi-Hub</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="vizDownloadHtml()" style="padding:6px 14px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">⬇ HTML</button>
+        <button onclick="vizPrint()" style="padding:6px 14px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">🖨 Печать</button>
+        <button onclick="closeVizModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;cursor:pointer;width:36px;height:36px;border-radius:8px;line-height:1">✕</button>
+      </div>
+    </div>
+    <!-- Content area -->
+    <div id="vizContent" style="flex:1;overflow:auto;padding:0"></div>
+  </div>
+</div>
+</body></html>`;
   downloadBlob(new Blob([html],{type:"text/html;charset=utf-8"}),title.replace(/[^\wа-яёА-ЯЁ ]/g,"_").slice(0,50)+".html");
   showToast("✅ HTML скачан!");
 }
@@ -1901,5 +2087,28 @@ if(!k.openai&&!k.claude&&!k.openrouter&&!k.gemini&&!k.deepseek&&!k.perplexity&&!
   setTimeout(showSettings, 500);
 }
 </script>
+
+<!-- ═══════════════════════════════════════════════
+     VISUALIZATION MODAL
+     ═══════════════════════════════════════════════ -->
+<div id="vizModal" style="display:none;position:fixed;inset:0;z-index:280;background:rgba(15,23,42,.95);flex-direction:column;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#ffffff;border-radius:20px;width:100%;max-width:900px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 25px 80px rgba(0,0,0,.5)">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;background:linear-gradient(135deg,#6366f1,#8b5cf6);flex-shrink:0">
+      <span style="font-size:22px">🎨</span>
+      <div style="flex:1">
+        <div id="vizTitle" style="font-size:16px;font-weight:700;color:#fff">Визуализация результата</div>
+        <div id="vizSubtitle" style="font-size:12px;color:rgba(255,255,255,.7)">AI Multi-Hub</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="vizDownloadHtml()" style="padding:6px 14px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">⬇ HTML</button>
+        <button onclick="vizPrint()" style="padding:6px 14px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">🖨 Печать</button>
+        <button onclick="closeVizModal()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:22px;cursor:pointer;width:36px;height:36px;border-radius:8px;line-height:1">✕</button>
+      </div>
+    </div>
+    <!-- Content area -->
+    <div id="vizContent" style="flex:1;overflow:auto;padding:0"></div>
+  </div>
+</div>
 </body>
 </html>

@@ -295,10 +295,26 @@
   <div id="searchBadge" style="display:none;font-size:11px;color:#4ade80;background:#052e16;padding:2px 8px;border-radius:4px;border:1px solid #4ade8033">🌐 поиск</div>
   <button onclick="toggleSearch()" id="searchBtn" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:12px">🔍</button>
   <button onclick="toggleTranslateBar()" id="translateBtn" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:12px">🌐</button>
+  <button onclick="toggleQuickMode()" id="quickBtn" title="Быстрый режим — один AI" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:12px">⚡</button>
   <button onclick="showSettings()" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:18px;line-height:1">⚙️</button>
 </div>
 
 <!-- MESSAGES -->
+<!-- QUICK MODE BAR -->
+<div id="quickBar" style="display:none;padding:8px 12px;background:#fefce8;border-top:1px solid #fde047;flex-shrink:0;align-items:center;gap:8px;flex-wrap:wrap">
+  <span style="font-size:13px;font-weight:600;color:#92400e">⚡ Быстрый режим:</span>
+  <select id="quickAgent" style="padding:5px 10px;background:#fff;border:1px solid #fde047;border-radius:7px;color:#1e293b;font-size:13px">
+    <option value="claude">🟠 Claude</option>
+    <option value="gpt">🟢 ChatGPT</option>
+    <option value="gemini">🔴 Gemini</option>
+    <option value="deepseek">⚡ DeepSeek</option>
+    <option value="perplexity">🟣 Perplexity</option>
+    <option value="kimi">🔵 Kimi</option>
+  </select>
+  <span style="font-size:12px;color:#78350f">Отвечает только 1 AI — быстро и без синтеза</span>
+  <button onclick="toggleQuickMode()" style="margin-left:auto;background:none;border:none;color:#92400e;font-size:16px;cursor:pointer">✕</button>
+</div>
+
 <div id="messages" style="flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:16px;background:#f8fafc"></div>
 
 <!-- FILE PREVIEW -->
@@ -460,15 +476,42 @@ async function callWithRetry(fn, attempt=1){
   }
 }
 
+// ── Proxy helper (для мобильных) ──────────────────────────────
+function getProxyUrl(){
+  // Определяем какой прокси использовать
+  const isVercel = window.location.hostname.includes("vercel.app");
+  return isVercel ? "/api/proxy" : "/.netlify/functions/proxy";
+}
+
+async function proxyFetch(url, headers, body){
+  const proxyUrl = getProxyUrl();
+  const r = await fetch(proxyUrl, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({url, headers, body})
+  });
+  const text = await r.text();
+  try{ return JSON.parse(text); }
+  catch(e){ throw new Error("Прокси вернул не JSON: "+text.slice(0,100)); }
+}
+
+const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
 async function callOpenAI(key, system, history){
   return callWithRetry(async()=>{
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
-    const r=await fetch("https://api.openai.com/v1/chat/completions",{
-      method:"POST",signal:ctrl.signal,
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:"gpt-4o",max_tokens:1200,messages:[{role:"system",content:system},...history]})
-    });
-    clearTimeout(t); const d=await r.json();
+    const body=JSON.stringify({model:"gpt-4o",max_tokens:1200,messages:[{role:"system",content:system},...history]});
+    let d;
+    if(isMobile){
+      d=await proxyFetch("https://api.openai.com/v1/chat/completions",{"Authorization":"Bearer "+key},body);
+    } else {
+      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+      const r=await fetch("https://api.openai.com/v1/chat/completions",{
+        method:"POST",signal:ctrl.signal,
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+        body
+      });
+      clearTimeout(t); d=await r.json();
+    }
     if(d.error) throw new Error(d.error.message);
     return d.choices[0].message.content.trim();
   });
@@ -476,13 +519,19 @@ async function callOpenAI(key, system, history){
 
 async function callClaude(key, system, history){
   return callWithRetry(async()=>{
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
-    const r=await fetch("https://api.anthropic.com/v1/messages",{
-      method:"POST",signal:ctrl.signal,
-      headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-      body:JSON.stringify({model:"claude-sonnet-4-5",max_tokens:1200,system,messages:history})
-    });
-    clearTimeout(t); const d=await r.json();
+    const body=JSON.stringify({model:"claude-sonnet-4-5",max_tokens:1200,system,messages:history});
+    let d;
+    if(isMobile){
+      d=await proxyFetch("https://api.anthropic.com/v1/messages",{"x-api-key":key,"anthropic-version":"2023-06-01"},body);
+    } else {
+      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
+      const r=await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",signal:ctrl.signal,
+        headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body
+      });
+      clearTimeout(t); d=await r.json();
+    }
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
     return d.content.map(b=>b.text||"").join("").trim();
   });
@@ -524,12 +573,18 @@ async function callGemini(key, system, history){
           }
           return {role,parts:[{text:m.content}]};
         });
-        const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[mi]}:generateContent?key=${key}`,{
-          method:"POST",signal:ctrl.signal,
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify({system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:1200}})
-        });
-        clearTimeout(t); const d=await r.json();
+        const gBody=JSON.stringify({system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:1200}});
+        let d;
+        if(isMobile){
+          d=await proxyFetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[mi]}:generateContent?key=${key}`,{},gBody);
+        } else {
+          const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${models[mi]}:generateContent?key=${key}`,{
+            method:"POST",signal:ctrl.signal,
+            headers:{"Content-Type":"application/json"},
+            body:gBody
+          });
+          clearTimeout(t); d=await r.json();
+        }
         if(d.error){
           if((d.error.message||"").includes("overloaded")||(d.error.message||"").includes("high demand")){await sleep(attempt*2000);continue;}
           if((d.error.message||"").includes("not found")) break;
@@ -555,12 +610,19 @@ async function callPerplexity(key, system, history){
       }
       return m;
     });
-    const r=await fetch("https://api.perplexity.ai/chat/completions",{
-      method:"POST",signal:ctrl.signal,
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:"sonar-pro",max_tokens:1200,messages:[{role:"system",content:system},...msgs]})
-    });
-    clearTimeout(t); const d=await r.json();
+    const pBody=JSON.stringify({model:"sonar-pro",max_tokens:1200,messages:[{role:"system",content:system},...msgs]});
+    let d;
+    if(isMobile){
+      d=await proxyFetch("https://api.perplexity.ai/chat/completions",{"Authorization":"Bearer "+key},pBody);
+    } else {
+      const ctrl2=new AbortController(); const t2=setTimeout(()=>ctrl2.abort(),40000);
+      const r=await fetch("https://api.perplexity.ai/chat/completions",{
+        method:"POST",signal:ctrl2.signal,
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+        body:pBody
+      });
+      clearTimeout(t2); d=await r.json();
+    }
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
     return d.choices[0].message.content.trim();
   });
@@ -573,12 +635,18 @@ async function callDeepSeek(key, system, history){
       if(Array.isArray(m.content)) return {role:m.role,content:m.content.find(c=>c.type==="text")?.text||""};
       return m;
     });
-    const r=await fetch("https://api.deepseek.com/chat/completions",{
-      method:"POST",signal:ctrl.signal,
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:"deepseek-chat",max_tokens:2000,messages:[{role:"system",content:system},...msgs]})
-    });
-    clearTimeout(t); const d=await r.json();
+    const dsBody=JSON.stringify({model:"deepseek-chat",max_tokens:2000,messages:[{role:"system",content:system},...msgs]});
+    let d;
+    if(isMobile){
+      d=await proxyFetch("https://api.deepseek.com/chat/completions",{"Authorization":"Bearer "+key},dsBody);
+    } else {
+      const r=await fetch("https://api.deepseek.com/chat/completions",{
+        method:"POST",signal:ctrl.signal,
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+        body:dsBody
+      });
+      clearTimeout(t); d=await r.json();
+    }
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
     return d.choices[0].message.content.trim();
   });
@@ -624,6 +692,8 @@ async function callAgent(agent, system, history){
   const keys=getKeys();
   const or=keys.openrouter;
   const orModels={gpt:"openai/gpt-4o",claude:"anthropic/claude-sonnet-4-5",kimi:"moonshotai/kimi-k2",gemini:"google/gemini-2.5-flash",perplexity:"perplexity/sonar-pro",deepseek:"deepseek/deepseek-chat"};
+  // На мобильных устройствах прямые API часто блокируются → всегда OpenRouter
+  const isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   switch(agent.id){
     case "gpt":        return keys.openai?callOpenAI(keys.openai,system,history):or?callOpenRouter(or,orModels.gpt,system,history):Promise.reject(new Error("Нет ключа ChatGPT"));
     case "claude":     return keys.claude?callClaude(keys.claude,system,history):or?callOpenRouter(or,orModels.claude,system,history):Promise.reject(new Error("Нет ключа Claude"));
@@ -774,21 +844,138 @@ async function sendTranslation(){
 }
 
 
+// ── Quick Mode ─────────────────────────────────────────────────
+let quickMode = false;
+
+function toggleQuickMode(){
+  quickMode = !quickMode;
+  const bar = document.getElementById("quickBar");
+  const btn = document.getElementById("quickBtn");
+  bar.style.display = quickMode ? "flex" : "none";
+  btn.style.background = quickMode ? "#fef08a" : "#f1f5f9";
+  btn.style.color = quickMode ? "#92400e" : "#475569";
+  btn.style.borderColor = quickMode ? "#fde047" : "#e2e8f0";
+  if(quickMode) showToast("⚡ Быстрый режим — выбери AI и задай вопрос");
+}
+
+
 function toggleSearch(){
   searchEnabled=!searchEnabled;
   document.getElementById("searchBadge").style.display=searchEnabled?"flex":"none";
-  document.getElementById("searchBtn").style.background=searchEnabled?"#052e16":"#1e293b";
-  document.getElementById("searchBtn").style.color=searchEnabled?"#4ade80":"#94a3b8";
+  document.getElementById("searchBtn").style.background=searchEnabled?"#052e16":"#f1f5f9";
+  document.getElementById("searchBtn").style.color=searchEnabled?"#4ade80":"#475569";
 }
 
-// ════════════════════════════════════════════════════════════════
-// SEND
-// ════════════════════════════════════════════════════════════════
+// ── Quick Send (один агент) ────────────────────────────────────
+async function sendQuick(text, inp){
+  const agentId = document.getElementById("quickAgent")?.value || "claude";
+  const agent = ALL_AGENTS.find(a=>a.id===agentId);
+  if(!agent){ showToast("❌ Агент не найден"); return; }
+
+  const filesToSend=[...currentFiles];
+  const today=getToday();
+  const chat=getChat();
+
+  const history=[];
+  if(chat.messages){
+    for(let i=0;i<chat.messages.length;i+=2){
+      const u=chat.messages[i],a=chat.messages[i+1];
+      if(u) history.push({role:"user",content:u.content});
+      if(a) history.push({role:"assistant",content:a.content});
+    }
+  }
+
+  // File context
+  const imageFiles=filesToSend.filter(f=>f.type.startsWith("image/")&&f.b64);
+  let fileCtx="";
+  for(const f of filesToSend.filter(f=>!f.type.startsWith("image/"))){
+    if(f.text) fileCtx+="\n["+f.name+"]\n"+f.text.slice(0,10000)+"\n";
+  }
+  if(imageFiles.length>0){
+    fileCtx+="\n[Изображений: "+imageFiles.length+"]\n";
+    for(const f of imageFiles){ if(f.text) fileCtx+=f.text+"\n"; }
+  }
+
+  const enrichedMsg=today+text+fileCtx;
+  history.push({role:"user",content:enrichedMsg});
+
+  // Vision history
+  let agentHistory=history;
+  if(imageFiles.length>0){
+    if(agentId==="claude"){
+      const content=[];
+      imageFiles.forEach(f=>{const mt=f.type==="image/jpg"?"image/jpeg":f.type;content.push({type:"image",source:{type:"base64",media_type:mt,data:f.b64}});});
+      content.push({type:"text",text:enrichedMsg});
+      agentHistory=[...history.slice(0,-1),{role:"user",content}];
+    } else if(["gpt","gemini","perplexity"].includes(agentId)){
+      const content=[];
+      imageFiles.forEach(f=>content.push({type:"image_url",image_url:{url:`data:${f.type};base64,${f.b64}`}}));
+      content.push({type:"text",text:enrichedMsg});
+      agentHistory=[...history.slice(0,-1),{role:"user",content}];
+    }
+  }
+
+  // UI
+  chat.messages=chat.messages||[];
+  chat.messages.push({role:"user",content:text,files:filesToSend.map(f=>({name:f.name,type:f.type,size:f.size,b64:f.b64,text:f.text})),ts:Date.now()});
+  if(chat.title==="Новая тема"&&text.length>3){chat.title=text.slice(0,40);document.getElementById("chatTitle").textContent=chat.title;}
+  saveChats(chats);
+  appendUserBubble(text,filesToSend);
+  inp.value=""; inp.style.height="auto";
+  thinking=true;
+  document.getElementById("sendBtn").disabled=true;
+  document.getElementById("sendBtn").style.background="#374151";
+
+  // Создаём простой контейнер ответа
+  const turnId="quick_"+Date.now();
+  const el=document.createElement("div"); el.className="fade"; el.id=turnId;
+  el.innerHTML=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <span style="font-size:18px">${agent.emoji}</span>
+    <span style="font-size:14px;font-weight:700;color:${agent.color}">${agent.name}</span>
+    <span style="font-size:11px;background:#f1f5f9;padding:1px 6px;border-radius:4px;color:#64748b">${agent.badge}</span>
+    <span style="font-size:11px;color:#f59e0b;margin-left:4px">⚡ быстрый</span>
+  </div>
+  <div style="background:#ffffff;border:1px solid ${agent.color}33;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">
+    <div id="${turnId}_text" style="font-size:16px;line-height:1.9;color:#1e293b" class="pulse">Отвечает ${agent.name}...</div>
+    <div style="display:flex;gap:6px;margin-top:12px;padding-top:10px;border-top:1px solid #f1f5f9;flex-wrap:wrap">
+      <button onclick="copyText('${turnId}_text')" style="padding:4px 10px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>
+      <button onclick="exportWord('${turnId}')" style="padding:4px 10px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Word</button>
+      <button onclick="exportTxt('${turnId}')" style="padding:4px 10px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📄 TXT</button>
+    </div>
+  </div>`;
+  document.getElementById("messages").appendChild(el);
+  scrollToBottom();
+
+  try{
+    const ans=await callAgent(agent, today+agent.system, agentHistory);
+    const tx=document.getElementById(turnId+"_text");
+    if(tx){tx.className="";tx.innerHTML=renderMd(ans);tx.dataset.raw=ans;}
+    chat.messages.push({role:"assistant",content:ans,agentResults:{[agentId]:{status:"ok",text:ans}},ts:Date.now()});
+  }catch(e){
+    const tx=document.getElementById(turnId+"_text");
+    if(tx){tx.className="";tx.style.color="#dc2626";tx.textContent="❌ "+e.message;}
+    chat.messages.push({role:"assistant",content:"Ошибка: "+e.message,ts:Date.now()});
+  }
+  saveChats(chats);
+  clearFiles();
+  thinking=false;
+  document.getElementById("sendBtn").disabled=false;
+  document.getElementById("sendBtn").style.background="linear-gradient(135deg,#6366f1,#8b5cf6)";
+  scrollToBottom();
+}
+
+
 async function send(){
   if(thinking) return;
   const inp=document.getElementById("queryInput");
   const text=inp.value.trim();
   if(!text&&!currentFiles.length) return;
+
+  // ⚡ БЫСТРЫЙ РЕЖИМ — один агент без синтеза
+  if(quickMode){
+    sendQuick(text, inp);
+    return;
+  }
 
   const filesToSend=[...currentFiles];
   const today=getToday();

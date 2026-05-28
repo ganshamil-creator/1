@@ -189,21 +189,13 @@
     </div>
     <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:10px">🔑 API Ключи (каждый AI через свой родной API)</div>
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px" id="keyFields">
-      <!-- ChatGPT -->
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟢</span><span style="font-size:11px;font-weight:600;color:#10a37f">ChatGPT</span><span style="font-size:9px;color:#6b7280;margin-left:auto">platform.openai.com</span></div>
-        <input type="password" id="key_openai" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
-      </div>
+
       <!-- Claude -->
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟠</span><span style="font-size:11px;font-weight:600;color:#d97706">Claude</span><span style="font-size:9px;color:#6b7280;margin-left:auto">console.anthropic.com</span></div>
         <input type="password" id="key_claude" placeholder="sk-ant-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
       </div>
-      <!-- Kimi -->
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🔵</span><span style="font-size:11px;font-weight:600;color:#4f8ef7">Kimi</span><span style="font-size:9px;color:#6b7280;margin-left:auto">platform.moonshot.ai</span></div>
-        <input type="password" id="key_kimi" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
-      </div>
+
       <!-- Gemini -->
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🔴</span><span style="font-size:11px;font-weight:600;color:#ea4335">Gemini</span><span style="font-size:9px;color:#6b7280;margin-left:auto">aistudio.google.com · бесплатно</span></div>
@@ -305,11 +297,9 @@
   <span style="font-size:13px;font-weight:600;color:#92400e">⚡ Быстрый режим:</span>
   <select id="quickAgent" style="padding:5px 10px;background:#fff;border:1px solid #fde047;border-radius:7px;color:#1e293b;font-size:13px">
     <option value="claude">🟠 Claude</option>
-    <option value="gpt">🟢 ChatGPT</option>
     <option value="gemini">🔴 Gemini</option>
-    <option value="deepseek">⚡ DeepSeek</option>
     <option value="perplexity">🟣 Perplexity</option>
-    <option value="kimi">🔵 Kimi</option>
+    <option value="deepseek">⚡ DeepSeek</option>
   </select>
   <span style="font-size:12px;color:#78350f">Отвечает только 1 AI — быстро и без синтеза</span>
   <button onclick="toggleQuickMode()" style="margin-left:auto;background:none;border:none;color:#92400e;font-size:16px;cursor:pointer">✕</button>
@@ -433,7 +423,7 @@ let activeChatId = chats[0].id;
 let thinking = false;
 let currentFiles = [];
 let searchEnabled = false;
-let activeAgentIds = JSON.parse(localStorage.getItem("active_agents")||"null") || ["gpt","claude","kimi","gemini","perplexity","deepseek"];
+let activeAgentIds = JSON.parse(localStorage.getItem("active_agents")||"null") || ["claude","gemini","perplexity","deepseek"];
 
 function getChat(){ return chats.find(c=>c.id===activeChatId); }
 function getAgents(){ return ALL_AGENTS.filter(a=>activeAgentIds.includes(a.id)); }
@@ -449,16 +439,12 @@ function getToday(){
 // AGENTS
 // ════════════════════════════════════════════════════════════════
 const ALL_AGENTS = [
-  {id:"gpt",       name:"ChatGPT",    emoji:"🟢", color:"#10a37f", badge:"GPT-4o",
-   system:"Ты ChatGPT от OpenAI. Давай чёткие практичные ответы. Если прикреплено изображение — ОБЯЗАТЕЛЬНО прочитай весь текст на нём и используй в ответе. Умеешь переводить между любыми языками. Используй текущую дату из контекста. Помни историю разговора."},
   {id:"claude",    name:"Claude",     emoji:"🟠", color:"#d97706", badge:"Sonnet 4.6",
    system:"Ты Claude от Anthropic. Давай аналитические глубокие ответы. Если прикреплено изображение — ОБЯЗАТЕЛЬНО прочитай весь текст на нём дословно и используй в ответе. Умеешь переводить между любыми языками мира точно и полностью. Текущая дата передана в начале сообщения. Помни историю разговора."},
-  {id:"kimi",      name:"Kimi",       emoji:"🔵", color:"#4f8ef7", badge:"K2",
-   system:"Ты Kimi от Moonshot AI. Давай детальные ответы. Используй дату из контекста. Всегда отвечай."},
   {id:"gemini",    name:"Gemini",     emoji:"🔴", color:"#ea4335", badge:"2.5 Flash",
    system:"Ты Google Gemini. Анализируй глубоко. Если прикреплено изображение — ОБЯЗАТЕЛЬНО прочитай весь текст на нём и процитируй его в ответе. Умеешь точно переводить между любыми языками. Используй дату из контекста. Если есть данные поиска — используй их."},
   {id:"perplexity",name:"Perplexity", emoji:"🟣", color:"#8b5cf6", badge:"Sonar Pro",
-   system:"Ты Perplexity с доступом к интернету. Давай точные актуальные ответы. Если прикреплено изображение — прочитай текст на нём. Умеешь переводить между языками. Давай источники."},
+   system:"Ты Perplexity с доступом к интернету. Давай точные актуальные ответы с источниками. Если прикреплено изображение — прочитай текст на нём. Умеешь переводить между языками."},
   {id:"deepseek",  name:"DeepSeek",   emoji:"⚡", color:"#06b6d4", badge:"V3",
    system:"Ты DeepSeek V3. Давай логичные структурированные ответы. Если есть текст из файлов или OCR — анализируй и переводи его. Умеешь переводить между всеми языками. Используй дату из контекста."},
 ];
@@ -691,13 +677,10 @@ async function callOpenRouter(key, model, system, history){
 async function callAgent(agent, system, history){
   const keys=getKeys();
   const or=keys.openrouter;
-  const orModels={gpt:"openai/gpt-4o",claude:"anthropic/claude-sonnet-4-5",kimi:"moonshotai/kimi-k2",gemini:"google/gemini-2.5-flash",perplexity:"perplexity/sonar-pro",deepseek:"deepseek/deepseek-chat"};
-  // На мобильных устройствах прямые API часто блокируются → всегда OpenRouter
+  const orModels={claude:"anthropic/claude-sonnet-4-5",gemini:"google/gemini-2.5-flash",perplexity:"perplexity/sonar-pro",deepseek:"deepseek/deepseek-chat"};
   const isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   switch(agent.id){
-    case "gpt":        return keys.openai?callOpenAI(keys.openai,system,history):or?callOpenRouter(or,orModels.gpt,system,history):Promise.reject(new Error("Нет ключа ChatGPT"));
     case "claude":     return keys.claude?callClaude(keys.claude,system,history):or?callOpenRouter(or,orModels.claude,system,history):Promise.reject(new Error("Нет ключа Claude"));
-    case "kimi":       return keys.kimi?callKimi(keys.kimi,system,history):or?callOpenRouter(or,orModels.kimi,system,history):Promise.reject(new Error("Нет ключа Kimi"));
     case "gemini":     return keys.gemini?callGemini(keys.gemini,system,history):or?callOpenRouter(or,orModels.gemini,system,history):Promise.reject(new Error("Нет ключа Gemini"));
     case "perplexity": return keys.perplexity?callPerplexity(keys.perplexity,system,history):or?callOpenRouter(or,orModels.perplexity,system,history):Promise.reject(new Error("Нет ключа Perplexity"));
     case "deepseek":   return keys.deepseek?callDeepSeek(keys.deepseek,system,history):or?callOpenRouter(or,orModels.deepseek,system,history):Promise.reject(new Error("Нет ключа DeepSeek"));
@@ -1102,7 +1085,7 @@ async function send(){
   appendTurnContainer(turnId,agents,cols);
 
   const results={};
-  const visionSet=new Set(["gpt","claude","gemini","perplexity"]);
+  const visionSet=new Set(["claude","gemini","perplexity"]);
 
   // Vision agents first
   await Promise.all(agents.filter(a=>visionSet.has(a.id)).map(async a=>{
@@ -1267,8 +1250,8 @@ function appendTurnContainer(turnId, agents, cols){
   h+=`<button onclick="openVisualize('${turnId}')" style="padding:4px 9px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">🎨 Визуализировать</button>`;
   h+=`<button onclick="openGamma('${turnId}')" style="padding:4px 9px;background:#faf5ff;color:#9333ea;border:1px solid #a855f733;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>`;
   h+=`<button onclick="openCanva('${turnId}')" style="padding:4px 9px;background:#eff6ff;color:#2563eb;border:1px solid #3b82f633;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>`;
-  h+=`<button onclick="makeReveal('${turnId}')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
-  h+=`<button onclick="kimiPresent('${turnId}')" style="padding:4px 9px;background:#eff6ff;color:#1d4ed8;border:1px solid #4f8ef733;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>`;
+  h+=`<button onclick="openSlideMaker('${turnId}')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #22c55e33;border-radius:6px;font-size:11px;cursor:pointer">🆓 SlideMaker</button>`;
+
   h+=`</div>`;
 
   // Export buttons
@@ -1276,8 +1259,6 @@ function appendTurnContainer(turnId, agents, cols){
   h+=`<span style="font-size:11px;color:#94a3b8;align-self:center">💾</span>`;
   h+=`<button onclick="exportWord('${turnId}')" style="padding:4px 10px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Word</button>`;
   h+=`<button onclick="exportExcel('${turnId}')" style="padding:4px 10px;background:#1a4731;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📊 Excel</button>`;
-  h+=`<button onclick="exportTxt('${turnId}')" style="padding:4px 10px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📄 TXT</button>`;
-  h+=`<button onclick="exportHtml('${turnId}')" style="padding:4px 10px;background:#4a1d96;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">🌐 HTML</button>`;
   h+=`</div>`;
   // Text
   h+=`<div id="${turnId}_consolidated" style="font-size:16px;line-height:2.0;color:#1e293b" class="pulse">Синтез...</div>`;
@@ -1499,8 +1480,8 @@ function renderMessages(){
       h+=`<button onclick="openVisualize('${tid}')" style="padding:4px 9px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">🎨 Визуализировать</button>`;
       h+=`<button onclick="openGamma('${tid}')" style="padding:4px 9px;background:#faf5ff;color:#9333ea;border:1px solid #a855f733;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>`;
       h+=`<button onclick="openCanva('${tid}')" style="padding:4px 9px;background:#eff6ff;color:#2563eb;border:1px solid #3b82f633;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>`;
-      h+=`<button onclick="makeReveal('${tid}')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #4ade8033;border-radius:6px;font-size:11px;cursor:pointer">🎭 Reveal</button>`;
-      h+=`<button onclick="kimiPresent('${tid}')" style="padding:4px 9px;background:#eff6ff;color:#1d4ed8;border:1px solid #4f8ef733;border-radius:6px;font-size:11px;cursor:pointer">🔵 Kimi</button>`;
+      h+=`<button onclick="openSlideMaker('${tid}')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #22c55e33;border-radius:6px;font-size:11px;cursor:pointer">🆓 SlideMaker</button>`;
+
       h+=`</div>`;
 
   // Export buttons
@@ -1540,6 +1521,15 @@ function openCanva(turnId){
   navigator.clipboard.writeText(el.dataset.raw||el.textContent).then(()=>{
     showToast("📋 Текст скопирован → открываю Canva");
     setTimeout(()=>window.open("https://www.canva.com/create/presentations/","_blank"),800);
+  });
+}
+
+function openSlideMaker(turnId){
+  const el=document.getElementById(turnId+"_consolidated");
+  if(!el) return;
+  navigator.clipboard.writeText(el.dataset.raw||el.textContent).then(()=>{
+    showToast("📋 Текст скопирован → открываю SlideMaker");
+    setTimeout(()=>window.open("https://slidemaker.app","_blank"),800);
   });
 }
 
@@ -1733,61 +1723,80 @@ async function openVisualize(turnId){
 
   try{
     // Просим AI сгенерировать HTML визуализацию
-    const system = `Ты эксперт по созданию HTML визуализаций. Создай красивый интерактивный HTML документ.
+    const system = `Ты эксперт по HTML визуализации. Создай HTML фрагмент (не полный документ).
 
-КРИТИЧЕСКИ ВАЖНО — верни ТОЛЬКО чистый HTML начиная с <!DOCTYPE html>, без markdown, без объяснений.
+ВАЖНО: верни ТОЛЬКО HTML+CSS+JS фрагмент БЕЗ <!DOCTYPE>, <html>, <head>, <body> тегов.
+CSS помести в <style> тег в начале, JS в <script> в конце.
 
-Для word search задания:
-- Нарисуй сетку букв таблицей (каждая буква в ячейке td)
-- Найденные слова выдели разными цветами (background-color)
-- Добавь легенду со списком слов и их цветами
-- Сделай компактно чтобы всё поместилось
+Для word search:
+- Таблица <table> с ячейками <td> — каждая буква отдельно
+- Найденные слова: ячейки с background-color и color:#fff
+- Рядом легенда с цветными точками и названиями слов
+- Компактный шрифт font-size:13px
 
-Для текста с выделением:
-- Покажи текст с цветными span.mark
+Для текстов с выделением:
+- <span style="background:#fef08a"> для маркера
 
-Для таблиц/списков:
-- Красивые карточки или таблица с zebra striping
+Для списков:
+- Красивые карточки с border-left цветной полосой
 
-Общие правила:
-- Подключи Google Fonts: <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-- Белый фон, цветные акценты
-- Добавь кнопку @media print { .no-print{display:none} }
-- Документ должен корректно отображаться в srcdoc iframe`;
+Используй только встроенные стили, без внешних шрифтов и скриптов.`;
 
     const prompt = `Создай HTML визуализацию.
 
 Тема: ${title}
 Тип: ${detectTaskType(text)}
 
-Результат работы AI (это нужно визуализировать):
+Данные для визуализации:
 ${text.slice(0, 3000)}
 
-Верни ТОЛЬКО HTML документ без markdown.`;
+Верни ТОЛЬКО HTML фрагмент без полного документа.`;
 
     const result = await synthesize(system, [{role:"user", content:prompt}]);
 
-    // Чистим от markdown если есть
+    // Чистим markdown если AI вернул его
     const cleaned = result
       .replace(/^```html\s*/i, "")
       .replace(/^```\s*/i, "")
       .replace(/```\s*$/i, "")
       .trim();
 
-    if(!cleaned.includes("<html") && !cleaned.includes("<!DOCTYPE")){
-      // Оборачиваем в базовый HTML если AI вернул только фрагмент
-      _vizHtml = wrapInHtml(cleaned, title);
+    // Если полный документ — извлекаем body
+    if(cleaned.includes("<!DOCTYPE") || cleaned.includes("<html")){
+      const bodyMatch = cleaned.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      const styleMatch = cleaned.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+      let fragment = "";
+      if(styleMatch) fragment += `<style>${styleMatch[1]}</style>`;
+      if(bodyMatch) fragment += bodyMatch[1];
+      _vizHtml = fragment || cleaned;
     } else {
       _vizHtml = cleaned;
     }
 
-    // Показываем в iframe через srcdoc
+    // Рендерим напрямую в div через Shadow DOM (изолированно)
     document.getElementById("vizTitle").textContent = "🎨 " + title;
-    const iframe = document.createElement("iframe");
-    iframe.style.cssText = "width:100%;height:550px;border:none;display:block";
-    iframe.srcdoc = _vizHtml;
-    document.getElementById("vizContent").innerHTML = "";
-    document.getElementById("vizContent").appendChild(iframe);
+    const container = document.getElementById("vizContent");
+    container.innerHTML = "";
+
+    // Создаём изолированный контейнер
+    const host = document.createElement("div");
+    host.style.cssText = "width:100%;min-height:500px;overflow:auto";
+    container.appendChild(host);
+
+    try{
+      // Shadow DOM для изоляции стилей
+      const shadow = host.attachShadow({mode:"open"});
+      shadow.innerHTML = _vizHtml;
+
+      // Если Shadow DOM не сработал — fallback на обычный div
+      if(!shadow.innerHTML){
+        host.innerHTML = _vizHtml;
+      }
+    }catch(e){
+      // Fallback — вставляем напрямую
+      host.innerHTML = _vizHtml;
+    }
+
     showToast("✅ Визуализация готова!");
 
   }catch(e){
@@ -2001,9 +2010,7 @@ function importConfig(input){
 // ════════════════════════════════════════════════════════════════
 function showSettings(){
   const keys=getKeys();
-  document.getElementById("key_openai").value=keys.openai||"";
   document.getElementById("key_claude").value=keys.claude||"";
-  document.getElementById("key_kimi").value=keys.kimi||"";
   document.getElementById("key_gemini").value=keys.gemini||"";
   document.getElementById("key_openrouter").value=keys.openrouter||"";
   document.getElementById("key_perplexity").value=keys.perplexity||"";
@@ -2017,9 +2024,7 @@ function hideSettings(){ document.getElementById("settingsModal").style.display=
 
 function saveSettings(){
   const newKeys = {
-    openai:document.getElementById("key_openai").value.trim(),
     claude:document.getElementById("key_claude").value.trim(),
-    kimi:document.getElementById("key_kimi").value.trim(),
     gemini:document.getElementById("key_gemini").value.trim(),
     openrouter:document.getElementById("key_openrouter").value.trim(),
     perplexity:document.getElementById("key_perplexity").value.trim(),

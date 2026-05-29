@@ -564,25 +564,54 @@ async function callOpenAI(key, system, history){
   });
 }
 
-async function callClaude(key, system, history){
+// Определяем модель Claude по сложности запроса
+function pickClaudeModel(history){
+  const last=history[history.length-1];
+  const text=(Array.isArray(last?.content)?last.content.find(c=>c.type==="text")?.text||"":last?.content||"").toLowerCase();
+  const heavy=["слайд","presentation","презентац","подробно","детально","анализ","стратег","бизнес план","эссе","реферат","диплом","промпт","перевед","translate","summarize","сравни","сравнение"];
+  const hasFile=history.some(m=>Array.isArray(m.content)&&m.content.some(c=>c.type==="image"||c.type==="document"));
+  if(hasFile||heavy.some(k=>text.includes(k))||text.length>400) return "claude-haiku-4-5";
+  return "claude-haiku-4-5"; // Haiku быстрее для всех — Sonnet только если явно нужен
+}
+
+async function callClaude(key, system, history, onChunk){
   return callWithRetry(async()=>{
-    const body=JSON.stringify({model:"claude-sonnet-4-5",max_tokens:calcTokens(history),system,messages:history});
-    let d;
+    const model=pickClaudeModel(history);
+    const bodyObj={model,max_tokens:calcTokens(history),system,messages:history,stream:!isMobile};
+    const body=JSON.stringify(bodyObj);
     if(isMobile){
-      d=await proxyFetch("https://api.anthropic.com/v1/messages",{"x-api-key":key,"anthropic-version":"2023-06-01"},body);
-    } else {
-      const bodySize=body.length;
-      const claudeTimeout=bodySize>100000?180000:bodySize>30000?120000:60000;
-      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),claudeTimeout);
-      const r=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",signal:ctrl.signal,
-        headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body
-      });
-      clearTimeout(t); d=await r.json();
+      // Мобильный — без стриминга через прокси
+      const d=await proxyFetch("https://api.anthropic.com/v1/messages",{"x-api-key":key,"anthropic-version":"2023-06-01"},JSON.stringify({...bodyObj,stream:false}));
+      if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
+      return d.content.map(b=>b.text||"").join("").trim();
     }
-    if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
-    return d.content.map(b=>b.text||"").join("").trim();
+    const bodySize=body.length;
+    const claudeTimeout=bodySize>100000?180000:bodySize>30000?120000:60000;
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),claudeTimeout);
+    const r=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",signal:ctrl.signal,
+      headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body
+    });
+    clearTimeout(t);
+    if(!r.ok){ const e=await r.json(); throw new Error(e.error?.message||r.statusText); }
+    // SSE стриминг
+    const reader=r.body.getReader(); const dec=new TextDecoder(); let full="";
+    while(true){
+      const {done,value}=await reader.read(); if(done) break;
+      const chunk=dec.decode(value,{stream:true});
+      for(const line of chunk.split("\n")){
+        if(!line.startsWith("data:")) continue;
+        const data=line.slice(5).trim();
+        if(data==="[DONE]"||!data) continue;
+        try{
+          const j=JSON.parse(data);
+          const delta=j.delta?.text||"";
+          if(delta){ full+=delta; if(onChunk) onChunk(full); }
+        }catch(_){}
+      }
+    }
+    return full.trim();
   });
 }
 
@@ -699,27 +728,43 @@ async function callPerplexity(key, system, history){
   });
 }
 
-async function callDeepSeek(key, system, history){
+async function callDeepSeek(key, system, history, onChunk){
   return callWithRetry(async()=>{
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),60000);
     const msgs=history.map(m=>{
       if(Array.isArray(m.content)) return {role:m.role,content:m.content.find(c=>c.type==="text")?.text||""};
       return m;
     });
-    const dsBody=JSON.stringify({model:"deepseek-chat",max_tokens:calcTokens(msgs),messages:[{role:"system",content:system},...msgs]});
-    let d;
+    const stream=!isMobile;
+    const dsBody=JSON.stringify({model:"deepseek-chat",max_tokens:calcTokens(msgs),stream,messages:[{role:"system",content:system},...msgs]});
     if(isMobile){
-      d=await proxyFetch("https://api.deepseek.com/chat/completions",{"Authorization":"Bearer "+key},dsBody);
-    } else {
-      const r=await fetch("https://api.deepseek.com/chat/completions",{
-        method:"POST",signal:ctrl.signal,
-        headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-        body:dsBody
-      });
-      clearTimeout(t); d=await r.json();
+      const d=await proxyFetch("https://api.deepseek.com/chat/completions",{"Authorization":"Bearer "+key},dsBody);
+      if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
+      return d.choices[0].message.content.trim();
     }
-    if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
-    return d.choices[0].message.content.trim();
+    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),90000);
+    const r=await fetch("https://api.deepseek.com/chat/completions",{
+      method:"POST",signal:ctrl.signal,
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+      body:dsBody
+    });
+    clearTimeout(t);
+    if(!r.ok){ const e=await r.json(); throw new Error(e.error?.message||r.statusText); }
+    const reader=r.body.getReader(); const dec=new TextDecoder(); let full="";
+    while(true){
+      const {done,value}=await reader.read(); if(done) break;
+      const chunk=dec.decode(value,{stream:true});
+      for(const line of chunk.split("\n")){
+        if(!line.startsWith("data:")) continue;
+        const data=line.slice(5).trim();
+        if(data==="[DONE]"||!data) continue;
+        try{
+          const j=JSON.parse(data);
+          const delta=j.choices?.[0]?.delta?.content||"";
+          if(delta){ full+=delta; if(onChunk) onChunk(full); }
+        }catch(_){}
+      }
+    }
+    return full.trim();
   });
 }
 
@@ -739,13 +784,13 @@ async function tavilySearch(query){
 }
 
 
-async function callAgent(agent, system, history){
+async function callAgent(agent, system, history, onChunk){
   const keys=getKeys();
   switch(agent.id){
-    case "claude":     return keys.claude?callClaude(keys.claude,system,history):Promise.reject(new Error("Добавь ключ Claude в ⚙️ Настройки → console.anthropic.com"));
+    case "claude":     return keys.claude?callClaude(keys.claude,system,history,onChunk):Promise.reject(new Error("Добавь ключ Claude в ⚙️ Настройки → console.anthropic.com"));
     case "gemini":     return keys.gemini?callGemini(keys.gemini,system,history):Promise.reject(new Error("Добавь ключ Gemini в ⚙️ Настройки → aistudio.google.com (бесплатно)"));
     case "perplexity": return keys.perplexity?callPerplexity(keys.perplexity,system,history):Promise.reject(new Error("Добавь ключ Perplexity в ⚙️ Настройки → perplexity.ai/settings/api"));
-    case "deepseek":   return keys.deepseek?callDeepSeek(keys.deepseek,system,history):Promise.reject(new Error("Добавь ключ DeepSeek в ⚙️ Настройки → platform.deepseek.com"));
+    case "deepseek":   return keys.deepseek?callDeepSeek(keys.deepseek,system,history,onChunk):Promise.reject(new Error("Добавь ключ DeepSeek в ⚙️ Настройки → platform.deepseek.com"));
   }
 }
 
@@ -992,9 +1037,12 @@ async function sendQuick(text, inp){
   scrollToBottom();
 
   try{
-    const ans=await callAgent(agent, today+agent.system, agentHistory);
+    const ans=await callAgent(agent, today+agent.system, agentHistory, (partial)=>{
+      const tx=document.getElementById(turnId+"_text");
+      if(tx){tx.className="";tx.innerHTML=renderMd(partial);scrollToBottom();}
+    });
     const tx=document.getElementById(turnId+"_text");
-    if(tx){tx.className="";tx.innerHTML=renderMd(ans);tx.dataset.raw=ans;}
+    if(tx){tx.className="";tx.innerHTML=renderMd(ans);tx.dataset.raw=ans;scrollToBottom();}
     chat.messages.push({role:"assistant",content:ans,agentResults:{[agentId]:{status:"ok",text:ans}},ts:Date.now()});
   }catch(e){
     const tx=document.getElementById(turnId+"_text");
@@ -1028,7 +1076,7 @@ async function send(){
   const agents=getAgents();
   if(!agents.length){alert("Нет активных агентов");return;}
 
-  // Build history
+  // Build history — полная история разговора
   const history=[];
   if(chat.messages){
     for(let i=0;i<chat.messages.length;i+=2){
@@ -1149,11 +1197,20 @@ async function send(){
   const results={};
   const visionSet=new Set(["claude","gemini","perplexity"]);
 
+  // Функция создания onChunk для агента — показывает стрим в карточке
+  function makeChunkHandler(a){
+    return (partial)=>{
+      const cid=turnId+"_"+a.id;
+      const el=document.getElementById(cid+"_text");
+      if(el){ el.innerHTML=renderMd(partial); scrollToBottom(); }
+    };
+  }
+
   // Vision agents first
   await Promise.all(agents.filter(a=>visionSet.has(a.id)).map(async a=>{
     try{
       const h=a.id==="claude"?makeClaudeHistory():imageFiles.length?makeVisionHistory():history;
-      const ans=await callAgent(a,today+a.system,h);
+      const ans=await callAgent(a,today+a.system,h,makeChunkHandler(a));
       results[a.id]={status:"ok",text:ans};
     }catch(e){ results[a.id]={status:"error",text:e.message}; }
     updateAgentCard(turnId,a,results[a.id]);
@@ -1171,7 +1228,7 @@ async function send(){
           h=[...history.slice(0,-1),{role:"user",content:extra}];
         }
       }
-      const ans=await callAgent(a,today+a.system,h);
+      const ans=await callAgent(a,today+a.system,h,makeChunkHandler(a));
       results[a.id]={status:"ok",text:ans};
     }catch(e){ results[a.id]={status:"error",text:e.message}; }
     updateAgentCard(turnId,a,results[a.id]);

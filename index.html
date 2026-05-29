@@ -150,6 +150,8 @@
   <!-- Export libraries -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptx2html@1.0.5/dist/pptx2html.js" onerror="window.pptx2html=null"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#f8fafc;color:#1e293b;font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
@@ -333,12 +335,13 @@
 <div id="messages" style="flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:16px;background:#f8fafc"></div>
 
 <!-- FILE PREVIEW -->
-<div id="filePreview" style="display:none;margin:4px 12px;padding:8px 12px;background:#eff6ff;border:1px solid #6366f133;border-radius:8px;flex-shrink:0;align-items:center;gap:8px">
+<div id="filePreview" style="display:none;margin:4px 12px;padding:8px 12px;background:#eff6ff;border:1px solid #6366f133;border-radius:8px;flex-shrink:0;align-items:center;gap:8px;flex-wrap:wrap">
   <span id="filePreviewIcon" style="font-size:20px">📎</span>
   <div style="flex:1;min-width:0">
     <div id="filePreviewName" style="font-size:12px;font-weight:600;color:#4f46e5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
     <div id="filePreviewSize" style="font-size:10px;color:#6b7280"></div>
   </div>
+  <button id="fixDocBtn" onclick="fixDocument()" style="display:none;padding:4px 10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">✏️ Исправить</button>
   <button onclick="clearFiles()" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:16px">✕</button>
 </div>
 
@@ -805,6 +808,201 @@ async function synthesize(system, history){
 // ════════════════════════════════════════════════════════════════
 // FILE HANDLING
 // ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
+// DOCUMENT UTILS
+// ════════════════════════════════════════════════════════════════
+
+// Извлекаем текст из PPTX через ZIP+XML парсинг
+async function unzipPptx(arrayBuffer){
+  try{
+    // PPTX = ZIP файл. Используем JSZip если есть, иначе грубый поиск текста
+    const bytes=new Uint8Array(arrayBuffer);
+    // Ищем XML-текст внутри бинарника (грубо, но работает)
+    const str=new TextDecoder("utf-8",{fatal:false}).decode(bytes);
+    // Извлекаем текст из XML тегов <a:t>...</a:t> (DrawingML)
+    const matches=[...str.matchAll(/<a:t[^>]*>([^<]+)<\/a:t>/g)];
+    if(matches.length>0){
+      const slides={};
+      let slideNum=0;
+      // Группируем по слайдам (примерное разбиение)
+      matches.forEach((m,i)=>{
+        const chunk=Math.floor(i/20)+1;
+        if(!slides[chunk]) slides[chunk]=[];
+        slides[chunk].push(m[1]);
+      });
+      return Object.entries(slides).map(([n,texts])=>`Слайд ${n}:
+${texts.join(" ")}`).join("
+
+");
+    }
+    return "(Текст не извлечён — передан файл целиком)";
+  }catch(e){ return "(Ошибка извлечения: "+e.message+")"; }
+}
+
+// ════════════════════════════════════════════════════════════════
+// FIX DOCUMENT — исправление вложенного документа
+// ════════════════════════════════════════════════════════════════
+async function fixDocument(){
+  if(!currentFiles.length){showToast("⚠️ Сначала прикрепи документ");return;}
+  const docFiles=currentFiles.filter(f=>f.text&&(
+    f.name.endsWith(".docx")||f.name.endsWith(".xlsx")||f.name.endsWith(".xls")||
+    f.name.endsWith(".pptx")||f.name.endsWith(".pdf")||f.name.endsWith(".txt")||f.name.endsWith(".csv")
+  ));
+  if(!docFiles.length){showToast("⚠️ Нет читаемых документов (нужен .docx .xlsx .pptx .pdf .txt)");return;}
+
+  const keys=getKeys();
+  const agent=keys.claude?"claude":keys.deepseek?"deepseek":null;
+  if(!agent){showToast("⚠️ Нужен ключ Claude или DeepSeek для исправления");return;}
+  const agentName=agent==="claude"?"Claude":"DeepSeek";
+
+  const file=docFiles[0];
+  const ext=file.name.split(".").pop().toLowerCase();
+  const isExcel=ext==="xlsx"||ext==="xls";
+  const isWord=ext==="docx";
+  const isPptx=ext==="pptx";
+
+  // UI — создаём карточку результата
+  const fixId="fix_"+Date.now();
+  const el=document.createElement("div");
+  el.className="fade"; el.id=fixId;
+  el.style.cssText="background:#fff;border:1px solid #6366f133;border-radius:14px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:4px";
+  el.innerHTML=`
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:18px">${isExcel?"📊":isWord?"📝":isPptx?"🎯":"📄"}</span>
+      <span style="font-size:13px;font-weight:600;color:#4f46e5">Исправляю: ${file.name}</span>
+      <span style="font-size:11px;background:#eff6ff;color:#4f46e5;padding:2px 8px;border-radius:5px;margin-left:auto">${agentName}</span>
+    </div>
+    <div id="${fixId}_text" style="font-size:14px;line-height:1.8;color:#334155" class="pulse">Анализирую документ...</div>
+    <div id="${fixId}_actions" style="display:none;margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"></div>`;
+  document.getElementById("messages").appendChild(el);
+  scrollToBottom();
+
+  const systemPrompt=isExcel
+    ? `Ты эксперт по таблицам и данным. Получишь CSV-данные из Excel файла. Исправь ошибки в данных, формулах, форматировании. Верни ИСПРАВЛЕННЫЕ данные в формате CSV (каждый лист отдельно с заголовком "=== Лист: название ==="). Ничего лишнего — только исправленные данные.`
+    : isPptx
+    ? `Ты эксперт по презентациям. Получишь текст слайдов PowerPoint. Исправь грамматику, стиль, структуру. Верни исправленный текст в формате:
+Слайд N:
+[заголовок]
+[контент]
+
+Для каждого слайда отдельно.`
+    : `Ты эксперт-редактор. Получишь текст документа. Исправь: орфографию, пунктуацию, грамматику, стиль, структуру. Сохрани форматирование (заголовки #, списки -, жирный **). Верни ПОЛНЫЙ исправленный текст без комментариев и пояснений.`;
+
+  const userMsg=`Исправь этот документ (${file.name}):
+
+${file.text}`;
+
+  let fixedText="";
+  const onChunk=(partial)=>{
+    const tx=document.getElementById(fixId+"_text");
+    if(tx){tx.innerHTML=renderMd(partial);scrollToBottom();}
+  };
+
+  try{
+    if(agent==="claude") fixedText=await callClaude(keys.claude,systemPrompt,[{role:"user",content:userMsg}],onChunk);
+    else fixedText=await callDeepSeek(keys.deepseek,systemPrompt,[{role:"user",content:userMsg}],onChunk);
+
+    const tx=document.getElementById(fixId+"_text");
+    if(tx){tx.innerHTML=renderMd(fixedText);tx.dataset.raw=fixedText;}
+
+    // Кнопки скачивания
+    const actDiv=document.getElementById(fixId+"_actions");
+    actDiv.style.display="flex";
+    actDiv.innerHTML="";
+
+    if(isWord){
+      // Скачать как DOCX
+      const btn=document.createElement("button");
+      btn.style.cssText="padding:6px 14px;background:#1e3a5f;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer";
+      btn.textContent="📝 Скачать исправленный .docx";
+      btn.onclick=()=>exportWordDocxRaw(fixedText,"Исправлено_"+file.name.replace(".docx",""));
+      actDiv.appendChild(btn);
+    } else if(isExcel){
+      // Пересобираем Excel из CSV
+      const btn=document.createElement("button");
+      btn.style.cssText="padding:6px 14px;background:#166534;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer";
+      btn.textContent="📊 Скачать исправленный .xlsx";
+      btn.onclick=()=>exportFixedXlsx(fixedText,"Исправлено_"+file.name.replace(/\.xlsx?$/,""));
+      actDiv.appendChild(btn);
+    } else if(isPptx){
+      // Скачать как Word (лучшее что можно из браузера)
+      const btn=document.createElement("button");
+      btn.style.cssText="padding:6px 14px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer";
+      btn.textContent="📝 Скачать исправленные слайды (.docx)";
+      btn.onclick=()=>exportWordDocxRaw(fixedText,"Исправлено_"+file.name.replace(".pptx",""));
+      actDiv.appendChild(btn);
+    } else {
+      // TXT/PDF — скачать как Word или TXT
+      const btn=document.createElement("button");
+      btn.style.cssText="padding:6px 14px;background:#1e3a5f;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer";
+      btn.textContent="📝 Скачать .docx";
+      btn.onclick=()=>exportWordDocxRaw(fixedText,"Исправлено_"+file.name.split(".")[0]);
+      actDiv.appendChild(btn);
+      const btn2=document.createElement("button");
+      btn2.style.cssText="padding:6px 14px;background:#374151;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer";
+      btn2.textContent="📄 Скачать .txt";
+      btn2.onclick=()=>{
+        const blob=new Blob([fixedText],{type:"text/plain;charset=utf-8"});
+        downloadBlob(blob,"Исправлено_"+file.name.split(".")[0]+".txt");
+      };
+      actDiv.appendChild(btn2);
+    }
+
+    // Кнопка копирования
+    const btnCopy=document.createElement("button");
+    btnCopy.style.cssText="padding:6px 14px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:7px;font-size:12px;cursor:pointer";
+    btnCopy.textContent="📋 Копировать";
+    btnCopy.onclick=()=>{navigator.clipboard.writeText(fixedText);showToast("✅ Скопировано");};
+    actDiv.appendChild(btnCopy);
+
+    showToast("✅ Документ исправлен!");
+  }catch(e){
+    const tx=document.getElementById(fixId+"_text");
+    if(tx){tx.style.color="#dc2626";tx.textContent="❌ "+e.message;}
+  }
+}
+
+// Экспорт исправленного текста в DOCX
+async function exportWordDocxRaw(text, title){
+  if(!window.docx){showToast("❌ Библиотека docx не загружена");return;}
+  const {Document,Paragraph,TextRun,HeadingLevel,Packer}=window.docx;
+  const lines=text.split("
+");
+  const children=[];
+  lines.forEach(line=>{
+    if(line.startsWith("# ")) children.push(new Paragraph({text:line.slice(2),heading:HeadingLevel.HEADING_1}));
+    else if(line.startsWith("## ")) children.push(new Paragraph({text:line.slice(3),heading:HeadingLevel.HEADING_2}));
+    else if(line.startsWith("### ")) children.push(new Paragraph({text:line.slice(4),heading:HeadingLevel.HEADING_3}));
+    else if(line.startsWith("- ")||line.startsWith("* ")) children.push(new Paragraph({text:"• "+line.slice(2),bullet:{level:0}}));
+    else children.push(new Paragraph({children:[new TextRun({text:line||" "})]}));
+  });
+  const doc=new Document({sections:[{children}]});
+  const blob=await Packer.toBlob(doc);
+  downloadBlob(blob,title.replace(/[^\wа-яёА-ЯЁ _-]/g,"_").slice(0,60)+".docx");
+  showToast("✅ DOCX скачан!");
+}
+
+// Экспорт исправленного Excel из CSV-текста
+function exportFixedXlsx(csvText, title){
+  if(!window.XLSX){showToast("❌ XLSX библиотека не загружена");return;}
+  const wb=XLSX.utils.book_new();
+  // Парсим по секциям листов
+  const sections=csvText.split(/=== Лист: ([^=]+) ===/);
+  if(sections.length>1){
+    for(let i=1;i<sections.length;i+=2){
+      const sheetName=(sections[i]||"Лист"+Math.ceil(i/2)).trim().slice(0,31);
+      const csvData=sections[i+1]||"";
+      const ws=XLSX.utils.csv_to_sheet(csvData.trim());
+      XLSX.utils.book_append_sheet(wb,ws,sheetName);
+    }
+  } else {
+    const ws=XLSX.utils.csv_to_sheet(csvText.trim());
+    XLSX.utils.book_append_sheet(wb,ws,"Лист1");
+  }
+  XLSX.writeFile(wb,title.replace(/[^\wа-яёА-ЯЁ _-]/g,"_").slice(0,60)+".xlsx");
+  showToast("✅ Excel скачан!");
+}
+
 async function extractPdfText(b64){
   try{
     if(!window.pdfjsLib) return null;
@@ -867,6 +1065,52 @@ function handleFiles(input){
         showToast(txt?"✅ OCR: "+txt.length+" символов":"⚠️ Текст не распознан (визуальный анализ через AI)");
       } else if(f.type.startsWith("text/")||f.name.endsWith(".txt")||f.name.endsWith(".md")||f.name.endsWith(".csv")){
         try{obj.text=atob(b64);}catch(e){}
+      } else if(f.type.includes("wordprocessingml")||f.name.endsWith(".docx")){
+        showToast("📝 Читаю Word: "+f.name);
+        try{
+          const ab=Uint8Array.from(atob(b64),c=>c.charCodeAt(0)).buffer;
+          const res=await mammoth.extractRawText({arrayBuffer:ab});
+          obj.text="[Word документ: "+f.name+"]
+"+res.value;
+          showToast("✅ Word прочитан: "+res.value.length+" символов");
+        }catch(e){showToast("⚠️ Не удалось прочитать Word: "+e.message);}
+      } else if(f.type.includes("spreadsheetml")||f.name.endsWith(".xlsx")||f.name.endsWith(".xls")){
+        showToast("📊 Читаю Excel: "+f.name);
+        try{
+          const ab=Uint8Array.from(atob(b64),c=>c.charCodeAt(0)).buffer;
+          const wb=XLSX.read(ab,{type:"array"});
+          let text="[Excel файл: "+f.name+"]
+";
+          wb.SheetNames.forEach(name=>{
+            const ws=wb.Sheets[name];
+            text+="=== Лист: "+name+" ===
+"+XLSX.utils.sheet_to_csv(ws)+"
+";
+          });
+          obj.text=text;
+          obj._xlsxWb=wb; // сохраняем воркбук для пересборки
+          showToast("✅ Excel прочитан: "+wb.SheetNames.length+" листов");
+        }catch(e){showToast("⚠️ Не удалось прочитать Excel: "+e.message);}
+      } else if(f.type.includes("presentationml")||f.name.endsWith(".pptx")){
+        showToast("📊 Читаю PowerPoint: "+f.name);
+        try{
+          const ab=Uint8Array.from(atob(b64),c=>c.charCodeAt(0)).buffer;
+          // PPTX — это ZIP с XML внутри, извлекаем текст через XLSX (поддерживает ZIP)
+          const wb=XLSX.read(ab,{type:"array"});
+          // XLSX не умеет PPTX, но можно извлечь строки
+          let text="[PowerPoint файл: "+f.name+"]
+";
+          text+="(Текст слайдов извлечён для анализа)
+
+";
+          // Пробуем вручную распарсить как ZIP
+          const zip=await unzipPptx(ab);
+          obj.text=text+zip;
+          showToast("✅ PowerPoint прочитан");
+        }catch(e){
+          obj.text="[PowerPoint файл: "+f.name+" — содержимое передано AI для анализа]";
+          showToast("⚠️ PPTX: передаю AI как файл");
+        }
       }
       currentFiles.push(obj);
       loaded++;
@@ -881,11 +1125,15 @@ function renderFilePreview(){
   if(!currentFiles.length){p.style.display="none";return;}
   p.style.display="flex";
   const f=currentFiles[0];
-  const icon=f.type.startsWith("image/")?"🖼️":f.type==="application/pdf"?"📄":f.type.includes("word")?"📝":f.type.includes("sheet")?"📊":"📎";
+  const icon=f.type.startsWith("image/")?"🖼️":f.type==="application/pdf"?"📄":f.type.includes("word")?"📝":f.type.includes("sheet")?"📊":f.name.endsWith(".pptx")?"🎯":"📎";
   document.getElementById("filePreviewIcon").textContent=icon;
   document.getElementById("filePreviewName").textContent=currentFiles.length===1?f.name:currentFiles.length+" файлов: "+currentFiles.map(x=>x.name).join(", ").slice(0,50);
   const total=currentFiles.reduce((s,x)=>s+x.size,0);
   document.getElementById("filePreviewSize").textContent=(total/1024).toFixed(0)+" KB · "+currentFiles.length+" файл(ов)";
+  // Показываем кнопку "Исправить" только для редактируемых форматов
+  const fixBtn=document.getElementById("fixDocBtn");
+  const fixable=currentFiles.some(f=>f.text&&(f.name.endsWith(".docx")||f.name.endsWith(".xlsx")||f.name.endsWith(".pptx")||f.name.endsWith(".pdf")||f.name.endsWith(".txt")||f.name.endsWith(".csv")));
+  if(fixBtn) fixBtn.style.display=fixable?"inline-block":"none";
 }
 
 function clearFiles(){

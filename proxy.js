@@ -1,57 +1,41 @@
-// Vercel Serverless Function — универсальный прокси для всех AI API
-export default async function handler(req, res) {
-  // CORS заголовки
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key, anthropic-version");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+exports.handler = async (event) => {
+  const CORS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key, anthropic-version",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+  };
 
-  if (req.method === "OPTIONS") {
-    return res.status(204).end();
-  }
-
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: { message: "Method not allowed" } });
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 204, headers: CORS, body: "" };
   }
 
   try {
-    const { url, headers, body } = req.body;
-
-    if (!url) {
-      return res.status(400).json({ error: { message: "Missing url" } });
-    }
-
-    // Белый список разрешённых доменов
-    const allowed = [
-      "api.openai.com",
-      "api.anthropic.com",
-      "generativelanguage.googleapis.com",
-      "api.perplexity.ai",
-      "api.deepseek.com",
-      "api.moonshot.ai",
-      "openrouter.ai",
-      "api.tavily.com",
-    ];
-    const host = new URL(url).hostname;
-    if (!allowed.includes(host)) {
-      return res.status(403).json({ error: { message: "Domain not allowed: " + host } });
-    }
+    const { url, headers, body } = JSON.parse(event.body);
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 55000);
+    const timeout = setTimeout(() => controller.abort(), 25000);
 
     const response = await fetch(url, {
       method: "POST",
       signal: controller.signal,
       headers: { "Content-Type": "application/json", ...headers },
-      body: typeof body === "string" ? body : JSON.stringify(body),
+      body: body,
     });
 
     clearTimeout(timeout);
     const data = await response.text();
 
-    return res.status(response.status).send(data);
+    return {
+      statusCode: response.status,
+      headers: { ...CORS, "Content-Type": "application/json" },
+      body: data,
+    };
   } catch (e) {
-    const msg = e.name === "AbortError" ? "Request timeout (55s)" : e.message;
-    return res.status(500).json({ error: { message: msg } });
+    const msg = e.name === "AbortError" ? "Request timeout" : e.message;
+    return {
+      statusCode: 500,
+      headers: CORS,
+      body: JSON.stringify({ error: { message: msg } }),
+    };
   }
-}
+};

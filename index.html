@@ -187,44 +187,69 @@
       <h2 style="font-size:15px">⚙️ Настройки API ключей</h2>
       <button onclick="hideSettings()" style="background:none;border:none;color:#6b7280;font-size:20px">✕</button>
     </div>
-    <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:10px">🔑 API Ключи (каждый AI через свой родной API)</div>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:18px" id="keyFields">
+    <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:8px">🔑 API Ключи — прямое подключение к каждому AI</div>
+
+    <!-- Guide banner -->
+    <div style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid #334155;border-radius:10px;padding:12px;margin-bottom:12px;font-size:10px;color:#94a3b8;line-height:1.7">
+      <div style="color:#4ade80;font-weight:700;margin-bottom:6px">✅ OpenRouter больше не нужен — каждый AI работает напрямую</div>
+      <div>🟠 <b style="color:#fbbf24">Claude</b> — <a href="https://console.anthropic.com" target="_blank" style="color:#60a5fa">console.anthropic.com</a> → API Keys</div>
+      <div>🔴 <b style="color:#f87171">Gemini</b> — <a href="https://aistudio.google.com/apikey" target="_blank" style="color:#60a5fa">aistudio.google.com/apikey</a> → <b style="color:#4ade80">Бесплатно</b></div>
+      <div>🟣 <b style="color:#c084fc">Perplexity</b> — <a href="https://www.perplexity.ai/settings/api" target="_blank" style="color:#60a5fa">perplexity.ai/settings/api</a></div>
+      <div>⚡ <b style="color:#22d3ee">DeepSeek</b> — <a href="https://platform.deepseek.com/api_keys" target="_blank" style="color:#60a5fa">platform.deepseek.com</a> → <b style="color:#4ade80">Очень дёшево</b></div>
+      <div>🔵 <b style="color:#60a5fa">Kimi</b> — <a href="https://platform.moonshot.cn" target="_blank" style="color:#60a5fa">platform.moonshot.cn</a> → API Keys</div>
+      <div>🌐 <b style="color:#4ade80">Tavily</b> — <a href="https://app.tavily.com" target="_blank" style="color:#60a5fa">app.tavily.com</a> → 1000 поисков/мес бесплатно</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:18px" id="keyFields">
 
       <!-- Claude -->
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟠</span><span style="font-size:11px;font-weight:600;color:#d97706">Claude</span><span style="font-size:9px;color:#6b7280;margin-left:auto">console.anthropic.com</span></div>
-        <input type="password" id="key_claude" placeholder="sk-ant-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          <span>🟠</span><span style="font-size:11px;font-weight:600;color:#d97706">Claude</span>
+          <span style="font-size:9px;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:3px;margin-left:auto">Рекомендуем</span>
+        </div>
+        <input type="password" id="key_claude" placeholder="sk-ant-api03-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px">console.anthropic.com → API Keys → Create Key</div>
       </div>
 
       <!-- Gemini -->
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🔴</span><span style="font-size:11px;font-weight:600;color:#ea4335">Gemini</span><span style="font-size:9px;color:#6b7280;margin-left:auto">aistudio.google.com · бесплатно</span></div>
-        <input type="password" id="key_gemini" placeholder="AIzaSy..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
-        <div style="font-size:10px;color:#6b7280;margin-top:4px">Нет доступа? Используй OpenRouter ↓</div>
-      </div>
-      <!-- OpenRouter -->
-      <div style="background:#eff6ff;border:1px solid #4f8ef7;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-          <span>🔀</span><span style="font-size:11px;font-weight:600;color:#4f8ef7">OpenRouter</span>
-          <span style="font-size:9px;color:#4ade80;background:#052e16;padding:1px 6px;border-radius:3px;margin-left:auto">⭐ ГЛАВНЫЙ КЛЮЧ</span>
+          <span>🔴</span><span style="font-size:11px;font-weight:600;color:#ea4335">Gemini</span>
+          <span style="font-size:9px;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:3px;margin-left:auto">Бесплатно</span>
         </div>
-        <input type="password" id="key_openrouter" placeholder="sk-or-v1-... (все агенты через него)" style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #4f8ef755;border-radius:6px;color:#1e293b;font-size:12px"/>
-        <div style="font-size:10px;color:#4ade80;margin-top:4px">✅ Решает CORS. Все 6 агентов через один ключ. openrouter.ai/keys</div>
+        <input type="password" id="key_gemini" placeholder="AIzaSy..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px">aistudio.google.com/apikey → Create API Key · до 1500 запросов/день</div>
       </div>
+
       <!-- Perplexity -->
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🟣</span><span style="font-size:11px;font-weight:600;color:#8b5cf6">Perplexity</span><span style="font-size:9px;color:#6b7280;margin-left:auto">perplexity.ai/settings/api</span></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          <span>🟣</span><span style="font-size:11px;font-weight:600;color:#8b5cf6">Perplexity</span>
+          <span style="font-size:9px;color:#6b7280;margin-left:auto">веб-поиск в ответах</span>
+        </div>
         <input type="password" id="key_perplexity" placeholder="pplx-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px">perplexity.ai/settings/api → Generate</div>
       </div>
+
       <!-- DeepSeek -->
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>⚡</span><span style="font-size:11px;font-weight:600;color:#06b6d4">DeepSeek</span><span style="font-size:9px;color:#6b7280;margin-left:auto">platform.deepseek.com</span></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          <span>⚡</span><span style="font-size:11px;font-weight:600;color:#06b6d4">DeepSeek</span>
+          <span style="font-size:9px;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:3px;margin-left:auto">Дёшево</span>
+        </div>
         <input type="password" id="key_deepseek" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px">platform.deepseek.com → API Keys → Create</div>
       </div>
+
       <!-- Tavily -->
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px"><span>🌐</span><span style="font-size:11px;font-weight:600;color:#4ade80">Tavily Search</span><span style="font-size:9px;color:#4ade80;margin-left:auto">веб-поиск · 1000/мес бесплатно</span></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          <span>🌐</span><span style="font-size:11px;font-weight:600;color:#4ade80">Tavily Search</span>
+          <span style="font-size:9px;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:3px;margin-left:auto">1000/мес бесплатно</span>
+        </div>
         <input type="password" id="key_tavily" placeholder="tvly-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px">app.tavily.com → API Keys</div>
       </div>
     </div>
 
@@ -713,46 +738,23 @@ async function tavilySearch(query){
   }catch(e){ return ""; }
 }
 
-async function callOpenRouter(key, model, system, history){
-  return callWithRetry(async()=>{
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),60000);
-    const msgs=history.map(m=>{
-      if(Array.isArray(m.content)){
-        // OpenRouter supports vision
-        return {role:m.role,content:m.content};
-      }
-      return {role:m.role,content:m.content};
-    });
-    const r=await fetch("https://openrouter.ai/api/v1/chat/completions",{
-      method:"POST",signal:ctrl.signal,
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key,"HTTP-Referer":"https://ai-hub.vercel.app"},
-      body:JSON.stringify({model,max_tokens:calcTokens(msgs),messages:[{role:"system",content:system},...msgs]})
-    });
-    clearTimeout(t); const d=await r.json();
-    if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
-    return (d.choices[0].message.content||"").trim();
-  });
-}
 
 async function callAgent(agent, system, history){
   const keys=getKeys();
-  const or=keys.openrouter;
-  const orModels={claude:"anthropic/claude-sonnet-4-5",gemini:"google/gemini-2.5-flash",perplexity:"perplexity/sonar-pro",deepseek:"deepseek/deepseek-chat"};
-  const isMobile=/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
   switch(agent.id){
-    case "claude":     return keys.claude?callClaude(keys.claude,system,history):or?callOpenRouter(or,orModels.claude,system,history):Promise.reject(new Error("Нет ключа Claude"));
-    case "gemini":     return keys.gemini?callGemini(keys.gemini,system,history):or?callOpenRouter(or,orModels.gemini,system,history):Promise.reject(new Error("Нет ключа Gemini"));
-    case "perplexity": return keys.perplexity?callPerplexity(keys.perplexity,system,history):or?callOpenRouter(or,orModels.perplexity,system,history):Promise.reject(new Error("Нет ключа Perplexity"));
-    case "deepseek":   return keys.deepseek?callDeepSeek(keys.deepseek,system,history):or?callOpenRouter(or,orModels.deepseek,system,history):Promise.reject(new Error("Нет ключа DeepSeek"));
+    case "claude":     return keys.claude?callClaude(keys.claude,system,history):Promise.reject(new Error("Добавь ключ Claude в ⚙️ Настройки → console.anthropic.com"));
+    case "gemini":     return keys.gemini?callGemini(keys.gemini,system,history):Promise.reject(new Error("Добавь ключ Gemini в ⚙️ Настройки → aistudio.google.com (бесплатно)"));
+    case "perplexity": return keys.perplexity?callPerplexity(keys.perplexity,system,history):Promise.reject(new Error("Добавь ключ Perplexity в ⚙️ Настройки → perplexity.ai/settings/api"));
+    case "deepseek":   return keys.deepseek?callDeepSeek(keys.deepseek,system,history):Promise.reject(new Error("Добавь ключ DeepSeek в ⚙️ Настройки → platform.deepseek.com"));
   }
 }
 
 async function synthesize(system, history){
   const keys=getKeys();
   if(keys.deepseek) return callDeepSeek(keys.deepseek,system,history);
-  if(keys.openrouter) return callOpenRouter(keys.openrouter,"deepseek/deepseek-chat",system,history);
   if(keys.claude) return callClaude(keys.claude,system,history);
-  throw new Error("Нет ключа для синтеза");
+  if(keys.gemini) return callGemini(keys.gemini,system,history);
+  throw new Error("Для синтеза нужен ключ DeepSeek или Claude в ⚙️ Настройки");
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1615,7 +1617,7 @@ async function kimiPresent(turnId){
   const el=document.getElementById(turnId+"_consolidated");
   if(!el) return;
   const keys=getKeys();
-  if(!keys.kimi&&!keys.openrouter){alert("Добавь Kimi или OpenRouter ключ в ⚙️");return;}
+  if(!keys.kimi){alert("Добавь ключ Kimi в ⚙️ Настройки → platform.moonshot.cn");return;}
   const chat=getChat();
   showToast("🔵 Kimi генерирует слайды...");
   try{
@@ -1623,8 +1625,7 @@ async function kimiPresent(turnId){
     const prompt=`Создай презентацию. Тема: ${chat?chat.title:"Презентация"}. Текст: ${(el.dataset.raw||el.textContent).slice(0,3000)}\n\nВерни ТОЛЬКО JSON:\n{"title":"Название","slides":[{"type":"title","heading":"Заголовок","body":"Подзаголовок"},{"type":"points","heading":"Раздел","points":["Тезис 1","Тезис 2","Тезис 3"]},{"type":"quote","quote":"Вывод","author":"Kimi"},{"type":"conclusion","heading":"Итоги","body":"Вывод"}]}\nСоздай 7-9 слайдов.`;
     const h=[{role:"user",content:prompt}];
     let raw;
-    if(keys.kimi) raw=await callKimi(keys.kimi,system,h);
-    else raw=await callOpenRouter(keys.openrouter,"moonshotai/kimi-k2",system,h);
+    raw=await callKimi(keys.kimi,system,h);
     const cleaned=raw.replace(/```json\s*/gi,"").replace(/```\s*/gi,"").trim();
     const match=cleaned.match(/\{[\s\S]*\}/);
     let data;
@@ -2072,7 +2073,6 @@ function showSettings(){
   const keys=getKeys();
   document.getElementById("key_claude").value=keys.claude||"";
   document.getElementById("key_gemini").value=keys.gemini||"";
-  document.getElementById("key_openrouter").value=keys.openrouter||"";
   document.getElementById("key_perplexity").value=keys.perplexity||"";
   document.getElementById("key_deepseek").value=keys.deepseek||"";
   document.getElementById("key_tavily").value=keys.tavily||"";
@@ -2086,7 +2086,6 @@ function saveSettings(){
   const newKeys = {
     claude:document.getElementById("key_claude").value.trim(),
     gemini:document.getElementById("key_gemini").value.trim(),
-    openrouter:document.getElementById("key_openrouter").value.trim(),
     perplexity:document.getElementById("key_perplexity").value.trim(),
     deepseek:document.getElementById("key_deepseek").value.trim(),
     tavily:document.getElementById("key_tavily").value.trim(),
@@ -2150,7 +2149,7 @@ window._reloadChats = ()=>{
 
 // Auto-show settings if no keys
 const k=getKeys();
-if(!k.openai&&!k.claude&&!k.openrouter&&!k.gemini&&!k.deepseek&&!k.perplexity&&!k.kimi){
+if(!k.claude&&!k.gemini&&!k.deepseek&&!k.perplexity&&!k.kimi){
   setTimeout(showSettings, 500);
 }
 </script>

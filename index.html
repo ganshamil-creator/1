@@ -151,6 +151,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{background:#f8fafc;color:#1e293b;font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
@@ -807,29 +808,31 @@ async function synthesize(system, history){
 // ════════════════════════════════════════════════════════════════
 // FILE HANDLING
 // ════════════════════════════════════════════════════════════════
-function extractPptxText(ab,name){
+async function extractPptxText(ab,name){
+  // PPTX = ZIP архив с XML внутри. Используем JSZip для распаковки.
   try{
-    var raw=new TextDecoder("utf-8",{fatal:false}).decode(new Uint8Array(ab));
-    var slides={};var idx=0;
-    var slideRe=/ppt\/slides\/slide(\d+)\.xml/g;var m;
-    while((m=slideRe.exec(raw))!==null){slides[m[1]]=idx=m.index;}
-    var keys=Object.keys(slides).sort((a,b)=>+a-+b);
-    if(keys.length>0){
-      var result="[PowerPoint: "+name+"]";
-      keys.forEach(function(k,i){
-        var from=slides[k];var to=i+1<keys.length?slides[keys[i+1]]:from+80000;
-        var chunk=raw.slice(from,to);
-        var texts=[];var tr=/<a:t[^>]*?>([^<]{1,400})<\/a:t>/g;var tm;
-        while((tm=tr.exec(chunk))!==null){var t=tm[1].trim();if(t.length>1)texts.push(t);}
-        if(texts.length>0)result+="\nСлайд "+k+": "+texts.join(" ");
+    if(!window.JSZip) return "[PowerPoint: "+name+" — JSZip не загружен]";
+    var zip=await JSZip.loadAsync(ab);
+    // Собираем слайды по порядку
+    var slideFiles=Object.keys(zip.files)
+      .filter(function(n){return /^ppt\/slides\/slide\d+\.xml$/.test(n);})
+      .sort(function(a,b){
+        return parseInt(a.match(/\d+/)[0])-parseInt(b.match(/\d+/)[0]);
       });
-      return result;
+    if(slideFiles.length===0) return "[PowerPoint: "+name+" — слайды не найдены]";
+    var result="[PowerPoint: "+name+" — "+slideFiles.length+" слайдов]\n\n";
+    for(var i=0;i<slideFiles.length;i++){
+      var xml=await zip.files[slideFiles[i]].async("text");
+      // Извлекаем текст из <a:t> тегов DrawingML
+      var texts=[];var re=/<a:t[^>]*?>([^<]{1,600})<\/a:t>/g;var m;
+      while((m=re.exec(xml))!==null){
+        var t=m[1].trim();
+        if(t.length>0) texts.push(t);
+      }
+      if(texts.length>0) result+="Слайд "+(i+1)+": "+texts.join(" ")+"\n";
     }
-    var allT=[];var ar=/<a:t[^>]*?>([^<]{1,300})<\/a:t>/g;var am;
-    while((am=ar.exec(raw))!==null){var t=am[1].trim();if(t.length>1)allT.push(t);}
-    if(allT.length>0)return "[PowerPoint: "+name+"]\n"+allT.join(" ");
-  }catch(e){}
-  return "[PowerPoint: "+name+" — текст не извлечён]";
+    return result;
+  }catch(e){return "[PowerPoint: "+name+" — ошибка: "+e.message+"]";}
 }
 
 function openAnnotateModal(){
@@ -1034,8 +1037,9 @@ function handleFiles(input){
         showToast("🎯 Читаю PowerPoint: "+f.name);
         try{
           const ab=Uint8Array.from(atob(b64),c=>c.charCodeAt(0)).buffer;
-          obj.text=extractPptxText(ab,f.name);
-          showToast("✅ PPTX прочитан");
+          obj.text=await extractPptxText(ab,f.name);
+          const slideCount=(obj.text.match(/Слайд \d+:/g)||[]).length;
+          showToast("✅ PPTX: "+(slideCount||"?")+" слайдов прочитано");
         }catch(err){obj.text="[PowerPoint: "+f.name+"]";showToast("⚠️ PPTX: "+err.message);}
       }
       currentFiles.push(obj);

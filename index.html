@@ -13,7 +13,8 @@
   <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDsGW3WtnfY9Uv5GDXbVu6c4YJ1OJ9mmmU",
@@ -26,10 +27,92 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
 
-    // Уникальный ID устройства/пользователя (хранится в localStorage)
-    let userId = localStorage.getItem("ai_hub_user_id");
-    if(!userId){ userId = "user_"+Date.now()+"_"+Math.random().toString(36).slice(2); localStorage.setItem("ai_hub_user_id", userId); }
+    let userId = null;
+
+    // ── Google Sign-In ──────────────────────────────────────────
+    window.signInWithGoogle = async function(){
+      try{
+        provider.setCustomParameters({prompt: "select_account"});
+        const result = await signInWithPopup(auth, provider);
+        // onAuthStateChanged обработает остальное
+      }catch(e){
+        if(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") return;
+        if(e.code === "auth/operation-not-allowed"){
+          showToast("⚠️ Включи Google в Firebase Console → Authentication → Sign-in providers");
+        } else if(e.code === "auth/unauthorized-domain"){
+          showToast("⚠️ Добавь домен в Firebase Console → Authentication → Authorized domains");
+        } else {
+          showToast("❌ Ошибка входа: " + (e.message||e.code));
+        }
+      }
+    };
+
+    window.signOutGoogle = async function(){
+      await signOut(auth);
+      showToast("👋 Вышел из аккаунта");
+      updateAuthUI(null);
+    };
+
+    function updateAuthUI(user){
+      // Аватар в хедере
+      const avatar = document.getElementById("authAvatar");
+      const btn = document.getElementById("authBtn");
+      if(avatar){
+        if(user){
+          avatar.style.background = "linear-gradient(135deg,#4ade80,#22c55e)";
+          avatar.style.color = "#fff";
+          avatar.textContent = (user.displayName||user.email||"U")[0].toUpperCase();
+          if(btn){ btn.onclick = window.signOutGoogle; btn.title = "Выйти (" + user.email + ")"; }
+          const lbl=document.getElementById("authLabel");
+          if(lbl){ lbl.textContent=(user.displayName||user.email||"").split(" ")[0].slice(0,12); lbl.style.color="#16a34a"; }
+        } else {
+          avatar.style.background = "#cbd5e1";
+          avatar.style.color = "#475569";
+          avatar.textContent = "G";
+          if(btn){ btn.onclick = window.signInWithGoogle; btn.title = "Войти через Google"; }
+          const lbl=document.getElementById("authLabel");
+          if(lbl){ lbl.textContent="Войти"; lbl.style.color="#475569"; }
+        }
+      }
+      // Кнопки в настройках
+      const statusText = document.getElementById("authStatusText");
+      const signInBtn = document.getElementById("googleSignInBtn");
+      const signOutBtn = document.getElementById("googleSignOutBtn");
+      if(statusText){
+        statusText.textContent = user
+          ? "✅ Вошёл как " + (user.displayName||user.email) + " — история синхронизирована"
+          : "Войди через Google — история синхронизируется автоматически на всех устройствах";
+      }
+      if(signInBtn) signInBtn.style.display = user ? "none" : "flex";
+      if(signOutBtn) signOutBtn.style.display = user ? "block" : "none";
+    }
+
+    // ── Слушаем состояние авторизации ──────────────────────────
+    onAuthStateChanged(auth, async(user)=>{
+      updateAuthUI(user);
+      if(user){
+        const prevId = window.cloudSync.userId;
+        userId = user.uid;
+        window.cloudSync.userId = userId;
+        // Показываем приветствие только при свежем входе (не при reload)
+        if(prevId && prevId !== userId){
+          showToast("✅ Вошёл как " + (user.displayName || user.email) + " — загружаю историю...");
+        }
+        // Загружаем данные этого пользователя из Firebase
+        await initCloudData();
+      } else {
+        // Не залогинен — используем анонимный ID (история только локально)
+        userId = localStorage.getItem("ai_hub_user_id");
+        if(!userId){
+          userId = "anon_"+Math.random().toString(36).slice(2,10);
+          localStorage.setItem("ai_hub_user_id", userId);
+        }
+        window.cloudSync.userId = userId;
+      }
+    });
 
     // ── CLOUD SYNC API ──────────────────────────────────────────
     window.cloudSync = {
@@ -104,11 +187,9 @@
       }
     };
 
-    // Загружаем данные из облака при старте
-    window.addEventListener("DOMContentLoaded", async()=>{
-      showToast("☁️ Загружаю из облака...");
-
-      // Загружаем настройки
+    // ── Загрузка облачных данных после авторизации ─────────────
+    async function initCloudData(){
+      showToast("☁️ Загружаю твои данные...");
       const settings = await window.cloudSync.loadSettings();
       if(settings){
         if(settings.keys && Object.keys(settings.keys).length>0){
@@ -118,33 +199,27 @@
           localStorage.setItem("active_agents", JSON.stringify(settings.agentIds));
         }
       }
-
-      // Загружаем чаты
       const cloudChats = await window.cloudSync.loadChats();
       if(cloudChats && cloudChats.length>0){
-        // Мержим с локальными (облачные приоритетнее)
         const localStr = localStorage.getItem("ai_hub_chats_v4");
         const localChats = localStr?JSON.parse(localStr):[];
         const merged = [...cloudChats];
-        // Добавляем локальные которых нет в облаке
-        localChats.forEach(lc=>{
-          if(!merged.find(cc=>cc.id===lc.id)) merged.push(lc);
-        });
+        localChats.forEach(lc=>{ if(!merged.find(cc=>cc.id===lc.id)) merged.push(lc); });
         merged.sort((a,b)=>(b.messages?.[0]?.ts||0)-(a.messages?.[0]?.ts||0));
         localStorage.setItem("ai_hub_chats_v4", JSON.stringify(merged));
-        // Обновляем UI
         window._reloadChats && window._reloadChats();
         showToast("✅ Синхронизировано: "+cloudChats.length+" тем");
       } else {
-        showToast("☁️ Облако готово");
+        showToast("☁️ История пуста — начни новый чат!");
       }
+    }
 
-      // Автосинхронизация каждые 30 секунд
-      setInterval(async()=>{
-        const chats = JSON.parse(localStorage.getItem("ai_hub_chats_v4")||"[]");
-        if(chats.length>0) await window.cloudSync.saveChats(chats);
-      }, 30000);
-    });
+    // Автосинхронизация каждые 30 секунд
+    setInterval(async()=>{
+      if(!window.cloudSync?.userId) return;
+      const chats = JSON.parse(localStorage.getItem("ai_hub_chats_v4")||"[]");
+      if(chats.length>0) await window.cloudSync.saveChats(chats);
+    }, 30000);
   </script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <!-- Export libraries -->
@@ -189,6 +264,17 @@
       <h2 style="font-size:15px">⚙️ Настройки API ключей</h2>
       <button onclick="hideSettings()" style="background:none;border:none;color:#6b7280;font-size:20px">✕</button>
     </div>
+    <!-- Google Auth статус -->
+    <div id="authStatusBlock" style="background:linear-gradient(135deg,#0f172a,#1e293b);border:1px solid #4ade8055;border-radius:10px;padding:12px;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:#4ade80;margin-bottom:6px">🔄 Синхронизация между устройствами</div>
+      <div id="authStatusText" style="font-size:12px;color:#94a3b8;margin-bottom:10px">Войди через Google — история автоматически синхронизируется на всех устройствах</div>
+      <button onclick="window.signInWithGoogle&&window.signInWithGoogle()" id="googleSignInBtn" style="width:100%;padding:11px;background:#fff;color:#1e293b;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.15)">
+        <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.45-8.83l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+        Войти через Google
+      </button>
+      <button onclick="window.signOutGoogle&&window.signOutGoogle()" id="googleSignOutBtn" style="display:none;width:100%;padding:8px;background:#1e293b;color:#f87171;border:1px solid #dc262633;border-radius:8px;font-size:12px;cursor:pointer;margin-top:6px">Выйти из аккаунта</button>
+    </div>
+
     <div style="font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:8px">🔑 API Ключи — прямое подключение к каждому AI</div>
 
     <!-- Guide banner -->
@@ -316,6 +402,10 @@
   <button onclick="toggleTranslateBar()" id="translateBtn" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:12px">🌐</button>
   <button onclick="toggleQuickMode()" id="quickBtn" title="Быстрый режим — один AI" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:12px">⚡</button>
   <button onclick="showSettings()" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:18px;line-height:1">⚙️</button>
+  <button id="authBtn" onclick="window.signInWithGoogle&&window.signInWithGoogle()" title="Войти через Google" style="padding:4px 8px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:6px">
+    <div id="authAvatar" style="width:24px;height:24px;border-radius:50%;background:#cbd5e1;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#475569">G</div>
+    <span id="authLabel" style="font-size:11px;color:#475569;font-weight:600">Войти</span>
+  </button>
 </div>
 
 <!-- MESSAGES -->
@@ -526,34 +616,14 @@ function calcTokens(history){
   return 1500;                 // Обычные вопросы — быстро
 }
 
-// ── Proxy helper (для мобильных) ──────────────────────────────
-function getProxyUrl(){
-  // Определяем какой прокси использовать
-  const isVercel = window.location.hostname.includes("vercel.app");
-  return isVercel ? "/api/proxy" : "/.netlify/functions/proxy";
-}
-
-async function proxyFetch(url, headers, body){
-  const proxyUrl = getProxyUrl();
-  const r = await fetch(proxyUrl, {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({url, headers, body})
-  });
-  const text = await r.text();
-  try{ return JSON.parse(text); }
-  catch(e){ throw new Error("Прокси вернул не JSON: "+text.slice(0,100)); }
-}
-
-const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+// Прямые вызовы API — все браузеры поддерживают CORS напрямую
+const isMobile = false; // оставляем для совместимости, но больше не используем прокси
 
 async function callOpenAI(key, system, history){
   return callWithRetry(async()=>{
     const body=JSON.stringify({model:"gpt-4o",max_tokens:calcTokens(history),messages:[{role:"system",content:system},...history]});
     let d;
-    if(isMobile){
-      d=await proxyFetch("https://api.openai.com/v1/chat/completions",{"Authorization":"Bearer "+key},body);
-    } else {
+    {
       const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
       const r=await fetch("https://api.openai.com/v1/chat/completions",{
         method:"POST",signal:ctrl.signal,
@@ -580,14 +650,8 @@ function pickClaudeModel(history){
 async function callClaude(key, system, history, onChunk){
   return callWithRetry(async()=>{
     const model=pickClaudeModel(history);
-    const bodyObj={model,max_tokens:calcTokens(history),system,messages:history,stream:!isMobile};
+    const bodyObj={model,max_tokens:calcTokens(history),system,messages:history,stream:true};
     const body=JSON.stringify(bodyObj);
-    if(isMobile){
-      // Мобильный — без стриминга через прокси
-      const d=await proxyFetch("https://api.anthropic.com/v1/messages",{"x-api-key":key,"anthropic-version":"2023-06-01"},JSON.stringify({...bodyObj,stream:false}));
-      if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
-      return d.content.map(b=>b.text||"").join("").trim();
-    }
     const bodySize=body.length;
     const claudeTimeout=bodySize>100000?180000:bodySize>30000?120000:60000;
     const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),claudeTimeout);
@@ -662,9 +726,7 @@ async function callGemini(key, system, history){
         });
         const gBody=JSON.stringify({system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:calcTokens(history)}});
         let d;
-        if(isMobile){
-          d=await proxyFetch(`https://generativelanguage.googleapis.com/${models[mi].api}/models/${modelName}:generateContent?key=${key}`,{},gBody);
-        } else {
+        {
           const ctrl=new AbortController();
           const t=setTimeout(()=>ctrl.abort(),modelTimeout);
           try{
@@ -732,9 +794,7 @@ async function callPerplexity(key, system, history){
     });
     const pBody=JSON.stringify({model:"sonar-pro",max_tokens:calcTokens(msgs),messages:[{role:"system",content:system},...msgs]});
     let d;
-    if(isMobile){
-      d=await proxyFetch("https://api.perplexity.ai/chat/completions",{"Authorization":"Bearer "+key},pBody);
-    } else {
+    {
       const ctrl2=new AbortController(); const t2=setTimeout(()=>ctrl2.abort(),40000);
       const r=await fetch("https://api.perplexity.ai/chat/completions",{
         method:"POST",signal:ctrl2.signal,
@@ -756,11 +816,6 @@ async function callDeepSeek(key, system, history, onChunk){
     });
     const stream=!isMobile;
     const dsBody=JSON.stringify({model:"deepseek-chat",max_tokens:calcTokens(msgs),stream,messages:[{role:"system",content:system},...msgs]});
-    if(isMobile){
-      const d=await proxyFetch("https://api.deepseek.com/chat/completions",{"Authorization":"Bearer "+key},dsBody);
-      if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
-      return d.choices[0].message.content.trim();
-    }
     const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),90000);
     const r=await fetch("https://api.deepseek.com/chat/completions",{
       method:"POST",signal:ctrl.signal,
@@ -2342,10 +2397,9 @@ function saveSettings(){
   };
   saveKeys(newKeys);
   localStorage.setItem("active_agents",JSON.stringify(activeAgentIds));
-  // Сохраняем в облако
   if(window.cloudSync) window.cloudSync.saveSettings(newKeys, activeAgentIds).catch(()=>{});
   hideSettings();
-  showToast("✅ Настройки сохранены и синхронизированы!");
+  showToast("✅ Настройки сохранены!");
 }
 
 function renderAgentToggles(){

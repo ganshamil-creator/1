@@ -9,9 +9,22 @@
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-title" content="AI Hub"/>
   <link rel="apple-touch-icon" href="icon-192.png"/>
+  <script>
+    // Глобальный обработчик ошибок — предотвращает чёрный экран
+    window.onerror = function(msg, src, line, col, err){
+      console.error("Global error:", msg, src, line);
+      // Не показываем алерт — просто логируем
+      return true; // предотвращаем стандартный обработчик
+    };
+    window.addEventListener("unhandledrejection", function(e){
+      console.warn("Unhandled promise rejection:", e.reason);
+      e.preventDefault();
+    });
+  </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <!-- Firebase SDK -->
   <script type="module">
+  try { // глобальный try-catch: любая ошибка Firebase не ломает рендер страницы
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -32,19 +45,33 @@
 
     let userId = null;
 
+    // ── Обрабатываем результат redirect (мобильные браузеры) ────
+    getRedirectResult(auth).then(result => {
+      if(result && result.user){
+        // Redirect успешен — onAuthStateChanged сам обработает
+        showToast && showToast("✅ Google авторизация успешна!");
+      }
+    }).catch(e => {
+      if(e.code !== "auth/no-current-user") console.warn("Redirect result:", e.code);
+    });
+
     // ── Google Sign-In ──────────────────────────────────────────
     window.signInWithGoogle = async function(){
       try{
         provider.setCustomParameters({prompt: "select_account"});
-        // signInWithPopup работает на всех устройствах:
-        // на компьютере — всплывающее окно
-        // на мобильном Chrome — открывается как новая вкладка
+        // Samsung Internet и другие мобильные браузеры не поддерживают popup —
+        // используем redirect для всех мобильных
+        const ua = navigator.userAgent;
+        const isMobileBrowser = /Android|iPhone|iPad|iPod|Mobile|SamsungBrowser/i.test(ua);
+        if(isMobileBrowser){
+          await signInWithRedirect(auth, provider);
+          return;
+        }
         const result = await signInWithPopup(auth, provider);
         // onAuthStateChanged обработает вход автоматически
       }catch(e){
         if(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") return;
         if(e.code === "auth/popup-blocked"){
-          // Если браузер заблокировал — пробуем redirect
           try{ await signInWithRedirect(auth, provider); }catch(e2){}
         } else if(e.code === "auth/operation-not-allowed"){
           showToast("⚠️ Включи Google в Firebase Console → Authentication");
@@ -98,26 +125,29 @@
 
     // ── Слушаем состояние авторизации ──────────────────────────
     onAuthStateChanged(auth, async(user)=>{
-      updateAuthUI(user);
-      if(user){
-        const prevId = window.cloudSync.userId;
-        userId = user.uid;
-        window.cloudSync.userId = userId;
-        // Показываем приветствие только при свежем входе (не при reload)
-        if(prevId && prevId !== userId){
-          showToast("✅ Вошёл как " + (user.displayName || user.email) + " — загружаю историю...");
+      try{
+        // Ждём инициализации cloudSync (на медленных мобильных он может не быть готов)
+        if(!window.cloudSync){
+          await new Promise(r => { const iv = setInterval(()=>{ if(window.cloudSync){clearInterval(iv);r();} }, 50); setTimeout(()=>{clearInterval(iv);r();}, 3000); });
         }
-        // Загружаем данные этого пользователя из Firebase
-        await initCloudData();
-      } else {
-        // Не залогинен — используем анонимный ID (история только локально)
-        userId = localStorage.getItem("ai_hub_user_id");
-        if(!userId){
-          userId = "anon_"+Math.random().toString(36).slice(2,10);
-          localStorage.setItem("ai_hub_user_id", userId);
+        updateAuthUI(user);
+        if(user){
+          const prevId = window.cloudSync ? window.cloudSync.userId : null;
+          userId = user.uid;
+          if(window.cloudSync) window.cloudSync.userId = userId;
+          if(prevId && prevId !== userId){
+            showToast("✅ Вошёл как " + (user.displayName || user.email) + " — загружаю историю...");
+          }
+          await initCloudData();
+        } else {
+          userId = localStorage.getItem("ai_hub_user_id");
+          if(!userId){
+            userId = "anon_"+Math.random().toString(36).slice(2,10);
+            localStorage.setItem("ai_hub_user_id", userId);
+          }
+          if(window.cloudSync) window.cloudSync.userId = userId;
         }
-        window.cloudSync.userId = userId;
-      }
+      }catch(authErr){ console.warn("Auth state error:", authErr); }
     });
 
     // ── CLOUD SYNC API ──────────────────────────────────────────
@@ -244,6 +274,17 @@
       const chats = JSON.parse(localStorage.getItem("ai_hub_chats_v4")||"[]");
       if(chats.length>0) await window.cloudSync.saveChats(chats);
     }, 30000);
+  } catch(globalFirebaseErr) {
+    console.error("Firebase init error:", globalFirebaseErr);
+    // Страница продолжает работать без Firebase (локальный режим)
+    window.cloudSync = window.cloudSync || {
+      userId: "anon_local",
+      async saveChats(){}, async loadChats(){ return null; },
+      async saveSettings(){}, async loadSettings(){ return null; },
+      async saveBiomarkers(){}, async loadBiomarkers(){ return {}; },
+      async saveWearable(){}, async loadWearable(){ return {}; }
+    };
+  }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <!-- Export libraries -->

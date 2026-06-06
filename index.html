@@ -2299,9 +2299,9 @@ async function callKimi(key, system, history){
 async function callGemini(key, system, history){
   // Таймаут зависит от модели: 2.5-flash медленнее — 150s, остальные — 60-90s
   const models=[
-    {name:"gemini-2.5-flash",   timeout:150000},
-    {name:"gemini-2.0-flash",   timeout:90000},
-    {name:"gemini-1.5-flash",   timeout:60000},
+    {name:"gemini-2.5-flash",        timeout:150000},
+    {name:"gemini-2.0-flash",        timeout:90000},
+    {name:"gemini-1.5-flash-latest", timeout:60000},
   ];
   let lastErr=null;
   for(let mi=0;mi<models.length;mi++){
@@ -2328,7 +2328,7 @@ async function callGemini(key, system, history){
         const gBody=JSON.stringify(gPayload);
         let d;
         if(isMobile){
-          d=await proxyFetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{},JSON.parse(gBody));
+          d=await proxyFetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{},gPayload);
         } else {
           const ctrl=new AbortController();
           const t=setTimeout(()=>ctrl.abort(),modelTimeout);

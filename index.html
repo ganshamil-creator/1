@@ -2194,7 +2194,7 @@ async function proxyFetch(url, headers, body){
   }
 }
 
-const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+const isMobile = /Android|iPhone|iPad|iPod|Mobile|SamsungBrowser/i.test(navigator.userAgent);
 
 async function callOpenAI(key, system, history){
   return callWithRetry(async()=>{
@@ -2297,6 +2297,7 @@ async function callGemini(key, system, history){
   const models=[
     {name:"gemini-2.5-flash",  timeout:150000},
     {name:"gemini-2.0-flash",  timeout:90000},
+    {name:"gemini-1.5-flash",  timeout:60000},
   ];
   let lastErr=null;
   for(let mi=0;mi<models.length;mi++){
@@ -2321,7 +2322,7 @@ async function callGemini(key, system, history){
         const gBody=JSON.stringify({system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:calcTokens(history)}});
         let d;
         if(isMobile){
-          d=await proxyFetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{},gBody);
+          d=await proxyFetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{},JSON.parse(gBody));
         } else {
           const ctrl=new AbortController();
           const t=setTimeout(()=>ctrl.abort(),modelTimeout);
@@ -2341,7 +2342,10 @@ async function callGemini(key, system, history){
             lastErr=new Error(msg); await sleep(attempt*3000); continue;
           }
           if(msg.includes("not found")||msg.includes("MODEL_NOT_FOUND")){
-            lastErr=new Error(msg); break;
+            lastErr=new Error(msg); break; // следующая модель
+          }
+          if(msg.includes("quota")||msg.includes("RESOURCE_EXHAUSTED")||msg.includes("rate")){
+            lastErr=new Error("Gemini квота исчерпана, пробую другую модель..."); break; // следующая модель
           }
           throw new Error(msg);
         }

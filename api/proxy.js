@@ -1,11 +1,11 @@
-// api/proxy.js — Vercel Serverless Function
+// api/proxy.js — Vercel Serverless Function v4
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, anthropic-version');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method === 'GET') return res.status(200).json({ status: 'ok', proxy: 'AI Multi-Hub', version: '3' });
+  if (req.method === 'GET') return res.status(200).json({ status: 'ok', proxy: 'AI Multi-Hub v4' });
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   let reqBody;
@@ -18,6 +18,7 @@ export default async function handler(req, res) {
   const { url, headers: extraHeaders, body } = reqBody || {};
   if (!url) return res.status(400).json({ error: 'Missing url' });
 
+  // Проверяем домен (включая параметры в URL)
   const ALLOWED = [
     'api.anthropic.com',
     'generativelanguage.googleapis.com',
@@ -36,14 +37,16 @@ export default async function handler(req, res) {
   }
 
   try {
+    const upstreamBody = typeof body === 'string' ? body : JSON.stringify(body);
     const upstream = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(extraHeaders || {}) },
-      body: typeof body === 'string' ? body : JSON.stringify(body),
+      body: upstreamBody,
     });
     const data = await upstream.json();
     return res.status(upstream.status).json(data);
   } catch (err) {
+    console.error('[proxy] error:', err.message);
     return res.status(500).json({ error: err.message });
   }
 }

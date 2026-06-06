@@ -646,7 +646,7 @@ function getToday(){
 // ════════════════════════════════════════════════════════════════
 const ALL_AGENTS = [
   {id:"claude",    name:"Claude",     emoji:"🟠", color:"#d97706", badge:"Sonnet 4.6",
-   system:"Ты Claude от Anthropic. Давай аналитические глубокие ответы. Если прикреплено изображение — ОБЯЗАТЕЛЬНО прочитай весь текст на нём дословно и используй в ответе. Умеешь переводить между любыми языками мира точно и полностью. Текущая дата передана в начале сообщения. Помни историю разговора."},
+   system:"Ты Claude от Anthropic. Давай аналитические глубокие ответы. Если прикреплено изображение — ОБЯЗАТЕЛЬНО прочитай весь текст на нём дословно и используй в ответе. Умеешь переводить между любыми языками мира точно и полностью. Текущая дата передана в начале сообщения. Помни историю разговора. Если в сообщении пользователя есть блок АКТУАЛЬНЫЕ ДАННЫЕ ИЗ ИНТЕРНЕТА — используй их как главный источник фактов, они получены из веб-поиска прямо сейчас."},
   {id:"gemini",    name:"Gemini",     emoji:"🔴", color:"#ea4335", badge:"2.5 Flash",
    system:"Ты Google Gemini. Анализируй глубоко. Если прикреплено изображение — ОБЯЗАТЕЛЬНО прочитай весь текст на нём и процитируй его в ответе. Умеешь точно переводить между любыми языками. Используй дату из контекста. Если есть данные поиска — используй их."},
   {id:"perplexity",name:"Perplexity", emoji:"🟣", color:"#8b5cf6", badge:"Sonar Pro",
@@ -2261,8 +2261,9 @@ async function callClaude(key, system, history, onChunk){
         if(data==="[DONE]"||!data) continue;
         try{
           const j=JSON.parse(data);
-          const delta=j.delta?.text||"";
+          const delta=j.delta?.text||(j.type==="content_block_delta"?j.delta?.text:"") || "";
           if(delta){ full+=delta; if(onChunk) onChunk(full); }
+          else if(j.type==="message_start"&&onChunk&&!full) onChunk("⏳");
         }catch(_){}
       }
     }
@@ -2323,7 +2324,16 @@ async function callGemini(key, system, history){
           return {role,parts:[{text:String(m.content||"")}]};
         });
         const geminiApi = models[mi].api || "v1beta";
-        const gBody=JSON.stringify({system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:calcTokens(history)}});
+        // v1beta поддерживает system_instruction, v1 — нет (добавляем в contents)
+        let gPayload;
+        if(geminiApi === "v1beta"){
+          gPayload = {system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:calcTokens(history)}};
+        } else {
+          // для v1: system prompt добавляем как первый user+model обмен
+          const sysContents = system ? [{role:"user",parts:[{text:system}]},{role:"model",parts:[{text:"Понял, буду следовать этим инструкциям."}]},...contents] : contents;
+          gPayload = {contents:sysContents,generationConfig:{maxOutputTokens:calcTokens(history)}};
+        }
+        const gBody=JSON.stringify(gPayload);
         let d;
         if(isMobile){
           d=await proxyFetch(`https://generativelanguage.googleapis.com/${geminiApi}/models/${modelName}:generateContent?key=${key}`,{},JSON.parse(gBody));
@@ -2477,6 +2487,29 @@ async function tavilySearch(query){
   }catch(e){ return ""; }
 }
 
+
+
+// ── Веб-поиск для Claude через Perplexity ─────────────────────
+async function webSearchForClaude(query){
+  if(!keys.perplexity) return null;
+  try{
+    const msgs=[{role:"user",content:"Найди актуальную информацию: "+query+". Дай краткий ответ с фактами и датами. Только факты, без лишних слов."}];
+    const body={model:"sonar",max_tokens:800,messages:[{role:"system",content:"Ты поисковый ассистент. Давай краткие точные ответы с актуальными данными."},...msgs]};
+    let d;
+    if(isMobile){
+      d=await proxyFetch("https://api.perplexity.ai/chat/completions",{"Authorization":"Bearer "+keys.perplexity},body);
+    } else {
+      const r=await fetch("https://api.perplexity.ai/chat/completions",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+keys.perplexity},
+        body:JSON.stringify(body)
+      });
+      d=await r.json();
+    }
+    if(d.error||!d.choices) return null;
+    return d.choices[0]?.message?.content||null;
+  }catch(e){ return null; }
+}
 
 async function callAgent(agent, system, history, onChunk){
   const keys=getKeys();
@@ -3157,10 +3190,27 @@ async function send(){
     };
   }
 
+  // Веб-поиск для Claude (если есть ключ Perplexity и вопрос про факты/события)
+  let claudeWebCtx = "";
+  const needsSearch = keys.perplexity && !imageFiles.length && agents.find(a=>a.id==="claude");
+  if(needsSearch){
+    const searchResult = await webSearchForClaude(text);
+    if(searchResult) claudeWebCtx = "\n\n🌐 АКТУАЛЬНЫЕ ДАННЫЕ ИЗ ИНТЕРНЕТА (используй как основу):\n" + searchResult + "\n";
+  }
+
   // Vision agents first
   await Promise.all(agents.filter(a=>visionSet.has(a.id)).map(async a=>{
     try{
-      const h=a.id==="claude"?makeClaudeHistory():imageFiles.length?makeVisionHistory():history;
+      let h=a.id==="claude"?makeClaudeHistory():imageFiles.length?makeVisionHistory():history;
+      // Добавляем веб-контекст в последнее сообщение Claude
+      if(a.id==="claude" && claudeWebCtx && h.length>0){
+        const last=h[h.length-1];
+        const newContent=typeof last.content==="string"
+          ? last.content+claudeWebCtx
+          : [...(Array.isArray(last.content)?last.content:[])];
+        h=[...h.slice(0,-1),{...last,content:typeof last.content==="string"?newContent:last.content}];
+        if(typeof last.content==="string") h=[...h.slice(0,-1),{...last,content:last.content+claudeWebCtx}];
+      }
       const ans=await callAgent(a,today+a.system,h,makeChunkHandler(a));
       results[a.id]={status:"ok",text:ans};
     }catch(e){ results[a.id]={status:"error",text:e.message}; }

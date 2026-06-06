@@ -74,11 +74,14 @@
         if(e.code === "auth/popup-blocked"){
           try{ await signInWithRedirect(auth, provider); }catch(e2){}
         } else if(e.code === "auth/operation-not-allowed"){
-          showToast("⚠️ Включи Google в Firebase Console → Authentication");
+          alert("⚠️ Включи Google Auth в Firebase Console:\nAuthentication → Sign-in method → Google → Enable");
         } else if(e.code === "auth/unauthorized-domain"){
-          showToast("⚠️ Домен не авторизован в Firebase Console");
+          alert("⚠️ Домен не авторизован в Firebase!\nFirebase Console → Authentication → Settings → Authorized domains → Add:\nai-hub-shamil.ru\nwww.ai-hub-shamil.ru");
         } else {
-          showToast("❌ " + (e.message||e.code));
+          console.error("Auth error:", e.code, e.message);
+          const msg = e.message || e.code || "Неизвестная ошибка";
+          if(typeof showToast === "function") showToast("❌ " + msg);
+          else alert("❌ Ошибка входа: " + msg);
         }
       }
     };
@@ -2297,7 +2300,7 @@ async function callGemini(key, system, history){
   const models=[
     {name:"gemini-2.5-flash",  timeout:150000},
     {name:"gemini-2.0-flash",  timeout:90000},
-    {name:"gemini-1.5-flash",  timeout:60000},
+    {name:"gemini-1.5-flash-latest",  timeout:60000, api:"v1"},
   ];
   let lastErr=null;
   for(let mi=0;mi<models.length;mi++){
@@ -2319,15 +2322,16 @@ async function callGemini(key, system, history){
           }
           return {role,parts:[{text:String(m.content||"")}]};
         });
+        const geminiApi = models[mi].api || "v1beta";
         const gBody=JSON.stringify({system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:calcTokens(history)}});
         let d;
         if(isMobile){
-          d=await proxyFetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{},JSON.parse(gBody));
+          d=await proxyFetch(`https://generativelanguage.googleapis.com/${geminiApi}/models/${modelName}:generateContent?key=${key}`,{},JSON.parse(gBody));
         } else {
           const ctrl=new AbortController();
           const t=setTimeout(()=>ctrl.abort(),modelTimeout);
           try{
-            const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{
+            const r=await fetch(`https://generativelanguage.googleapis.com/${geminiApi}/models/${modelName}:generateContent?key=${key}`,{
               method:"POST",signal:ctrl.signal,
               headers:{"Content-Type":"application/json"},
               body:gBody

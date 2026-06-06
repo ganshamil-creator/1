@@ -2509,12 +2509,22 @@ async function webSearchForClaude(query){
 
 async function callAgent(agent, system, history, onChunk){
   const keys=getKeys();
-  const effectiveSystem = (typeof getHealthSystem === "function" && getHealthSystem(agent.id)) || system;
+  // Приоритет: healthMode system > обычный system + health-контекст если есть данные
+  let effectiveSystem = (typeof getHealthSystem === "function" && getHealthSystem(agent.id)) || system;
+  // Если НЕ healthMode но есть биомаркеры — добавляем краткий контекст
+  if(!healthMode && typeof getHealthContext === "function"){
+    const hCtx = getHealthContext();
+    if(hCtx && hCtx.trim().length > 10){
+      effectiveSystem = system + "
+
+[Данные здоровья пользователя для справки:" + hCtx + "]";
+    }
+  }
   switch(agent.id){
-    case "claude":     return keys.claude?callClaude(keys.claude,system,history,onChunk):Promise.reject(new Error("Добавь ключ Claude в ⚙️ Настройки → console.anthropic.com"));
-    case "gemini":     return keys.gemini?callGemini(keys.gemini,system,history):Promise.reject(new Error("Добавь ключ Gemini в ⚙️ Настройки → aistudio.google.com (бесплатно)"));
-    case "perplexity": return keys.perplexity?callPerplexity(keys.perplexity,system,history):Promise.reject(new Error("Добавь ключ Perplexity в ⚙️ Настройки → perplexity.ai/settings/api"));
-    case "deepseek":   return keys.deepseek?callDeepSeek(keys.deepseek,system,history,onChunk):Promise.reject(new Error("Добавь ключ DeepSeek в ⚙️ Настройки → platform.deepseek.com"));
+    case "claude":     return keys.claude?callClaude(keys.claude,effectiveSystem,history,onChunk):Promise.reject(new Error("Добавь ключ Claude в ⚙️ Настройки → console.anthropic.com"));
+    case "gemini":     return keys.gemini?callGemini(keys.gemini,effectiveSystem,history):Promise.reject(new Error("Добавь ключ Gemini в ⚙️ Настройки → aistudio.google.com (бесплатно)"));
+    case "perplexity": return keys.perplexity?callPerplexity(keys.perplexity,effectiveSystem,history):Promise.reject(new Error("Добавь ключ Perplexity в ⚙️ Настройки → perplexity.ai/settings/api"));
+    case "deepseek":   return keys.deepseek?callDeepSeek(keys.deepseek,effectiveSystem,history,onChunk):Promise.reject(new Error("Добавь ключ DeepSeek в ⚙️ Настройки → platform.deepseek.com"));
   }
 }
 
@@ -2766,6 +2776,12 @@ function saveParsedBiomarkers(markers, cardId){
   var statusEl = document.getElementById(cardId+"_status");
   var saved = 0;
   var date = new Date().toISOString().split("T")[0];
+  // Берём дату из первого маркера у которого она есть
+  var docDate = markers.find(function(m){ return m.date && m.date.match(/^\d{4}-\d{2}-\d{2}$/); });
+  if(docDate && docDate.date) date = docDate.date;
+  // Обновляем поле hDate в UI
+  var hDateEl = document.getElementById("hDate");
+  if(hDateEl && docDate) hDateEl.value = date;
   markers.forEach(function(m){
     if(!m.name || typeof m.value !== "number") return;
     var markerDate = m.date || date;
@@ -3751,13 +3767,20 @@ function switchChat(id){
 
 function deleteChat(id,e){
   e.stopPropagation();
-  chats=chats.filter(c=>c.id!==id);
+  const chat = chats.find(c=>c.id===id);
+  if(!confirm('Удалить тему "' + (chat?.title||'') + '"?')) return;
+  chats = chats.filter(c=>c.id!==id);
   if(!chats.length) chats=[makeChat()];
   if(!chats.find(c=>c.id===activeChatId)) activeChatId=chats[0].id;
-  saveChats(chats); renderChatList(); renderMessages();
+  // Сохраняем локально
+  try{ localStorage.setItem("ai_hub_chats", JSON.stringify(chats)); }catch(e){}
+  saveChats(chats);
+  renderChatList();
+  renderMessages();
   document.getElementById("chatTitle").textContent=getChat()?.title||"Новая тема";
   // Удаляем из облака
-  if(window.cloudSync) window.cloudSync.deleteChat(id).catch(()=>{});
+  if(window.cloudSync && userId) window.cloudSync.deleteChat(id).catch(()=>{});
+  showToast("🗑 Тема удалена");
 }
 
 function renderChatList(){

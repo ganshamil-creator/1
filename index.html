@@ -2493,22 +2493,26 @@ async function tavilySearch(query){
 async function webSearchForClaude(query){
   if(!keys.perplexity) return null;
   try{
-    const msgs=[{role:"user",content:"Найди актуальную информацию: "+query+". Дай краткий ответ с фактами и датами. Только факты, без лишних слов."}];
-    const body={model:"sonar",max_tokens:800,messages:[{role:"system",content:"Ты поисковый ассистент. Давай краткие точные ответы с актуальными данными."},...msgs]};
-    let d;
+    const body={model:"sonar",max_tokens:500,messages:[
+      {role:"system",content:"Краткий поиск. Только факты и даты."},
+      {role:"user",content:query}
+    ]};
+    // Жёсткий таймаут 6 секунд — не блокируем основной поток
+    const timeout = new Promise((_,rej)=>setTimeout(()=>rej(new Error("search timeout")),6000));
+    let fetchPromise;
     if(isMobile){
-      d=await proxyFetch("https://api.perplexity.ai/chat/completions",{"Authorization":"Bearer "+keys.perplexity},body);
+      fetchPromise = proxyFetch("https://api.perplexity.ai/chat/completions",{"Authorization":"Bearer "+keys.perplexity},body);
     } else {
-      const r=await fetch("https://api.perplexity.ai/chat/completions",{
+      fetchPromise = fetch("https://api.perplexity.ai/chat/completions",{
         method:"POST",
         headers:{"Content-Type":"application/json","Authorization":"Bearer "+keys.perplexity},
         body:JSON.stringify(body)
-      });
-      d=await r.json();
+      }).then(r=>r.json());
     }
-    if(d.error||!d.choices) return null;
+    const d = await Promise.race([fetchPromise, timeout]);
+    if(!d||d.error||!d.choices) return null;
     return d.choices[0]?.message?.content||null;
-  }catch(e){ return null; }
+  }catch(e){ console.warn("webSearch failed:", e.message); return null; }
 }
 
 async function callAgent(agent, system, history, onChunk){
@@ -3190,27 +3194,10 @@ async function send(){
     };
   }
 
-  // Веб-поиск для Claude (если есть ключ Perplexity и вопрос про факты/события)
-  let claudeWebCtx = "";
-  const needsSearch = keys.perplexity && !imageFiles.length && agents.find(a=>a.id==="claude");
-  if(needsSearch){
-    const searchResult = await webSearchForClaude(text);
-    if(searchResult) claudeWebCtx = "\n\n🌐 АКТУАЛЬНЫЕ ДАННЫЕ ИЗ ИНТЕРНЕТА (используй как основу):\n" + searchResult + "\n";
-  }
-
-  // Vision agents first
+  // Vision agents first — запускаем сразу, без ожидания поиска
   await Promise.all(agents.filter(a=>visionSet.has(a.id)).map(async a=>{
     try{
-      let h=a.id==="claude"?makeClaudeHistory():imageFiles.length?makeVisionHistory():history;
-      // Добавляем веб-контекст в последнее сообщение Claude
-      if(a.id==="claude" && claudeWebCtx && h.length>0){
-        const last=h[h.length-1];
-        const newContent=typeof last.content==="string"
-          ? last.content+claudeWebCtx
-          : [...(Array.isArray(last.content)?last.content:[])];
-        h=[...h.slice(0,-1),{...last,content:typeof last.content==="string"?newContent:last.content}];
-        if(typeof last.content==="string") h=[...h.slice(0,-1),{...last,content:last.content+claudeWebCtx}];
-      }
+      const h=a.id==="claude"?makeClaudeHistory():imageFiles.length?makeVisionHistory():history;
       const ans=await callAgent(a,today+a.system,h,makeChunkHandler(a));
       results[a.id]={status:"ok",text:ans};
     }catch(e){ results[a.id]={status:"error",text:e.message}; }

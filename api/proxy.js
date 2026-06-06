@@ -62,10 +62,14 @@ export default async function handler(req, res) {
       ...(extraHeaders || {}),
     };
 
+    // body из фронта всегда объект (JSON.stringify делает proxyFetch)
+    // Сериализуем в строку для upstream API
+    const upstreamBody = typeof body === 'string' ? body : JSON.stringify(body);
+    
     const upstream = await fetch(url, {
       method: 'POST',
       headers: fetchHeaders,
-      body: typeof body === 'string' ? body : JSON.stringify(body),
+      body: upstreamBody,
     });
 
     // Передаём статус и тело ответа как есть

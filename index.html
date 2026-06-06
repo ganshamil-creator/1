@@ -2299,9 +2299,9 @@ async function callKimi(key, system, history){
 async function callGemini(key, system, history){
   // Таймаут зависит от модели: 2.5-flash медленнее — 150s, остальные — 60-90s
   const models=[
-    {name:"gemini-2.5-flash",  timeout:150000},
-    {name:"gemini-2.0-flash",  timeout:90000},
-    {name:"gemini-1.5-flash-latest",  timeout:60000, api:"v1"},
+    {name:"gemini-2.5-flash",   timeout:150000},
+    {name:"gemini-2.0-flash",   timeout:90000},
+    {name:"gemini-1.5-flash",   timeout:60000},
   ];
   let lastErr=null;
   for(let mi=0;mi<models.length;mi++){
@@ -2323,25 +2323,17 @@ async function callGemini(key, system, history){
           }
           return {role,parts:[{text:String(m.content||"")}]};
         });
-        const geminiApi = models[mi].api || "v1beta";
-        // v1beta поддерживает system_instruction, v1 — нет (добавляем в contents)
-        let gPayload;
-        if(geminiApi === "v1beta"){
-          gPayload = {system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:calcTokens(history)}};
-        } else {
-          // для v1: system prompt добавляем как первый user+model обмен
-          const sysContents = system ? [{role:"user",parts:[{text:system}]},{role:"model",parts:[{text:"Понял, буду следовать этим инструкциям."}]},...contents] : contents;
-          gPayload = {contents:sysContents,generationConfig:{maxOutputTokens:calcTokens(history)}};
-        }
+        const geminiApi = "v1beta";
+        const gPayload = {system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:calcTokens(history)}};
         const gBody=JSON.stringify(gPayload);
         let d;
         if(isMobile){
-          d=await proxyFetch(`https://generativelanguage.googleapis.com/${geminiApi}/models/${modelName}:generateContent?key=${key}`,{},JSON.parse(gBody));
+          d=await proxyFetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{},JSON.parse(gBody));
         } else {
           const ctrl=new AbortController();
           const t=setTimeout(()=>ctrl.abort(),modelTimeout);
           try{
-            const r=await fetch(`https://generativelanguage.googleapis.com/${geminiApi}/models/${modelName}:generateContent?key=${key}`,{
+            const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{
               method:"POST",signal:ctrl.signal,
               headers:{"Content-Type":"application/json"},
               body:gBody

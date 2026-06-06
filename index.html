@@ -4278,25 +4278,41 @@ function toggleSidebar(){
 // ════════════════════════════════════════════════════════════════
 // INIT
 // ════════════════════════════════════════════════════════════════
-renderChatList();
-renderMessages();
-document.getElementById("chatTitle").textContent=getChat()?.title||"Новая тема";
+function initApp(){
+  try{
+    chats = loadChats();
+    if(!chats.length) chats=[makeChat()];
+    activeChatId = chats[0].id;
+    renderChatList();
+    renderMessages();
+    const ct = document.getElementById("chatTitle");
+    if(ct) ct.textContent = getChat()?.title||"Новая тема";
+  }catch(e){ console.error("initApp error:", e); }
 
-// Hook для перезагрузки после облачной синхронизации
-window._reloadChats = ()=>{
-  chats = loadChats();
-  if(!chats.length) chats=[makeChat()];
-  activeChatId = chats[0].id;
-  renderChatList();
-  renderMessages();
-  document.getElementById("chatTitle").textContent=getChat()?.title||"Новая тема";
-  showToast("🔄 Темы обновлены из облака!");
-};
+  // Hook для перезагрузки после облачной синхронизации
+  window._reloadChats = ()=>{
+    chats = loadChats();
+    if(!chats.length) chats=[makeChat()];
+    activeChatId = chats[0].id;
+    renderChatList();
+    renderMessages();
+    const ct = document.getElementById("chatTitle");
+    if(ct) ct.textContent = getChat()?.title||"Новая тема";
+    showToast("🔄 Темы обновлены из облака!");
+  };
 
-// Auto-show settings if no keys
-const k=getKeys();
-if(!k.claude&&!k.gemini&&!k.deepseek&&!k.perplexity&&!k.kimi){
-  setTimeout(showSettings, 500);
+  // Auto-show settings if no keys
+  const k=getKeys();
+  if(!k.claude&&!k.gemini&&!k.deepseek&&!k.perplexity&&!k.kimi){
+    setTimeout(showSettings, 500);
+  }
+}
+
+// Запускаем после полной загрузки DOM
+if(document.readyState==="loading"){
+  document.addEventListener("DOMContentLoaded", initApp);
+} else {
+  initApp();
 }
 </script>
 

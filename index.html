@@ -24,10 +24,10 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <!-- Firebase SDK -->
   <script type="module">
-  try { // глобальный try-catch: любая ошибка Firebase не ломает рендер страницы
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getFirestore, doc, setDoc, getDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  try { // try-catch после imports — защита от ошибок инициализации
 
     const firebaseConfig = {
       apiKey: "AIzaSyDsGW3WtnfY9Uv5GDXbVu6c4YJ1OJ9mmmU",

@@ -1028,16 +1028,26 @@ function buildSamsungTab(){
   var h = '<div style="background:#e8f5e9;border:1px solid #4caf50;border-radius:10px;padding:14px;margin-bottom:14px">';
   h += '<div style="font-size:13px;font-weight:700;color:#1b5e20;margin-bottom:8px">📱 Как экспортировать из Samsung Health</div>';
   h += '<div style="font-size:12px;color:#2e7d32;line-height:1.9">';
-  h += '1. Открой <b>Samsung Health</b> → <b>Профиль</b> (иконка человека) → <b>Настройки</b><br>';
-  h += '2. <b>Личные данные</b> → <b>Скачать личные данные</b> → выбери период<br>';
-  h += '3. Нажми <b>Запрос</b> → JSON-архив придёт на email<br>';
-  h += '4. Загрузи JSON ниже — данные импортируются автоматически</div></div>';
-  h += '<div style="border:2px dashed #4ade80;border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:#f0fdf4" onclick="document.getElementById(\'sFile\').click()">';
-  h += '<div style="font-size:28px">📂</div>';
-  h += '<div style="font-size:13px;font-weight:600;color:#15803d;margin:6px 0">Загрузить JSON из Samsung Health</div>';
-  h += '<div style="font-size:11px;color:#6b7280">Поддерживаются: step_daily_trend, heart_rate, sleep_combined</div>';
-  h += '<input type="file" id="sFile" accept=".json" style="display:none" onchange="importSamsung(event)"></div>';
+  h += '1. Samsung Health → <b>Профиль</b> → <b>Настройки ⚙️</b> → <b>Скачать личные данные</b><br>';
+  h += '2. Выбери период → <b>Запрос</b> → скачай и распакуй архив<br>';
+  h += '3. Выдели <b>все CSV файлы</b> из корня архива → загрузи сюда (можно несколько сразу)</div></div>';
+  h += '<div style="border:2px dashed #4ade80;border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:#f0fdf4" onclick="document.getElementById('sFile').click()">';
+  h += '<div style="font-size:32px">📂</div>';
+  h += '<div style="font-size:13px;font-weight:600;color:#15803d;margin:6px 0">Загрузить файлы Samsung Health</div>';
+  h += '<div style="font-size:11px;color:#6b7280">CSV или JSON · выбери несколько файлов сразу</div>';
+  h += '<input type="file" id="sFile" accept=".json,.csv" multiple style="display:none" onchange="importSamsung(event)"></div>';
   h += '<div id="sResult" style="margin-top:10px"></div>';
+  var wr = window.healthData.wearable;
+  var hasData = (wr.steps&&wr.steps.length)||(wr.heartRate&&wr.heartRate.length)||(wr.sleep&&wr.sleep.length)||(wr.weight&&wr.weight.length);
+  if(hasData){
+    h += '<div style="margin-top:12px;background:#f8fafc;border-radius:8px;padding:10px;font-size:12px">';
+    h += '<div style="font-weight:600;color:#1e293b;margin-bottom:6px">📊 Загруженные данные:</div>';
+    if(wr.steps&&wr.steps.length){ var ls=wr.steps[wr.steps.length-1]; h += '<div>👣 Шаги: <b>'+wr.steps.length+' дней</b> · последние: '+ls.value.toLocaleString()+' ('+ls.date+')</div>'; }
+    if(wr.heartRate&&wr.heartRate.length){ var lh=wr.heartRate[wr.heartRate.length-1]; h += '<div>❤️ Пульс: <b>'+wr.heartRate.length+' дней</b> · последний: '+lh.value+' уд/мин ('+lh.date+')</div>'; }
+    if(wr.sleep&&wr.sleep.length){ var lsl=wr.sleep[wr.sleep.length-1]; h += '<div>😴 Сон: <b>'+wr.sleep.length+' дней</b> · последний: '+lsl.value+' ч ('+lsl.date+')</div>'; }
+    if(wr.weight&&wr.weight.length){ var lw=wr.weight[wr.weight.length-1]; h += '<div>⚖️ Вес: '+lw.value+' кг ('+lw.date+')</div>'; }
+    h += '</div>';
+  }
   return h;
 }
 
@@ -1122,68 +1132,142 @@ function saveHData(){
   }
 }
 
+function parseSamsungCSV(text, filename){
+  var lines = text.split("\n").map(function(l){return l.trim();}).filter(Boolean);
+  if(lines.length < 2) return {type:"unknown", rows:[]};
+  var headerLine = lines.find(function(l){return l.includes(",");}) || lines[0];
+  var headers = headerLine.split(",").map(function(h){return h.replace(/"/g,"").trim().toLowerCase();});
+  var rows = [];
+  var started = false;
+  lines.forEach(function(line){
+    if(line === headerLine){started=true; return;}
+    if(!started) return;
+    var cols = line.split(",").map(function(c){return c.replace(/"/g,"").trim();});
+    var row = {};
+    headers.forEach(function(h,i){row[h]=cols[i]||"";});
+    rows.push(row);
+  });
+  var fn = (filename||"").toLowerCase();
+  var hj = headers.join(",");
+  if(fn.includes("pedometer")||hj.includes("step_count")||hj.includes("count")) return {type:"steps",rows:rows};
+  if(fn.includes("heart_rate")||hj.includes("heart_rate")) return {type:"heartRate",rows:rows};
+  if(fn.includes("sleep")||hj.includes("sleep")) return {type:"sleep",rows:rows};
+  if(fn.includes("weight")||hj.includes("weight")) return {type:"weight",rows:rows};
+  if(fn.includes("blood_pressure")||hj.includes("systolic")) return {type:"bp",rows:rows};
+  if(fn.includes("oxygen")||hj.includes("spo2")) return {type:"spo2",rows:rows};
+  return {type:"unknown",rows:rows,headers:headers};
+}
+
 function importSamsung(event){
-  var file = event.target.files[0];
-  if(!file) return;
+  var files = event.target.files;
+  if(!files||!files.length) return;
   var res = document.getElementById("sResult");
-  res.innerHTML = '<div style="color:#6b7280;font-size:12px">Читаю файл...</div>';
-  var reader = new FileReader();
-  reader.onload = function(e){
-    try{
-      var data = JSON.parse(e.target.result);
-      var imported = 0;
-      var today = new Date().toISOString().split("T")[0];
-      if(data.step_daily_trend && Array.isArray(data.step_daily_trend)){
-        data.step_daily_trend.slice(-60).forEach(function(d){
-          var dt = (d.day_time||"").split(" ")[0] || today;
-          var v = parseInt(d.count || d.step_count || 0);
-          if(!v) return;
-          if(!window.healthData.wearable.steps) window.healthData.wearable.steps = [];
-          window.healthData.wearable.steps = window.healthData.wearable.steps.filter(function(x){return x.date!==dt;});
-          window.healthData.wearable.steps.push({date:dt, value:v, unit:"шаг/день"});
-          imported++;
-        });
-      }
-      if(data.heart_rate && Array.isArray(data.heart_rate)){
-        var hrMap = {};
-        data.heart_rate.slice(-200).forEach(function(d){
-          var dt = (d.start_time||"").split(" ")[0] || today;
-          if(!hrMap[dt]) hrMap[dt] = {s:0,c:0};
-          hrMap[dt].s += (d.min_heart_rate || d.heart_rate || 0);
-          hrMap[dt].c++;
-        });
-        Object.keys(hrMap).forEach(function(dt){
-          var avg = Math.round(hrMap[dt].s / hrMap[dt].c);
-          if(!avg) return;
-          if(!window.healthData.wearable.heartRate) window.healthData.wearable.heartRate = [];
-          window.healthData.wearable.heartRate = window.healthData.wearable.heartRate.filter(function(x){return x.date!==dt;});
-          window.healthData.wearable.heartRate.push({date:dt, value:avg, unit:"уд/мин"});
-          imported++;
-        });
-      }
-      if(data.sleep_combined && Array.isArray(data.sleep_combined)){
-        data.sleep_combined.slice(-60).forEach(function(d){
-          var dt = (d.start_time||"").split(" ")[0] || today;
-          var dur = Math.round((d.duration||0)/3600*10)/10;
-          if(!dur) return;
-          if(!window.healthData.wearable.sleep) window.healthData.wearable.sleep = [];
-          window.healthData.wearable.sleep = window.healthData.wearable.sleep.filter(function(x){return x.date!==dt;});
-          window.healthData.wearable.sleep.push({date:dt, value:dur, unit:"часов"});
-          imported++;
-        });
-      }
-      if(imported > 0){
-        window.healthData.lastUpdated = Date.now();
-        if(window.cloudSync && window.cloudSync.userId) window.cloudSync.saveWearable(window.healthData.wearable);
-        res.innerHTML = '<div style="color:#15803d;font-size:13px;font-weight:600;padding:10px;background:#dcfce7;border-radius:8px">✅ Импортировано ' + imported + ' записей из Samsung Health!</div>';
-      } else {
-        res.innerHTML = '<div style="color:#dc2626;font-size:12px;padding:8px;background:#fef2f2;border-radius:6px">⚠️ Данные не найдены. Убедись что это экспорт Samsung Health (JSON)</div>';
-      }
-    }catch(ex){
-      res.innerHTML = '<div style="color:#dc2626;font-size:12px">❌ ' + ex.message + '</div>';
+  res.innerHTML = '<div style="color:#6b7280;font-size:12px">Читаю '+files.length+' файл(ов)...</div>';
+  var total=0, done=0, count=files.length, today=new Date().toISOString().split("T")[0], summary=[];
+  function finish(){
+    if(total>0){
+      window.healthData.lastUpdated=Date.now();
+      if(window.cloudSync&&window.cloudSync.userId) window.cloudSync.saveWearable(window.healthData.wearable);
+      res.innerHTML='<div style="color:#15803d;font-size:13px;font-weight:600;padding:10px;background:#dcfce7;border-radius:8px">✅ Импортировано <b>'+total+'</b> записей!<br><div style="font-size:11px;margin-top:4px">'+summary.join('<br>')+'</div></div>';
+    } else {
+      res.innerHTML='<div style="color:#f59e0b;font-size:12px;padding:8px;background:#fffbeb;border-radius:6px">⚠️ Данные не распознаны. Загрузи CSV из корня архива Samsung Health</div>';
     }
-  };
-  reader.readAsText(file);
+  }
+  Array.from(files).forEach(function(file){
+    var reader=new FileReader();
+    reader.onload=function(e){
+      done++;
+      try{
+        var text=e.target.result, fname=file.name, imp=0;
+        var wr=window.healthData.wearable;
+        if(fname.endsWith(".json")||text.trim()[0]==="{"){
+          try{
+            var data=JSON.parse(text);
+            if(data.step_daily_trend) data.step_daily_trend.slice(-90).forEach(function(d){
+              var dt=(d.day_time||"").split(" ")[0]||today, v=parseInt(d.count||d.step_count||0);
+              if(!v) return;
+              if(!wr.steps) wr.steps=[];
+              wr.steps=wr.steps.filter(function(x){return x.date!==dt;});
+              wr.steps.push({date:dt,value:v,unit:"шаг/день"}); imp++;
+            });
+            if(data.heart_rate){
+              var hrm={};
+              data.heart_rate.slice(-500).forEach(function(d){
+                var dt=(d.start_time||"").split(" ")[0]||today;
+                if(!hrm[dt]) hrm[dt]={s:0,c:0};
+                hrm[dt].s+=(d.heart_rate||d.min_heart_rate||0); hrm[dt].c++;
+              });
+              Object.keys(hrm).forEach(function(dt){
+                var avg=Math.round(hrm[dt].s/hrm[dt].c);
+                if(!avg) return;
+                if(!wr.heartRate) wr.heartRate=[];
+                wr.heartRate=wr.heartRate.filter(function(x){return x.date!==dt;});
+                wr.heartRate.push({date:dt,value:avg,unit:"уд/мин"}); imp++;
+              });
+            }
+            if(imp>0) summary.push("JSON: "+imp+" записей");
+          }catch(je){}
+        } else {
+          var parsed=parseSamsungCSV(text,fname);
+          var rows=parsed.rows;
+          if(parsed.type==="steps"){
+            rows.slice(-90).forEach(function(r){
+              var dt=(r.start_time||r.day_time||r.date||"").split(" ")[0]||today;
+              var v=parseInt(r.step_count||r.count||r.steps||0);
+              if(!v||!dt) return;
+              if(!wr.steps) wr.steps=[];
+              wr.steps=wr.steps.filter(function(x){return x.date!==dt;});
+              wr.steps.push({date:dt,value:v,unit:"шаг/день"}); imp++;
+            });
+            if(imp>0) summary.push("👣 Шаги: "+imp+" дней");
+          } else if(parsed.type==="heartRate"){
+            var hrm2={};
+            rows.forEach(function(r){
+              var dt=(r.start_time||r.date||"").split(" ")[0]||today;
+              var v=parseInt(r.heart_rate||r.min_heart_rate||r.value||0);
+              if(!v||!dt) return;
+              if(!hrm2[dt]) hrm2[dt]={s:0,c:0};
+              hrm2[dt].s+=v; hrm2[dt].c++;
+            });
+            Object.keys(hrm2).slice(-90).forEach(function(dt){
+              var avg=Math.round(hrm2[dt].s/hrm2[dt].c);
+              if(!avg) return;
+              if(!wr.heartRate) wr.heartRate=[];
+              wr.heartRate=wr.heartRate.filter(function(x){return x.date!==dt;});
+              wr.heartRate.push({date:dt,value:avg,unit:"уд/мин"}); imp++;
+            });
+            if(imp>0) summary.push("❤️ Пульс: "+imp+" дней");
+          } else if(parsed.type==="sleep"){
+            rows.slice(-90).forEach(function(r){
+              var dt=(r.start_time||r.date||"").split(" ")[0]||today;
+              var dur=r.duration?Math.round(parseFloat(r.duration)/3600*10)/10:parseFloat(r.sleep_duration||0);
+              if(!dur||!dt) return;
+              if(!wr.sleep) wr.sleep=[];
+              wr.sleep=wr.sleep.filter(function(x){return x.date!==dt;});
+              wr.sleep.push({date:dt,value:dur,unit:"часов"}); imp++;
+            });
+            if(imp>0) summary.push("😴 Сон: "+imp+" дней");
+          } else if(parsed.type==="weight"){
+            rows.slice(-90).forEach(function(r){
+              var dt=(r.start_time||r.date||"").split(" ")[0]||today;
+              var v=parseFloat(r.weight||r.kg||r.value||0);
+              if(!v||!dt) return;
+              if(!wr.weight) wr.weight=[];
+              wr.weight=wr.weight.filter(function(x){return x.date!==dt;});
+              wr.weight.push({date:dt,value:v,unit:"кг"}); imp++;
+            });
+            if(imp>0) summary.push("⚖️ Вес: "+imp+" записей");
+          }
+          total+=imp;
+        }
+        total+=imp;
+      }catch(ex){ console.warn("Samsung import:",file.name,ex); }
+      if(done>=count) finish();
+    };
+    reader.readAsText(file,"utf-8");
+  });
+}
+
 }
 
 

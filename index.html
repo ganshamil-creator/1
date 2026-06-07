@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8"/>
@@ -2601,9 +2601,7 @@ async function callAgent(agent, system, history, onChunk){
   if(!healthMode && typeof getHealthContext === "function"){
     const hCtx = getHealthContext();
     if(hCtx && hCtx.trim().length > 10){
-      effectiveSystem = system + "
-
-[Данные здоровья пользователя для справки:" + hCtx + "]";
+      effectiveSystem = system + "\n\n[Данные здоровья пользователя для справки:" + hCtx + "]";
     }
   }
   switch(agent.id){

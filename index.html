@@ -1270,10 +1270,65 @@ function importSamsung(event){
               wr.weight.push({date:dt,value:v,unit:"кг"}); imp++;
             });
             if(imp>0) summary.push("⚖️ Вес: "+imp+" записей");
-          }
-          total+=imp;
+          } else if(parsed.type==="movement"||parsed.type==="activity"){
+          // movement.csv содержит binning_data — извлекаем суммарные шаги за день
+          var daySteps={};
+          rows.forEach(function(r){
+            var dt=(r.start_time||r.date||"").split(" ")[0]||today;
+            var steps=0;
+            try{
+              var bd=r.binning_data;
+              if(bd){
+                bd=bd.replace(/^"+|"+$/g,"").replace(/""/g,'"');
+                var arr=JSON.parse(bd);
+                if(Array.isArray(arr)) arr.forEach(function(b){ steps+=parseInt(b.step_count||b.steps||0); });
+              }
+            }catch(pe){}
+            if(!steps) steps=parseInt(r.step_count||r.steps||r.count||0);
+            if(steps>0){ daySteps[dt]=(daySteps[dt]||0)+steps; }
+          });
+          Object.keys(daySteps).slice(-90).forEach(function(dt){
+            var v=daySteps[dt]; if(!v) return;
+            if(!wr.steps) wr.steps=[];
+            wr.steps=wr.steps.filter(function(x){return x.date!==dt;});
+            wr.steps.push({date:dt,value:v,unit:"шаг/день"}); imp++;
+          });
+          if(imp>0) summary.push("🏃 Активность: "+imp+" дней");
+        } else if(parsed.type==="stress"){
+          rows.slice(-90).forEach(function(r){
+            var dt=(r.start_time||r.date||"").split(" ")[0]||today;
+            var v=parseInt(r.stress_score||r.score||r.value||0);
+            if(!v||!dt) return;
+            if(!wr.stress) wr.stress=[];
+            wr.stress=wr.stress.filter(function(x){return x.date!==dt;});
+            wr.stress.push({date:dt,value:v,unit:"0-100"}); imp++;
+          });
+          if(imp>0) summary.push("🧠 Стресс: "+imp+" дней");
+        } else if(parsed.type==="spo2"){
+          rows.slice(-90).forEach(function(r){
+            var dt=(r.start_time||r.date||"").split(" ")[0]||today;
+            var v=parseFloat(r.spo2||r.value||0);
+            if(!v||!dt) return;
+            if(!wr.spo2) wr.spo2=[];
+            wr.spo2=wr.spo2.filter(function(x){return x.date!==dt;});
+            wr.spo2.push({date:dt,value:v,unit:"%"}); imp++;
+          });
+          if(imp>0) summary.push("🫁 SpO2: "+imp+" записей");
+        } else if(parsed.type==="bp"){
+          rows.slice(-90).forEach(function(r){
+            var dt=(r.start_time||r.date||"").split(" ")[0]||today;
+            var sys=parseInt(r.systolic||0);
+            if(!sys||!dt) return;
+            if(!wr.systolic) wr.systolic=[];
+            wr.systolic=wr.systolic.filter(function(x){return x.date!==dt;});
+            wr.systolic.push({date:dt,value:sys,unit:"мм рт.ст."}); imp++;
+          });
+          if(imp>0) summary.push("🩺 Давление: "+imp+" записей");
+        } else if(parsed.type==="unknown"){
+          console.log("Unknown Samsung file:", fname, "headers:", parsed.headers);
         }
-        total+=imp;
+          total+=imp;
+        } // end else (CSV branch)
       }catch(ex){ console.warn("Samsung import:",file.name,ex); }
       if(done>=count) finish();
     };
@@ -2394,9 +2449,10 @@ async function callKimi(key, system, history){
 async function callGemini(key, system, history){
   // Таймаут зависит от модели: 2.5-flash медленнее — 150s, остальные — 60-90s
   const models=[
-    {name:"gemini-2.5-flash",        timeout:150000},
-    {name:"gemini-2.0-flash",        timeout:90000},
-    {name:"gemini-1.5-flash-latest", timeout:60000},
+    {name:"gemini-2.5-flash-preview-05-20", timeout:150000},
+    {name:"gemini-2.5-flash",               timeout:150000},
+    {name:"gemini-2.0-flash",               timeout:90000},
+    {name:"gemini-2.0-flash-lite",          timeout:60000},
   ];
   let lastErr=null;
   for(let mi=0;mi<models.length;mi++){

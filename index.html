@@ -68,27 +68,27 @@
     });
 
     // ── Google Sign-In ──────────────────────────────────────────
-    window.signInWithGoogle = async function(){
-      try{
-        provider.setCustomParameters({prompt: "select_account"});
-        // Popup работает в Chrome на Android и всех десктопных браузерах
-        const result = await signInWithPopup(auth, provider);
-      }catch(e){
+    window.signInWithGoogle = function(){
+      // Вызываем signInWithPopup синхронно из обработчика клика
+      // Chrome на Android требует прямой связи popup с user gesture
+      provider.setCustomParameters({prompt: "select_account"});
+      signInWithPopup(auth, provider).then(function(result){
+        // onAuthStateChanged обработает автоматически
+      }).catch(function(e){
         if(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") return;
         if(e.code === "auth/popup-blocked"){
-          // Popup заблокирован браузером — используем redirect
-          try{ await signInWithRedirect(auth, provider); }catch(e2){ console.error("Redirect failed:", e2); }
-        } else if(e.code === "auth/operation-not-allowed"){
-          alert("⚠️ Включи Google Auth в Firebase Console:\nAuthentication → Sign-in method → Google → Enable");
+          // Popup заблокирован — пробуем через новую вкладку
+          const url = "https://accounts.google.com";
+          alert("Браузер заблокировал всплывающее окно. Разреши popups для ai-hub-shamil.ru в настройках Chrome.");
         } else if(e.code === "auth/unauthorized-domain"){
-          alert("⚠️ Домен не авторизован в Firebase!\nai-hub-shamil.ru и www.ai-hub-shamil.ru должны быть в Authorized domains");
+          alert("⚠️ Домен не авторизован в Firebase!");
         } else {
           console.error("Auth error:", e.code, e.message);
           const msg = e.message || e.code || "Неизвестная ошибка";
           if(typeof showToast === "function") showToast("❌ " + msg);
           else alert("❌ Ошибка входа: " + msg);
         }
-      }
+      });
     };
 
     window.signOutGoogle = async function(){

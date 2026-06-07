@@ -71,24 +71,17 @@
     window.signInWithGoogle = async function(){
       try{
         provider.setCustomParameters({prompt: "select_account"});
-        // Samsung Internet и другие мобильные браузеры не поддерживают popup —
-        // используем redirect для всех мобильных
-        const ua = navigator.userAgent;
-        const isMobileBrowser = /Android|iPhone|iPad|iPod|Mobile|SamsungBrowser/i.test(ua);
-        if(isMobileBrowser){
-          await signInWithRedirect(auth, provider);
-          return;
-        }
+        // Popup работает в Chrome на Android и всех десктопных браузерах
         const result = await signInWithPopup(auth, provider);
-        // onAuthStateChanged обработает вход автоматически
       }catch(e){
         if(e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request") return;
         if(e.code === "auth/popup-blocked"){
-          try{ await signInWithRedirect(auth, provider); }catch(e2){}
+          // Popup заблокирован браузером — используем redirect
+          try{ await signInWithRedirect(auth, provider); }catch(e2){ console.error("Redirect failed:", e2); }
         } else if(e.code === "auth/operation-not-allowed"){
           alert("⚠️ Включи Google Auth в Firebase Console:\nAuthentication → Sign-in method → Google → Enable");
         } else if(e.code === "auth/unauthorized-domain"){
-          alert("⚠️ Домен не авторизован в Firebase!\nFirebase Console → Authentication → Settings → Authorized domains → Add:\nai-hub-shamil.ru\nwww.ai-hub-shamil.ru");
+          alert("⚠️ Домен не авторизован в Firebase!\nai-hub-shamil.ru и www.ai-hub-shamil.ru должны быть в Authorized domains");
         } else {
           console.error("Auth error:", e.code, e.message);
           const msg = e.message || e.code || "Неизвестная ошибка";

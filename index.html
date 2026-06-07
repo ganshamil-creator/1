@@ -1159,11 +1159,15 @@ function parseSamsungCSV(text, filename){
   var fn = (filename||"").toLowerCase();
   var hj = headers.join(",");
   if(fn.includes("pedometer")||hj.includes("step_count")||hj.includes("count")) return {type:"steps",rows:rows};
-  if(fn.includes("heart_rate")||hj.includes("heart_rate")) return {type:"heartRate",rows:rows};
+  if(fn.includes("heart_rate")||hj.includes("heart_rate")||fn.includes("heartrate")) return {type:"heartRate",rows:rows};
   if(fn.includes("sleep")||hj.includes("sleep")) return {type:"sleep",rows:rows};
   if(fn.includes("weight")||hj.includes("weight")) return {type:"weight",rows:rows};
   if(fn.includes("blood_pressure")||hj.includes("systolic")) return {type:"bp",rows:rows};
   if(fn.includes("oxygen")||hj.includes("spo2")) return {type:"spo2",rows:rows};
+  if(fn.includes("movement")||fn.includes("activity")) return {type:"movement",rows:rows};
+  if(fn.includes("floors")||fn.includes("floors_climbed")) return {type:"floors",rows:rows};
+  if(fn.includes("stress")) return {type:"stress",rows:rows};
+  if(fn.includes("temperature")) return {type:"temp",rows:rows};
   return {type:"unknown",rows:rows,headers:headers};
 }
 

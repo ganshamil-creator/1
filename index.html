@@ -3921,14 +3921,20 @@ function deleteChat(id,e){
   chats = chats.filter(c=>c.id!==id);
   if(!chats.length) chats=[makeChat()];
   if(!chats.find(c=>c.id===activeChatId)) activeChatId=chats[0].id;
-  // Сохраняем локально
-  try{ localStorage.setItem("ai_hub_chats", JSON.stringify(chats)); }catch(e){}
-  saveChats(chats);
+  // Сохраняем локально (правильный ключ)
+  try{ localStorage.setItem(getChatKey(), JSON.stringify(chats)); }catch(err){}
+  // Сначала удаляем из облака, потом сохраняем остальные
+  // (порядок важен: иначе saveChats перезаписывает удалённый чат)
+  if(window.cloudSync && window.cloudSync.userId){
+    window.cloudSync.deleteChat(id).then(()=>{
+      // После удаления — сохраняем актуальный список
+      window.cloudSync.saveChats(chats).catch(()=>{});
+    }).catch(()=>{});
+  }
   renderChatList();
   renderMessages();
-  document.getElementById("chatTitle").textContent=getChat()?.title||"Новая тема";
-  // Удаляем из облака
-  if(window.cloudSync && userId) window.cloudSync.deleteChat(id).catch(()=>{});
+  const ct=document.getElementById("chatTitle");
+  if(ct) ct.textContent=getChat()?.title||"Новая тема";
   showToast("🗑 Тема удалена");
 }
 

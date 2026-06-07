@@ -46,13 +46,25 @@
     let userId = null;
 
     // ── Обрабатываем результат redirect (мобильные браузеры) ────
+    // Обработка результата redirect (мобильные браузеры)
     getRedirectResult(auth).then(result => {
       if(result && result.user){
-        // Redirect успешен — onAuthStateChanged сам обработает
-        showToast && showToast("✅ Google авторизация успешна!");
+        // Вручную обновляем UI — onAuthStateChanged может не сработать вовремя
+        const u = result.user;
+        userId = u.uid;
+        if(window.cloudSync) window.cloudSync.userId = userId;
+        // Обновляем кнопку авторизации
+        const ab = document.getElementById("authBtn");
+        if(ab){
+          ab.innerHTML = '<img src="'+(u.photoURL||"")+'" style="width:28px;height:28px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\'"><span style="font-size:13px;font-weight:600">'+((u.displayName||u.email||"").split(" ")[0])+'</span>';
+          ab.onclick = ()=>{ if(confirm("Выйти из аккаунта?")) window.signOutGoogle(); };
+        }
+        setTimeout(()=>{ typeof showToast==="function" && showToast("✅ Вошёл как "+(u.displayName||u.email)); }, 500);
+        // Загружаем данные из облака
+        if(typeof initCloudData === "function") initCloudData();
       }
     }).catch(e => {
-      if(e.code !== "auth/no-current-user") console.warn("Redirect result:", e.code);
+      if(e.code && e.code !== "auth/no-current-user") console.warn("Redirect result error:", e.code, e.message);
     });
 
     // ── Google Sign-In ──────────────────────────────────────────

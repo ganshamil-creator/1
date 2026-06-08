@@ -261,27 +261,42 @@
       }
       const cloudChats = await window.cloudSync.loadChats();
       if(cloudChats && cloudChats.length>0){
+        // Облако — источник правды. Локальные темы которых нет в облаке — удалены, не добавляем обратно.
+        // Добавляем только локальные темы НОВЕЕ последнего облачного updatedAt (созданные оффлайн)
         const localStr = localStorage.getItem("ai_hub_chats_v4");
         const localChats = localStr?JSON.parse(localStr):[];
+        const cloudIds = new Set(cloudChats.map(c=>c.id));
         const merged = [...cloudChats];
-        localChats.forEach(lc=>{ if(!merged.find(cc=>cc.id===lc.id)) merged.push(lc); });
+        // Добавляем только те локальные темы, которых нет в облаке И они новее 5 минут
+        const fiveMinAgo = Date.now() - 5*60*1000;
+        localChats.forEach(lc=>{
+          if(!cloudIds.has(lc.id)){
+            // Проверяем что тема реально новая (создана оффлайн), а не старая удалённая
+            const lastMsg = lc.messages?.[lc.messages.length-1]?.ts || lc.createdAt || 0;
+            if(lastMsg > fiveMinAgo) merged.push(lc);
+          }
+        });
         merged.sort((a,b)=>(b.messages?.[0]?.ts||0)-(a.messages?.[0]?.ts||0));
         localStorage.setItem("ai_hub_chats_v4", JSON.stringify(merged));
         window._reloadChats && window._reloadChats();
         showToast("✅ Синхронизировано: "+cloudChats.length+" тем");
       } else {
+        // Облако пустое — значит все темы удалены. Очищаем локальный storage тоже.
+        localStorage.setItem("ai_hub_chats_v4", JSON.stringify([]));
+        window._reloadChats && window._reloadChats();
         showToast("☁️ История пуста — начни новый чат!");
       }
       // Загружаем данные здоровья
       await loadHealthData();
     }
 
-    // Автосинхронизация каждые 30 секунд
+    // Автосинхронизация каждые 60 секунд — только сохраняем текущие темы (не воскрешаем удалённые)
     setInterval(async()=>{
       if(!window.cloudSync?.userId) return;
       const chats = JSON.parse(localStorage.getItem("ai_hub_chats_v4")||"[]");
+      // Только сохраняем — не мержим с облаком, чтобы не воскрешать удалённые темы
       if(chats.length>0) await window.cloudSync.saveChats(chats);
-    }, 30000);
+    }, 60000);
   } catch(globalFirebaseErr) {
     console.error("Firebase init error:", globalFirebaseErr);
     // Страница продолжает работать без Firebase (локальный режим)

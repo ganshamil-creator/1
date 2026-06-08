@@ -183,25 +183,49 @@
         }catch(e){ console.error("Cloud save error:", e); }
       },
 
-      // Загрузить все чаты из облака
+      // Загрузить все чаты из облака (с учётом tombstones)
       async loadChats(){
         try{
-          const chatsRef = collection(db, "users", userId, "chats");
-          const snapshot = await getDocs(chatsRef);
-          if(snapshot.empty) return null;
+          const [snapshot, deletedIds] = await Promise.all([
+            getDocs(collection(db, "users", userId, "chats")),
+            this.getDeletedIds()
+          ]);
+          if(snapshot.empty) return [];
+          const deleted = new Set(deletedIds);
           const chats = [];
-          snapshot.forEach(doc=>{ try{ chats.push(JSON.parse(doc.data().data)); }catch(e){} });
+          snapshot.forEach(d=>{ 
+            try{ 
+              if(!deleted.has(d.id)) chats.push(JSON.parse(d.data().data)); 
+            }catch(e){} 
+          });
           chats.sort((a,b)=>(b.messages?.[0]?.ts||0)-(a.messages?.[0]?.ts||0));
           console.log("☁️ Загружено из облака:", chats.length, "тем");
-          return chats.length>0?chats:null;
+          return chats; // возвращаем даже пустой массив — это важно!
         }catch(e){ console.error("Cloud load error:", e); return null; }
       },
 
-      // Удалить чат из облака
+      // Удалить чат из облака + записать tombstone (чтобы другие устройства знали об удалении)
       async deleteChat(chatId){
         try{
           await deleteDoc(doc(db, "users", userId, "chats", chatId));
+          // Tombstone — список удалённых ID с временной меткой
+          const tombRef = doc(db, "users", userId, "deleted", "chats");
+          const existing = await getDoc(tombRef);
+          const ids = existing.exists() ? (existing.data().ids||[]) : [];
+          if(!ids.includes(chatId)) ids.push(chatId);
+          // Храним последние 200 удалённых ID
+          const trimmed = ids.slice(-200);
+          await setDoc(tombRef, {ids: trimmed, updatedAt: Date.now()});
+        }catch(e){ console.error("deleteChat error:", e); }
+      },
+
+      // Получить список удалённых ID (tombstones)
+      async getDeletedIds(){
+        try{
+          const snap = await getDoc(doc(db, "users", userId, "deleted", "chats"));
+          if(snap.exists()) return snap.data().ids||[];
         }catch(e){}
+        return [];
       },
 
       // Сохранить настройки
@@ -260,31 +284,16 @@
         }
       }
       const cloudChats = await window.cloudSync.loadChats();
-      if(cloudChats && cloudChats.length>0){
-        // Облако — источник правды. Локальные темы которых нет в облаке — удалены, не добавляем обратно.
-        // Добавляем только локальные темы НОВЕЕ последнего облачного updatedAt (созданные оффлайн)
-        const localStr = localStorage.getItem("ai_hub_chats_v4");
-        const localChats = localStr?JSON.parse(localStr):[];
-        const cloudIds = new Set(cloudChats.map(c=>c.id));
-        const merged = [...cloudChats];
-        // Добавляем только те локальные темы, которых нет в облаке И они новее 5 минут
-        const fiveMinAgo = Date.now() - 5*60*1000;
-        localChats.forEach(lc=>{
-          if(!cloudIds.has(lc.id)){
-            // Проверяем что тема реально новая (создана оффлайн), а не старая удалённая
-            const lastMsg = lc.messages?.[lc.messages.length-1]?.ts || lc.createdAt || 0;
-            if(lastMsg > fiveMinAgo) merged.push(lc);
-          }
-        });
-        merged.sort((a,b)=>(b.messages?.[0]?.ts||0)-(a.messages?.[0]?.ts||0));
-        localStorage.setItem("ai_hub_chats_v4", JSON.stringify(merged));
+      if(cloudChats !== null){
+        // Облако вернуло массив (даже пустой) — это источник правды
+        // Локальные темы игнорируем полностью, берём только облако
+        localStorage.setItem("ai_hub_chats_v4", JSON.stringify(cloudChats));
         window._reloadChats && window._reloadChats();
-        showToast("✅ Синхронизировано: "+cloudChats.length+" тем");
-      } else {
-        // Облако пустое — значит все темы удалены. Очищаем локальный storage тоже.
-        localStorage.setItem("ai_hub_chats_v4", JSON.stringify([]));
-        window._reloadChats && window._reloadChats();
-        showToast("☁️ История пуста — начни новый чат!");
+        if(cloudChats.length>0){
+          showToast("✅ Синхронизировано: "+cloudChats.length+" тем");
+        } else {
+          showToast("☁️ История пуста — начни новый чат!");
+        }
       }
       // Загружаем данные здоровья
       await loadHealthData();

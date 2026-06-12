@@ -622,9 +622,35 @@
   <input type="file" id="fileInput" accept="*/*" multiple style="display:none" onchange="handleFiles(this)">
   <button onclick="document.getElementById('fileInput').click()" style="padding:10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;color:#64748b;font-size:18px;flex-shrink:0">📎</button>
   <textarea id="queryInput" placeholder="Введи вопрос... (Enter — отправить, Shift+Enter — перенос)" style="flex:1;padding:10px 14px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;color:#1e293b;font-size:16px;resize:none;max-height:140px;min-height:48px;line-height:1.6;overflow-y:auto" rows="1"
-    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"
+    onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();showModePicker()}"
     oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,120)+'px'"></textarea>
-  <button id="sendBtn" onclick="send()" style="padding:10px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:10px;color:#fff;font-size:18px;flex-shrink:0">↑</button>
+  <button id="sendBtn" onclick="showModePicker()" style="padding:10px 14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;border-radius:10px;color:#fff;font-size:18px;flex-shrink:0">↑</button>
+</div>
+
+<!-- MODE PICKER POPUP -->
+<div id="modePickerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;align-items:flex-end;justify-content:center" onclick="if(event.target===this)hideModePickerCancel()">
+  <div style="background:#fff;border-radius:16px 16px 0 0;padding:20px 16px 32px;width:100%;max-width:600px;box-shadow:0 -4px 24px rgba(0,0,0,0.15)">
+    <div style="text-align:center;font-size:13px;color:#94a3b8;margin-bottom:16px">Выбери режим ответа</div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <button onclick="pickMode('parallel')" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;text-align:left;width:100%">
+        <span style="font-size:28px">⚡</span>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b">Вариант А — Параллельный</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">Все агенты отвечают одновременно → консолидированный ответ</div>
+          <div style="font-size:11px;color:#10a779;margin-top:3px">⏱ Быстро · Claude, Gemini, Perplexity, DeepSeek</div>
+        </div>
+      </button>
+      <button onclick="pickMode('chain')" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#fff7ed;border:2px solid #fed7aa;border-radius:12px;cursor:pointer;text-align:left;width:100%">
+        <span style="font-size:28px">🔗</span>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b">Вариант Б — Цепочка</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">Каждый агент получает контекст от предыдущего → глубокий ответ</div>
+          <div style="font-size:11px;color:#f59e0b;margin-top:3px">⏱ Дольше · Perplexity→Gemini→Kimi→GPT→Claude→DeepSeek</div>
+        </div>
+      </button>
+    </div>
+    <button onclick="hideModePickerCancel()" style="margin-top:14px;width:100%;padding:10px;background:none;border:1px solid #e2e8f0;border-radius:10px;color:#94a3b8;font-size:13px;cursor:pointer">Отмена</button>
+  </div>
 </div>
 
 <script>
@@ -3391,6 +3417,41 @@ async function sendChain(text, inp){
   document.getElementById("sendBtn").disabled=false;
   document.getElementById("sendBtn").style.background="linear-gradient(135deg,#6366f1,#8b5cf6)";
   scrollToBottom();
+}
+
+
+// ════════════════════════════════════════════════════════════════
+// MODE PICKER — попап выбора режима при отправке
+// ════════════════════════════════════════════════════════════════
+function showModePicker(){
+  if(thinking) return;
+  const inp=document.getElementById("queryInput");
+  const text=inp.value.trim();
+  if(!text&&!currentFiles.length) return;
+
+  // Быстрый режим — без попапа
+  if(quickMode){ send(); return; }
+
+  // Показываем попап
+  const overlay=document.getElementById("modePickerOverlay");
+  if(overlay) overlay.style.display="flex";
+}
+
+function hideModePickerCancel(){
+  const overlay=document.getElementById("modePickerOverlay");
+  if(overlay) overlay.style.display="none";
+}
+
+function pickMode(mode){
+  hideModePickerCancel();
+  if(mode==="chain"){
+    chainMode=true;
+    send();
+    chainMode=false; // сбрасываем после отправки
+  } else {
+    chainMode=false;
+    send();
+  }
 }
 
 async function send(){

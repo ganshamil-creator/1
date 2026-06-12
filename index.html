@@ -636,16 +636,24 @@
         <span style="font-size:28px">⚡</span>
         <div>
           <div style="font-size:15px;font-weight:700;color:#1e293b">Вариант А — Параллельный</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px">Все агенты отвечают одновременно → консолидированный ответ</div>
-          <div style="font-size:11px;color:#10a779;margin-top:3px">⏱ Быстро · Claude, Gemini, Perplexity, DeepSeek</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">Все агенты одновременно → консолидированный ответ</div>
+          <div style="font-size:11px;color:#10a779;margin-top:3px">⏱ Быстро · все активные агенты</div>
         </div>
       </button>
       <button onclick="pickMode('chain')" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#fff7ed;border:2px solid #fed7aa;border-radius:12px;cursor:pointer;text-align:left;width:100%">
         <span style="font-size:28px">🔗</span>
         <div>
           <div style="font-size:15px;font-weight:700;color:#1e293b">Вариант Б — Цепочка</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px">Каждый агент получает контекст от предыдущего → глубокий ответ</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">Каждый агент передаёт контекст следующему → глубокий анализ</div>
           <div style="font-size:11px;color:#f59e0b;margin-top:3px">⏱ Дольше · Perplexity→Gemini→Kimi→GPT→Claude→DeepSeek</div>
+        </div>
+      </button>
+      <button onclick="pickMode('first')" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#f0fdf4;border:2px solid #bbf7d0;border-radius:12px;cursor:pointer;text-align:left;width:100%">
+        <span style="font-size:28px">🏃</span>
+        <div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b">Вариант В — Первый ответивший</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">Побеждает самый быстрый агент — без ожидания остальных</div>
+          <div style="font-size:11px;color:#10a779;margin-top:3px">⏱ Максимально быстро · один ответ без синтеза</div>
         </div>
       </button>
     </div>
@@ -2524,10 +2532,9 @@ async function callKimi(key, system, history){
 async function callGemini(key, system, history){
   // Таймаут зависит от модели: 2.5-flash медленнее — 150s, остальные — 60-90s
   const models=[
-    {name:"gemini-2.0-flash-lite",          timeout:60000},
-    {name:"gemini-2.0-flash",               timeout:90000},
-    {name:"gemini-2.5-flash",               timeout:150000},
-    {name:"gemini-2.5-flash-preview-05-20", timeout:150000},
+    {name:"gemini-2.0-flash-lite",  timeout:60000},
+    {name:"gemini-2.0-flash",       timeout:90000},
+    {name:"gemini-2.5-flash",       timeout:150000},
   ];
   let lastErr=null;
   for(let mi=0;mi<models.length;mi++){
@@ -3297,6 +3304,92 @@ async function sendQuick(text, inp){
 
 
 
+
+// ════════════════════════════════════════════════════════════════
+// 🏃 ВАРИАНТ В — ПЕРВЫЙ ОТВЕТИВШИЙ
+// ════════════════════════════════════════════════════════════════
+async function sendFirst(){
+  if(thinking) return;
+  const inp=document.getElementById("queryInput");
+  const text=inp.value.trim();
+  if(!text&&!currentFiles.length) return;
+
+  const today=getToday();
+  const chat=getChat();
+  const agents=getAgents();
+  if(!agents.length){alert("Нет активных агентов");return;}
+
+  const history=[];
+  if(chat.messages){
+    for(let i=0;i<chat.messages.length;i+=2){
+      const u=chat.messages[i],a=chat.messages[i+1];
+      if(u)history.push({role:"user",content:u.content});
+      if(a)history.push({role:"assistant",content:a.content});
+    }
+  }
+  history.push({role:"user",content:today+text});
+
+  chat.messages=chat.messages||[];
+  chat.messages.push({role:"user",content:text,ts:Date.now()});
+  if(chat.title==="Новая тема"&&text.length>3){
+    chat.title=text.slice(0,40)+(text.length>40?"...":"");
+    document.getElementById("chatTitle").textContent=chat.title;
+  }
+  saveChats(chats);
+  appendUserBubble(text,[]);
+  inp.value=""; inp.style.height="auto";
+  thinking=true;
+  document.getElementById("sendBtn").disabled=true;
+  document.getElementById("sendBtn").style.background="#374151";
+
+  // UI — показываем один блок ответа
+  const turnId="first_"+Date.now();
+  const el=document.createElement("div");
+  el.className="fade"; el.id=turnId;
+  el.innerHTML=`<div style="background:#f0fdf4;border:2px solid #bbf7d0;border-radius:12px;padding:16px;margin:8px 12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:16px">🏃</span>
+      <span style="font-size:13px;font-weight:700;color:#166534">Вариант В — ждём первого...</span>
+      <span id="${turnId}_winner" style="font-size:12px;color:#10a779;margin-left:auto"></span>
+    </div>
+    <div id="${turnId}_text" style="font-size:15px;line-height:1.8;color:#1e293b" class="pulse">Гонка агентов...</div>
+    <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+      <button onclick="copyText('${turnId}_text')" style="padding:4px 10px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>
+    </div>
+  </div>`;
+  document.getElementById("messages").appendChild(el);
+  scrollToBottom();
+
+  let won = false;
+  const keys=getKeys();
+
+  // Запускаем всех агентов одновременно, берём первый успешный
+  await Promise.race(agents.map(async a=>{
+    try{
+      const ans = await callAgent(a, today+a.system, history, null);
+      if(!won){
+        won = true;
+        const textEl=document.getElementById(turnId+"_text");
+        const winEl=document.getElementById(turnId+"_winner");
+        if(textEl) textEl.innerHTML=renderMd(ans);
+        if(winEl) winEl.innerHTML=a.emoji+" <b>"+a.name+"</b> победил!";
+        chat.messages.push({role:"assistant",content:ans,winner:a.id,firstMode:true,ts:Date.now()});
+        saveChats(chats);
+      }
+    }catch(e){}
+  }));
+
+  if(!won){
+    const textEl=document.getElementById(turnId+"_text");
+    if(textEl) textEl.innerHTML="<span style='color:#ef4444'>Ни один агент не ответил</span>";
+  }
+
+  thinking=false;
+  document.getElementById("sendBtn").disabled=false;
+  document.getElementById("sendBtn").style.background="linear-gradient(135deg,#6366f1,#8b5cf6)";
+  scrollToBottom();
+}
+
 // ════════════════════════════════════════════════════════════════
 // 🔗 РЕЖИМ ЦЕПОЧКА — 6 агентов передают контекст друг другу
 // ════════════════════════════════════════════════════════════════
@@ -3357,8 +3450,8 @@ async function sendChain(text, inp){
   const container=document.getElementById(turnId);
   if(container){
     const bar=document.createElement("div");
-    bar.style.cssText="padding:6px 12px;background:#fef3c7;border-bottom:1px solid #fde68a;font-size:11px;color:#92400e;display:flex;align-items:center;gap:6px;flex-wrap:wrap";
-    bar.innerHTML="🔗 <b>Цепочка:</b> "+orderedAgents.map(a=>a.emoji+a.name).join(" → ");
+    bar.style.cssText="padding:8px 12px;background:linear-gradient(135deg,#fff7ed,#fef3c7);border-bottom:2px solid #fde68a;font-size:12px;color:#92400e;display:flex;align-items:center;gap:6px;flex-wrap:wrap;border-radius:8px 8px 0 0";
+    bar.innerHTML="🔗 <b>Вариант Б — Цепочка:</b> "+orderedAgents.map(a=>a.emoji+" "+a.name).join(" → ")+"<span style='margin-left:auto;font-size:10px;color:#b45309'>каждый агент читает ответ предыдущего</span>";
     container.insertBefore(bar,container.firstChild);
   }
 
@@ -3447,7 +3540,9 @@ function pickMode(mode){
   if(mode==="chain"){
     chainMode=true;
     send();
-    chainMode=false; // сбрасываем после отправки
+    chainMode=false;
+  } else if(mode==="first"){
+    sendFirst();
   } else {
     chainMode=false;
     send();
@@ -4567,6 +4662,12 @@ function saveSettings(){
     gpt:document.getElementById("key_gpt").value.trim(),
   };
   saveKeys(newKeys);
+  // Автоматически включаем агентов если введён ключ
+  if(newKeys.kimi && !activeAgentIds.includes("kimi")) activeAgentIds.push("kimi");
+  if(newKeys.gpt && !activeAgentIds.includes("gpt")) activeAgentIds.push("gpt");
+  // Отключаем если ключ удалён
+  if(!newKeys.kimi) activeAgentIds = activeAgentIds.filter(x=>x!=="kimi");
+  if(!newKeys.gpt) activeAgentIds = activeAgentIds.filter(x=>x!=="gpt");
   localStorage.setItem("active_agents",JSON.stringify(activeAgentIds));
   // Сохраняем в облако
   if(window.cloudSync) window.cloudSync.saveSettings(newKeys, activeAgentIds).catch(()=>{});

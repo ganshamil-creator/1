@@ -632,12 +632,12 @@
   <div style="background:#fff;border-radius:16px 16px 0 0;padding:20px 16px 32px;width:100%;max-width:600px;box-shadow:0 -4px 24px rgba(0,0,0,0.15)">
     <div style="text-align:center;font-size:13px;color:#94a3b8;margin-bottom:16px">Выбери режим ответа</div>
     <div style="display:flex;flex-direction:column;gap:10px">
-      <button onclick="pickMode('parallel')" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;text-align:left;width:100%">
-        <span style="font-size:28px">⚡</span>
+      <button onclick="pickMode('first')" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#f0fdf4;border:2px solid #bbf7d0;border-radius:12px;cursor:pointer;text-align:left;width:100%">
+        <span style="font-size:28px">🏃</span>
         <div>
-          <div style="font-size:15px;font-weight:700;color:#1e293b">Вариант А — Параллельный</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px">Все агенты одновременно → консолидированный ответ</div>
-          <div style="font-size:11px;color:#10a779;margin-top:3px">⏱ Быстро · все активные агенты</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b">Вариант А — Первый ответивший</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">Побеждает самый быстрый агент — без ожидания остальных</div>
+          <div style="font-size:11px;color:#10a779;margin-top:3px">⏱ Максимально быстро · один ответ без синтеза</div>
         </div>
       </button>
       <button onclick="pickMode('chain')" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#fff7ed;border:2px solid #fed7aa;border-radius:12px;cursor:pointer;text-align:left;width:100%">
@@ -648,12 +648,12 @@
           <div style="font-size:11px;color:#f59e0b;margin-top:3px">⏱ Дольше · Perplexity→Gemini→Kimi→GPT→Claude→DeepSeek</div>
         </div>
       </button>
-      <button onclick="pickMode('first')" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#f0fdf4;border:2px solid #bbf7d0;border-radius:12px;cursor:pointer;text-align:left;width:100%">
-        <span style="font-size:28px">🏃</span>
+      <button onclick="pickMode('parallel')" style="display:flex;align-items:center;gap:14px;padding:14px 16px;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;cursor:pointer;text-align:left;width:100%">
+        <span style="font-size:28px">⚡</span>
         <div>
-          <div style="font-size:15px;font-weight:700;color:#1e293b">Вариант В — Первый ответивший</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px">Побеждает самый быстрый агент — без ожидания остальных</div>
-          <div style="font-size:11px;color:#10a779;margin-top:3px">⏱ Максимально быстро · один ответ без синтеза</div>
+          <div style="font-size:15px;font-weight:700;color:#1e293b">Вариант В — Консолидированный</div>
+          <div style="font-size:12px;color:#64748b;margin-top:2px">Все агенты одновременно → единый финальный ответ</div>
+          <div style="font-size:11px;color:#6366f1;margin-top:3px">⏱ Средне · все активные агенты + синтез</div>
         </div>
       </button>
     </div>
@@ -2532,9 +2532,9 @@ async function callKimi(key, system, history){
 async function callGemini(key, system, history){
   // Таймаут зависит от модели: 2.5-flash медленнее — 150s, остальные — 60-90s
   const models=[
-    {name:"gemini-2.0-flash-lite",  timeout:60000},
     {name:"gemini-2.0-flash",       timeout:90000},
     {name:"gemini-2.5-flash",       timeout:150000},
+    {name:"gemini-1.5-flash",       timeout:60000},
   ];
   let lastErr=null;
   for(let mi=0;mi<models.length;mi++){
@@ -3352,7 +3352,7 @@ async function sendFirst(){
       <span style="font-size:13px;font-weight:700;color:#166534">Вариант В — ждём первого...</span>
       <span id="${turnId}_winner" style="font-size:12px;color:#10a779;margin-left:auto"></span>
     </div>
-    <div id="${turnId}_text" style="font-size:15px;line-height:1.8;color:#1e293b" class="pulse">Гонка агентов...</div>
+    <div id="${turnId}_text" style="font-size:15px;line-height:1.8;color:#1e293b">Гонка агентов...</div>
     <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
       <button onclick="copyText('${turnId}_text')" style="padding:4px 10px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>
     </div>
@@ -3488,7 +3488,11 @@ async function sendChain(text, inp){
       results[a.id]={status:"ok",text:ans};
       chainContext+=a.name+" ("+stepNum+"): "+ans+"\n\n";
       const el=document.getElementById(turnId+"_"+a.id+"_text");
-      if(el)el.insertAdjacentHTML("beforeend",'<div style="margin-top:6px;padding-top:4px;border-top:1px solid #e2e8f0;font-size:10px;color:#10a779">✅ '+stepNum+' завершено</div>');
+      if(el){
+        const ctxNote = i>0 ? '<div style="margin-bottom:8px;padding:6px 8px;background:#f0fdf4;border-left:3px solid #10a779;border-radius:4px;font-size:10px;color:#166534">'+stepNum+' Получил контекст от предыдущих агентов ('+Math.min(chainContext.length-ans.length,2000)+' симв.) и добавил свой анализ</div>' : '<div style="margin-bottom:8px;padding:6px 8px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:4px;font-size:10px;color:#1d4ed8">'+stepNum+' Первое звено — поиск исходных данных</div>';
+        el.insertAdjacentHTML("afterbegin", ctxNote);
+        el.insertAdjacentHTML("beforeend",'<div style="margin-top:6px;padding-top:4px;border-top:1px solid #e2e8f0;font-size:10px;color:#10a779">✅ '+stepNum+' завершено</div>');
+      }
     }catch(e){
       results[a.id]={status:"error",text:e.message};
       chainContext+=a.name+": [не ответил — "+e.message.slice(0,100)+"]\n\n";
@@ -3502,7 +3506,8 @@ async function sendChain(text, inp){
   const okAgents=orderedAgents.filter(a=>results[a.id]?.status==="ok");
   const consolidated=okAgents.length>0?results[okAgents[okAgents.length-1].id].text:"Ни один агент не ответил.";
 
-  updateConsolidated(turnId,consolidated,"");
+  // Итог цепочки — переименовываем блок
+  updateConsolidated(turnId,consolidated,"","🔗 Итог цепочки");
   chat.messages.push({role:"assistant",content:consolidated,agentResults:results,chainMode:true,ts:Date.now()});
   saveChats(chats);
 
@@ -3855,7 +3860,7 @@ function appendTurnContainer(turnId, agents, cols){
   // Consolidated
   h+=`<div id="${turnId}_consolidated_wrap" style="background:#ffffff;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">`;
   h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">`;
-  h+=`<span style="font-size:12px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>`;
+  h+=`<span id="${turnId}_consolidated_label" style="font-size:12px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>`;
   h+=`<div style="display:flex;gap:2px;background:#f1f5f9;border-radius:6px;padding:2px">`;
   h+=`<button id="${turnId}_btn_short" onclick="switchMode('${turnId}','short')" style="padding:3px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer">📝 Кратко</button>`;
   h+=`<button id="${turnId}_btn_full" onclick="switchMode('${turnId}','full')" style="padding:3px 10px;background:transparent;color:#94a3b8;border:none;border-radius:4px;font-size:11px;cursor:pointer">📄 Полно</button>`;
@@ -3952,9 +3957,14 @@ function updateAgentCard(turnId, agent, result){
   }
 }
 
-function updateConsolidated(turnId, text, analysisHtml){
+function updateConsolidated(turnId, text, analysisHtml, label){
   const el=document.getElementById(turnId+"_consolidated");
   if(el){el.className="";el.innerHTML=renderMd(text);el.dataset.raw=text;}
+  // Обновляем заголовок блока если передан label
+  if(label){
+    const labelEl=document.getElementById(turnId+"_consolidated_label");
+    if(labelEl) labelEl.textContent=label;
+  }
   if(analysisHtml){
     let aEl=document.getElementById(turnId+"_analysis");
     if(!aEl){
@@ -4086,7 +4096,7 @@ function renderMessages(){
       // Consolidated
       h+=`<div id="${tid}_consolidated_wrap" style="background:#ffffff;border:1px solid #6366f133;border-radius:2px 14px 14px 14px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)">`;
       h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">`;
-      h+=`<span style="font-size:12px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>`;
+      h+=`<span id="${turnId}_consolidated_label" style="font-size:12px;font-weight:700;color:#6366f1">🤝 Консолидированный ответ</span>`;
       h+=`<div style="display:flex;gap:2px;background:#f1f5f9;border-radius:6px;padding:2px">`;
       h+=`<button id="${tid}_btn_short" onclick="switchMode('${tid}','short')" style="padding:3px 10px;background:#6366f1;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:600;cursor:pointer">📝 Кратко</button>`;
       h+=`<button id="${tid}_btn_full" onclick="switchMode('${tid}','full')" style="padding:3px 10px;background:transparent;color:#94a3b8;border:none;border-radius:4px;font-size:11px;cursor:pointer">📄 Полно</button>`;

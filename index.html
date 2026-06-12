@@ -415,6 +415,26 @@
         <div style="font-size:10px;color:#6b7280;margin-top:4px">platform.deepseek.com → API Keys → Create</div>
       </div>
 
+      <!-- Kimi -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          <span>🔵</span><span style="font-size:11px;font-weight:600;color:#3b82f6">Kimi</span>
+          <span style="font-size:9px;background:#dcfce7;color:#166534;padding:1px 6px;border-radius:3px;margin-left:auto">Креатив + Финансы</span>
+        </div>
+        <input type="password" id="key_kimi" placeholder="sk-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px">platform.moonshot.cn → API Keys</div>
+      </div>
+
+      <!-- GPT-4o -->
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+          <span>🟢</span><span style="font-size:11px;font-weight:600;color:#10a779">GPT-4o</span>
+          <span style="font-size:9px;background:#f0fdf4;color:#166534;padding:1px 6px;border-radius:3px;margin-left:auto">Практика + Советы</span>
+        </div>
+        <input type="password" id="key_gpt" placeholder="sk-proj-..." style="width:100%;padding:7px 10px;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;font-size:12px"/>
+        <div style="font-size:10px;color:#6b7280;margin-top:4px">platform.openai.com/api-keys → Create</div>
+      </div>
+
       <!-- Tavily -->
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
@@ -489,6 +509,7 @@
   </button>
   <button onclick="toggleHealthMode()" id="healthBtn" title="Health Manager" style="padding:5px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;color:#16a34a;font-size:14px">🫀</button>
   <button onclick="toggleQuickMode()" id="quickBtn" title="Быстрый режим — один AI" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:12px">⚡</button>
+  <button onclick="toggleChainMode()" id="chainModeBtn" title="Цепочка агентов: Perplexity→Gemini→Kimi→GPT→Claude→DeepSeek" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#64748b;font-size:12px">🔗</button>
   <button onclick="showSettings()" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:18px;line-height:1">⚙️</button>
 </div>
 
@@ -686,6 +707,10 @@ const ALL_AGENTS = [
    system:"Ты Perplexity с доступом к интернету. Давай точные актуальные ответы с источниками. Если прикреплено изображение — прочитай текст на нём. Умеешь переводить между языками."},
   {id:"deepseek",  name:"DeepSeek",   emoji:"⚡", color:"#06b6d4", badge:"V3",
    system:"Ты DeepSeek V3. Давай логичные структурированные ответы. Если есть текст из файлов или OCR — анализируй и переводи его. Умеешь переводить между всеми языками. Используй дату из контекста."},
+  {id:"kimi",      name:"Kimi",       emoji:"🔵", color:"#3b82f6", badge:"128k",
+   system:"Ты Kimi от Moonshot AI. Специализируешься на креативных задачах, финансовых расчётах и анализе длинных документов. Давай нестандартные практичные решения. Если есть контекст от предыдущих агентов — используй его и дополни своим уникальным взглядом. Используй дату из контекста."},
+  {id:"gpt",       name:"GPT-4o",     emoji:"🟢", color:"#10a779", badge:"4o",
+   system:"Ты GPT-4o от OpenAI. Давай практичные пошаговые решения и конкретные рекомендации. Специализируешься на прикладных задачах, инструкциях и советах. Если есть контекст от предыдущих агентов — обогати его практическими советами. Используй дату из контекста."},
 ];
 
 // ════════════════════════════════════════════════════════════════
@@ -2473,10 +2498,10 @@ async function callKimi(key, system, history){
 async function callGemini(key, system, history){
   // Таймаут зависит от модели: 2.5-flash медленнее — 150s, остальные — 60-90s
   const models=[
-    {name:"gemini-2.5-flash-preview-05-20", timeout:150000},
-    {name:"gemini-2.5-flash",               timeout:150000},
-    {name:"gemini-2.0-flash",               timeout:90000},
     {name:"gemini-2.0-flash-lite",          timeout:60000},
+    {name:"gemini-2.0-flash",               timeout:90000},
+    {name:"gemini-2.5-flash",               timeout:150000},
+    {name:"gemini-2.5-flash-preview-05-20", timeout:150000},
   ];
   let lastErr=null;
   for(let mi=0;mi<models.length;mi++){
@@ -2698,6 +2723,8 @@ async function callAgent(agent, system, history, onChunk){
     case "gemini":     return keys.gemini?callGemini(keys.gemini,effectiveSystem,history):Promise.reject(new Error("Добавь ключ Gemini в ⚙️ Настройки → aistudio.google.com (бесплатно)"));
     case "perplexity": return keys.perplexity?callPerplexity(keys.perplexity,effectiveSystem,history):Promise.reject(new Error("Добавь ключ Perplexity в ⚙️ Настройки → perplexity.ai/settings/api"));
     case "deepseek":   return keys.deepseek?callDeepSeek(keys.deepseek,effectiveSystem,history,onChunk):Promise.reject(new Error("Добавь ключ DeepSeek в ⚙️ Настройки → platform.deepseek.com"));
+    case "kimi":       return keys.kimi?callKimi(keys.kimi,effectiveSystem,history):Promise.reject(new Error("Добавь ключ Kimi в ⚙️ Настройки → platform.moonshot.cn"));
+    case "gpt":        return keys.gpt?callOpenAI(keys.gpt,effectiveSystem,history):Promise.reject(new Error("Добавь ключ GPT-4o в ⚙️ Настройки → platform.openai.com"));
   }
 }
 
@@ -3096,6 +3123,7 @@ async function sendTranslation(){
 
 // ── Quick Mode ─────────────────────────────────────────────────
 let quickMode = false;
+let chainMode = false;
 
 function toggleQuickMode(){
   quickMode = !quickMode;
@@ -3106,6 +3134,21 @@ function toggleQuickMode(){
   btn.style.color = quickMode ? "#92400e" : "#475569";
   btn.style.borderColor = quickMode ? "#fde047" : "#e2e8f0";
   if(quickMode) showToast("⚡ Быстрый режим — выбери AI и задай вопрос");
+}
+
+function toggleChainMode(){
+  chainMode = !chainMode;
+  const btn = document.getElementById("chainModeBtn");
+  if(btn){
+    btn.style.background = chainMode ? "linear-gradient(135deg,#f59e0b,#ef4444)" : "#f1f5f9";
+    btn.style.color = chainMode ? "#fff" : "#64748b";
+  }
+  if(chainMode && quickMode){
+    quickMode = false;
+    const qb = document.getElementById("quickBtn");
+    if(qb){ qb.style.background="#f1f5f9"; qb.style.color="#475569"; qb.style.borderColor="#e2e8f0"; }
+  }
+  showToast(chainMode ? "🔗 Цепочка включена: Perplexity→Gemini→Kimi→GPT→Claude→DeepSeek" : "🔗 Цепочка выключена");
 }
 
 
@@ -3165,12 +3208,13 @@ async function sendQuick(text, inp){
       imageFiles.forEach(f=>{const mt=f.type==="image/jpg"?"image/jpeg":f.type;content.push({type:"image",source:{type:"base64",media_type:mt,data:f.b64}});});
       content.push({type:"text",text:enrichedMsg});
       agentHistory=[...history.slice(0,-1),{role:"user",content}];
-    } else if(["gpt","gemini","perplexity"].includes(agentId)){
+    } else if(["gpt","gemini"].includes(agentId)){
       const content=[];
       imageFiles.forEach(f=>content.push({type:"image_url",image_url:{url:`data:${f.type};base64,${f.b64}`}}));
       content.push({type:"text",text:enrichedMsg});
       agentHistory=[...history.slice(0,-1),{role:"user",content}];
     }
+    // Perplexity/Kimi не поддерживают base64 — только текст
   }
 
   // UI
@@ -3226,6 +3270,129 @@ async function sendQuick(text, inp){
 }
 
 
+
+// ════════════════════════════════════════════════════════════════
+// 🔗 РЕЖИМ ЦЕПОЧКА — 6 агентов передают контекст друг другу
+// ════════════════════════════════════════════════════════════════
+async function sendChain(text, inp){
+  const today=getToday();
+  const chat=getChat();
+  const agents=getAgents();
+  if(!agents.length){alert("Нет активных агентов");return;}
+
+  // Фиксированный порядок цепочки
+  const CHAIN_ORDER=["perplexity","gemini","kimi","gpt","claude","deepseek"];
+  const orderedAgents=[];
+  CHAIN_ORDER.forEach(id=>{const a=agents.find(x=>x.id===id);if(a)orderedAgents.push(a);});
+  // Агенты вне порядка — в конец
+  agents.forEach(a=>{if(!CHAIN_ORDER.includes(a.id))orderedAgents.push(a);});
+
+  if(!orderedAgents.length){alert("Нет активных агентов");return;}
+
+  // Роли каждого звена
+  const CHAIN_ROLES={
+    perplexity:"найди актуальные факты из интернета по этому вопросу",
+    gemini:"проанализируй и структурируй информацию от предыдущего агента",
+    kimi:"добавь креативные идеи и финансовый анализ к собранной информации",
+    gpt:"дай конкретные практические рекомендации и пошаговые советы",
+    claude:"синтезируй всё в глубокий финальный ответ",
+    deepseek:"проверь логику и факты, исправь ошибки если есть"
+  };
+
+  // Build history
+  const history=[];
+  if(chat.messages){
+    for(let i=0;i<chat.messages.length;i+=2){
+      const u=chat.messages[i],a=chat.messages[i+1];
+      if(u)history.push({role:"user",content:u.content});
+      if(a)history.push({role:"assistant",content:a.content});
+    }
+  }
+  history.push({role:"user",content:today+text});
+
+  chat.messages=chat.messages||[];
+  chat.messages.push({role:"user",content:text,ts:Date.now()});
+  if(chat.title==="Новая тема"&&text.length>3){
+    chat.title=text.slice(0,40)+(text.length>40?"...":"");
+    document.getElementById("chatTitle").textContent=chat.title;
+  }
+  saveChats(chats);
+  appendUserBubble(text,[]);
+  inp.value=""; inp.style.height="auto";
+  thinking=true;
+  document.getElementById("sendBtn").disabled=true;
+  document.getElementById("sendBtn").style.background="#374151";
+
+  const turnId="chain_"+Date.now();
+  const cols=orderedAgents.length<=4?2:3;
+  appendTurnContainer(turnId,orderedAgents,cols);
+
+  // Индикатор цепочки
+  const container=document.getElementById(turnId);
+  if(container){
+    const bar=document.createElement("div");
+    bar.style.cssText="padding:6px 12px;background:#fef3c7;border-bottom:1px solid #fde68a;font-size:11px;color:#92400e;display:flex;align-items:center;gap:6px;flex-wrap:wrap";
+    bar.innerHTML="🔗 <b>Цепочка:</b> "+orderedAgents.map(a=>a.emoji+a.name).join(" → ");
+    container.insertBefore(bar,container.firstChild);
+  }
+
+  const results={};
+  let chainContext="";
+
+  for(let i=0;i<orderedAgents.length;i++){
+    const a=orderedAgents[i];
+    const role=CHAIN_ROLES[a.id]||"дополни ответ своим анализом";
+    const stepNum=["1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣"][i]||(i+1+".");
+
+    // Обновляем статус ожидающих карточек
+    if(i>0){
+      const el=document.getElementById(turnId+"_"+a.id+"_text");
+      if(el)el.innerHTML='<span style="color:#94a3b8;font-size:13px">⏳ Ожидает...</span>';
+    }
+
+    // Формируем запрос
+    let chainMsg=text;
+    if(i>0&&chainContext){
+      const prevSummary=chainContext.slice(-3000);
+      chainMsg=text+"\n\n=== Контекст от предыдущих агентов ===\n"+prevSummary+"\n=== Конец контекста ===\n\nТвоя задача: "+role+". Не повторяй уже сказанное — добавь своё уникальное.";
+    }
+
+    const h=[...history.slice(0,-1),{role:"user",content:today+chainMsg}];
+
+    const chunkHandler=(partial)=>{
+      const el=document.getElementById(turnId+"_"+a.id+"_text");
+      if(el){el.innerHTML=renderMd(partial);scrollToBottom();}
+    };
+
+    try{
+      const ans=await callAgent(a,today+a.system,h,chunkHandler);
+      results[a.id]={status:"ok",text:ans};
+      chainContext+=a.name+" ("+stepNum+"): "+ans+"\n\n";
+      const el=document.getElementById(turnId+"_"+a.id+"_text");
+      if(el)el.insertAdjacentHTML("beforeend",'<div style="margin-top:6px;padding-top:4px;border-top:1px solid #e2e8f0;font-size:10px;color:#10a779">✅ '+stepNum+' завершено</div>');
+    }catch(e){
+      results[a.id]={status:"error",text:e.message};
+      chainContext+=a.name+": [не ответил — "+e.message.slice(0,100)+"]\n\n";
+      const el=document.getElementById(turnId+"_"+a.id+"_text");
+      if(el)el.insertAdjacentHTML("afterbegin",'<div style="color:#ef4444;font-size:11px;margin-bottom:4px">❌ '+stepNum+' пропущен</div>');
+    }
+    updateAgentCard(turnId,a,results[a.id]);
+  }
+
+  // Финальный ответ = последнее успешное звено
+  const okAgents=orderedAgents.filter(a=>results[a.id]?.status==="ok");
+  const consolidated=okAgents.length>0?results[okAgents[okAgents.length-1].id].text:"Ни один агент не ответил.";
+
+  updateConsolidated(turnId,consolidated,"");
+  chat.messages.push({role:"assistant",content:consolidated,agentResults:results,chainMode:true,ts:Date.now()});
+  saveChats(chats);
+
+  thinking=false;
+  document.getElementById("sendBtn").disabled=false;
+  document.getElementById("sendBtn").style.background="linear-gradient(135deg,#6366f1,#8b5cf6)";
+  scrollToBottom();
+}
+
 async function send(){
   if(thinking) return;
   const inp=document.getElementById("queryInput");
@@ -3235,6 +3402,11 @@ async function send(){
   // ⚡ БЫСТРЫЙ РЕЖИМ — один агент без синтеза
   if(quickMode){
     sendQuick(text, inp);
+    return;
+  }
+  // 🔗 РЕЖИМ ЦЕПОЧКА
+  if(chainMode){
+    sendChain(text, inp);
     return;
   }
 
@@ -4314,6 +4486,8 @@ function showSettings(){
   document.getElementById("key_gemini").value=keys.gemini||"";
   document.getElementById("key_perplexity").value=keys.perplexity||"";
   document.getElementById("key_deepseek").value=keys.deepseek||"";
+  document.getElementById("key_kimi").value=keys.kimi||"";
+  document.getElementById("key_gpt").value=keys.gpt||"";
   document.getElementById("key_tavily").value=keys.tavily||"";
   renderAgentToggles();
   document.getElementById("settingsModal").style.display="flex";
@@ -4328,6 +4502,8 @@ function saveSettings(){
     perplexity:document.getElementById("key_perplexity").value.trim(),
     deepseek:document.getElementById("key_deepseek").value.trim(),
     tavily:document.getElementById("key_tavily").value.trim(),
+    kimi:document.getElementById("key_kimi").value.trim(),
+    gpt:document.getElementById("key_gpt").value.trim(),
   };
   saveKeys(newKeys);
   localStorage.setItem("active_agents",JSON.stringify(activeAgentIds));

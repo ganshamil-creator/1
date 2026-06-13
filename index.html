@@ -2558,21 +2558,8 @@ async function callGemini(key, system, history){
         const gPayload = {system_instruction:{parts:[{text:system}]},contents,generationConfig:{maxOutputTokens:calcTokens(history)}};
         const gBody=JSON.stringify(gPayload);
         let d;
-        if(isMobile){
-          d=await proxyFetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{},gPayload);
-        } else {
-          const ctrl=new AbortController();
-          const t=setTimeout(()=>ctrl.abort(),modelTimeout);
-          try{
-            const r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{
-              method:"POST",signal:ctrl.signal,
-              headers:{"Content-Type":"application/json"},
-              body:gBody
-            });
-            clearTimeout(t);
-            d=await r.json();
-          }catch(fetchErr){ clearTimeout(t); throw fetchErr; }
-        }
+        // Gemini всегда через прокси — геоблок работает и на десктопе
+        d=await proxyFetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`,{},gPayload);
         if(d.error){
           const msg=d.error.message||"";
           if(msg.includes("overloaded")||msg.includes("high demand")||msg.includes("UNAVAILABLE")){
@@ -3878,6 +3865,7 @@ function appendTurnContainer(turnId, agents, cols){
   h+=`<span style="font-size:11px;color:#94a3b8;align-self:center">💾</span>`;
   h+=`<button class="export-tool" onclick="exportWord('${turnId}')" style="padding:4px 10px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Word</button>`;
   h+=`<button class="export-tool" onclick="exportExcel('${turnId}')" style="padding:4px 10px;background:#1a4731;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📊 Excel</button>`;
+  h+=`<button class="export-tool" onclick="openEditBanana('${turnId}')" style="padding:4px 10px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">🍌 Edit Banana</button>`;
   h+=`</div>`;
   // Text
   h+=`<div id="${turnId}_consolidated" style="font-size:16px;line-height:2.0;color:#1e293b" class="pulse">Синтез...</div>`;
@@ -4114,7 +4102,7 @@ function renderMessages(){
   h+=`<button onclick="exportWord('${tid}')" style="padding:4px 10px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Word</button>`;
   h+=`<button onclick="exportExcel('${tid}')" style="padding:4px 10px;background:#1a4731;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📊 Excel</button>`;
   h+=`<button onclick="exportTxt('${tid}')" style="padding:4px 10px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📄 TXT</button>`;
-  h+=`<button onclick="exportHtml('${tid}')" style="padding:4px 10px;background:#4a1d96;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">🌐 HTML</button>`;
+  h+=`<button onclick="openEditBanana('${tid}')" style="padding:4px 10px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">🍌 Edit Banana</button>`;
   h+=`</div>`;
       h+=`<div id="${tid}_consolidated" style="font-size:16px;line-height:2.0;color:#1e293b" data-raw="${escHtml(assistant.content)}">${renderMd(assistant.content)}</div>`;
       h+=`<div id="${tid}_consolidated_short" style="display:none;font-size:16px;line-height:2.0;color:#1e293b"></div>`;
@@ -4579,6 +4567,17 @@ function exportTxt(turnId){
   const sep="=".repeat(Math.min(title.length,60));
   downloadBlob(new Blob([title+"\n"+sep+"\nДата: "+date+"\n\n"+clean],{type:"text/plain;charset=utf-8"}),title.replace(/[^\wа-яёА-ЯЁ ]/g,"_").slice(0,50)+".txt");
   showToast("✅ TXT скачан!");
+}
+
+function openEditBanana(turnId){
+  // Edit Banana — редактирование текста внутри изображений
+  // Берём консолидированный текст и открываем Edit Banana
+  const el=document.getElementById(turnId+"_consolidated")||document.getElementById(turnId+"_text");
+  const text=el?el.dataset.raw||el.innerText:"";
+  // Открываем Edit Banana с текстом в буфере
+  if(text){ navigator.clipboard.writeText(text).then(()=>showToast("📋 Текст скопирован")).catch(()=>{}); }
+  window.open("https://edit-banana.com","_blank");
+  showToast("🍌 Edit Banana открыт · текст скопирован в буфер");
 }
 
 function exportHtml(turnId){

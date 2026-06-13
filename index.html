@@ -2520,7 +2520,12 @@ async function callKimi(key, system, history){
     const kimiBody=JSON.stringify({model:"moonshot-v1-128k",max_tokens:calcTokens(history),messages:[{role:"system",content:system},...history]});
     let d;
     // Kimi требует прокси на всех устройствах (CORS + геоограничения)
-    d=await proxyFetch("https://api.moonshot.cn/v1/chat/completions",{"Authorization":"Bearer "+key},kimiBody);
+    // Пробуем оба endpoint — .ai для международных ключей, .cn для китайских
+    try {
+      d=await proxyFetch("https://api.moonshot.ai/v1/chat/completions",{"Authorization":"Bearer "+key},kimiBody);
+    } catch(e1) {
+      d=await proxyFetch("https://api.moonshot.cn/v1/chat/completions",{"Authorization":"Bearer "+key},kimiBody);
+    }
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
     return (d.choices[0].message.content||"").trim();
   });

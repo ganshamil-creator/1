@@ -2519,17 +2519,8 @@ async function callKimi(key, system, history){
   return callWithRetry(async()=>{
     const kimiBody=JSON.stringify({model:"moonshot-v1-128k",max_tokens:calcTokens(history),messages:[{role:"system",content:system},...history]});
     let d;
-    if(isMobile){
-      d=await proxyFetch("https://api.moonshot.cn/v1/chat/completions",{"Authorization":"Bearer "+key},kimiBody);
-    } else {
-      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),90000);
-      const r=await fetch("https://api.moonshot.cn/v1/chat/completions",{
-        method:"POST",signal:ctrl.signal,
-        headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-        body:kimiBody
-      });
-      clearTimeout(t); d=await r.json();
-    }
+    // Kimi требует прокси на всех устройствах (CORS + геоограничения)
+    d=await proxyFetch("https://api.moonshot.cn/v1/chat/completions",{"Authorization":"Bearer "+key},kimiBody);
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
     return (d.choices[0].message.content||"").trim();
   });
@@ -2538,8 +2529,10 @@ async function callKimi(key, system, history){
 async function callGemini(key, system, history){
   // Таймаут зависит от модели: 2.5-flash медленнее — 150s, остальные — 60-90s
   const models=[
+    {name:"gemini-2.0-flash-exp",   timeout:90000},
     {name:"gemini-2.0-flash",       timeout:90000},
     {name:"gemini-2.5-flash",       timeout:150000},
+    {name:"gemini-1.5-pro",         timeout:120000},
   ];
   let lastErr=null;
   for(let mi=0;mi<models.length;mi++){

@@ -1,52 +1,49 @@
-// api/proxy.js — Vercel Serverless Function v4
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-api-key, anthropic-version');
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,x-api-key,anthropic-version");
 
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method === 'GET') return res.status(200).json({ status: 'ok', proxy: 'AI Multi-Hub v4' });
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method === "GET") return res.status(200).json({ status: "ok", proxy: "AI Multi-Hub v4" });
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  let reqBody;
-  try {
-    reqBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-  } catch {
-    return res.status(400).json({ error: 'Invalid JSON' });
-  }
+  let body;
+  try { body = typeof req.body === "string" ? JSON.parse(req.body) : req.body; }
+  catch (e) { return res.status(400).json({ error: "Invalid JSON body" }); }
 
-  const { url, headers: extraHeaders, body } = reqBody || {};
-  if (!url) return res.status(400).json({ error: 'Missing url' });
+  const { url, headers = {}, body: apiBody } = body || {};
+  if (!url) return res.status(400).json({ error: "Missing url" });
 
-  // Проверяем домен (включая параметры в URL)
-  const ALLOWED = [
-    'api.anthropic.com',
-    'generativelanguage.googleapis.com',
-    'api.deepseek.com',
-    'api.perplexity.ai',
-    'api.openai.com',
-    'api.moonshot.ai',
+  const allowed = [
+    "api.anthropic.com",
+    "generativelanguage.googleapis.com",
+    "api.perplexity.ai",
+    "api.deepseek.com",
+    "api.openai.com",
+    "api.tavily.com",
+    "api.moonshot.cn",
+    "api.moonshot.ai",
   ];
 
-  let targetHost;
-  try { targetHost = new URL(url).hostname; }
-  catch { return res.status(400).json({ error: 'Invalid url' }); }
+  let hostname;
+  try { hostname = new URL(url).hostname; }
+  catch (e) { return res.status(400).json({ error: "Invalid URL" }); }
 
-  if (!ALLOWED.includes(targetHost)) {
-    return res.status(403).json({ error: `Domain not allowed: ${targetHost}` });
+  if (!allowed.some((h) => hostname === h || hostname.endsWith("." + h))) {
+    return res.status(403).json({ error: "Host not allowed: " + hostname });
   }
 
   try {
-    const upstreamBody = typeof body === 'string' ? body : JSON.stringify(body);
-    const upstream = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(extraHeaders || {}) },
-      body: upstreamBody,
-    });
-    const data = await upstream.json();
+    const fetchHeaders = { "Content-Type": "application/json" };
+    for (const [k, v] of Object.entries(headers)) { if (v) fetchHeaders[k] = v; }
+    const fetchBody = typeof apiBody === "string" ? apiBody : JSON.stringify(apiBody);
+    const upstream = await fetch(url, { method: "POST", headers: fetchHeaders, body: fetchBody });
+    const text = await upstream.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch { res.status(upstream.status).setHeader("Content-Type", "application/json"); return res.end(text); }
     return res.status(upstream.status).json(data);
-  } catch (err) {
-    console.error('[proxy] error:', err.message);
-    return res.status(500).json({ error: err.message });
+  } catch (e) {
+    return res.status(500).json({ error: e.message || "Proxy fetch failed" });
   }
 }

@@ -2517,13 +2517,19 @@ async function callClaude(key, system, history, onChunk){
 
 async function callKimi(key, system, history){
   return callWithRetry(async()=>{
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),90000);
-    const r=await fetch("https://api.moonshot.ai/v1/chat/completions",{
-      method:"POST",signal:ctrl.signal,
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-      body:JSON.stringify({model:"moonshot-v1-128k",max_tokens:calcTokens(history),messages:[{role:"system",content:system},...history]})
-    });
-    clearTimeout(t); const d=await r.json();
+    const kimiBody=JSON.stringify({model:"moonshot-v1-128k",max_tokens:calcTokens(history),messages:[{role:"system",content:system},...history]});
+    let d;
+    if(isMobile){
+      d=await proxyFetch("https://api.moonshot.cn/v1/chat/completions",{"Authorization":"Bearer "+key},kimiBody);
+    } else {
+      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),90000);
+      const r=await fetch("https://api.moonshot.cn/v1/chat/completions",{
+        method:"POST",signal:ctrl.signal,
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
+        body:kimiBody
+      });
+      clearTimeout(t); d=await r.json();
+    }
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
     return (d.choices[0].message.content||"").trim();
   });
@@ -2534,7 +2540,6 @@ async function callGemini(key, system, history){
   const models=[
     {name:"gemini-2.0-flash",       timeout:90000},
     {name:"gemini-2.5-flash",       timeout:150000},
-    {name:"gemini-1.5-flash",       timeout:60000},
   ];
   let lastErr=null;
   for(let mi=0;mi<models.length;mi++){

@@ -3385,6 +3385,12 @@ async function sendFirst(){
     <div id="${turnId}_text" style="font-size:15px;line-height:1.8;color:#1e293b">Гонка агентов...</div>
     <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
       <button onclick="copyText('${turnId}_text')" style="padding:4px 10px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:6px;font-size:11px;cursor:pointer">📋 Копировать</button>
+      <button onclick="exportWord('${turnId}_text')" style="padding:4px 10px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Word</button>
+      <button onclick="exportExcel('${turnId}_text')" style="padding:4px 10px;background:#1a4731;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📊 Excel</button>
+      <button onclick="fillPdfFromAnswer('${turnId}_text')" style="padding:4px 10px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Заполнить PDF</button>
+      <button onclick="openGamma('${turnId}_text')" style="padding:4px 9px;background:#f3f0ff;color:#7c3aed;border:1px solid #c4b5fd;border-radius:6px;font-size:11px;cursor:pointer">🟣 Gamma</button>
+      <button onclick="openCanva('${turnId}_text')" style="padding:4px 9px;background:#fff0f0;color:#e03131;border:1px solid #fca5a5;border-radius:6px;font-size:11px;cursor:pointer">🎨 Canva</button>
+      <button onclick="openSlideMaker('${turnId}_text')" style="padding:4px 9px;background:#f0fdf4;color:#16a34a;border:1px solid #22c55e33;border-radius:6px;font-size:11px;cursor:pointer">🆓 SlideMaker</button>
     </div>
   </div>`;
   document.getElementById("messages").appendChild(el);
@@ -4628,30 +4634,38 @@ async function fillPdfFromAnswer(turnId){
     const page = pages[0];
     const { width, height } = page.getSize();
 
-    // 4. Парсим ответы агентов — ищем паттерны заполнения
-    // Поддерживаем форматы: "a. nervous", "a) nervous", "a: nervous", "a - nervous"
-    const lines = answerText.split(/\n/);
+    // 4. Чистим markdown и парсим ответы
+    const cleanText = answerText
+      .replace(/\*\*([^*]+)\*\*/g, '$1')  // убираем **bold**
+      .replace(/\*([^*]+)\*/g, '$1')         // убираем *italic*
+      .replace(/#{1,3}\s/g, '')               // убираем заголовки
+      .replace(/`([^`]+)`/g, '$1');            // убираем код
+
+    const lines = cleanText.split(/\n/);
     const answers = {};
-    const patterns = [
-      /^([a-z])[.):\-]\s*(.+)/i,           // a. answer  или  a) answer
-      /^(\d+)[.):\-]\s*(.+)/,              // 1. answer
-      /^([a-z])[.):\-][^a-z]*?([A-Z][a-z]+)/i, // a. Chris is NERVOUS
-      /is\s+([A-Z]+)/g,                      // "is NERVOUS" — берём слово после is
-    ];
 
-    let fillItems = [];
-
-    // Ищем строки вида "a. Chris is NERVOUS" или "a - nervous"
     for(const line of lines){
-      // Паттерн 1: буква/цифра + ответ
-      const m1 = line.match(/^\s*([a-z])\.?\s+[\w\s]+is\s+([A-Z][a-z]+)/i);
-      if(m1){ answers[m1[1].toLowerCase()] = m1[2]; continue; }
+      const trimmed = line.trim();
+      if(!trimmed) continue;
 
-      const m2 = line.match(/^\s*([a-z])[.):]\s*([\w\s]+)/i);
-      if(m2){ answers[m2[1].toLowerCase()] = m2[2].trim().split(/[,.]/)[0]; continue; }
+      // Паттерн: "1. Ron is so angry" — берём слово после "is so" или "is"
+      const mSo = trimmed.match(/^\s*(\d+)[.):]?\s+\w+\s+is\s+so\s+([a-z]+)/i);
+      if(mSo){ answers["n"+mSo[1]] = mSo[2]; continue; }
 
-      const m3 = line.match(/^\s*(\d+)[.):]\s*(.+)/);
-      if(m3){ answers["n"+m3[1]] = m3[2].trim().split(/[,.]|\n/)[0]; continue; }
+      const mIs = trimmed.match(/^\s*(\d+)[.):]?\s+\w+\s+is\s+([a-z_]+)/i);
+      if(mIs){ answers["n"+mIs[1]] = mIs[2]; continue; }
+
+      // Паттерн: "a. word" или "1. word"
+      const mLetter = trimmed.match(/^([a-z])[.):]\s*([\w]+)/i);
+      if(mLetter){ answers[mLetter[1].toLowerCase()] = mLetter[2]; continue; }
+
+      const mNum = trimmed.match(/^(\d+)[.):]\s*([\w\s]{2,30})/);
+      if(mNum){
+        // берём первое значимое слово
+        const word = mNum[2].trim().split(/\s+/).find(w=>w.length>2) || mNum[2].trim();
+        answers["n"+mNum[1]] = word.replace(/[.,!?]$/,'');
+        continue;
+      }
     }
 
     // 5. Запрашиваем у Claude точные координаты через специальный промт
@@ -4662,26 +4676,34 @@ async function fillPdfFromAnswer(turnId){
       return;
     }
 
-    // 6. Накладываем текст — позиционируем по высоте равномерно
-    // Отступ сверху ~85%, снизу ~15% (область заданий)
-    const topY = height * 0.82;
-    const bottomY = height * 0.18;
-    const step = (topY - bottomY) / Math.max(itemCount - 1, 1);
-    const leftX = width * 0.25; // отступ слева ~25%
+    // 6. Накладываем текст — позиционируем по строкам горизонтально
+    // Нумерованные ответы (1,2,3...) раскладываем по сетке
+    const vals = Object.entries(answers);
+    const cols = Math.ceil(Math.sqrt(vals.length)); // количество колонок
+    const rows = Math.ceil(vals.length / cols);
 
-    let idx = 0;
-    for(const [key, val] of Object.entries(answers)){
-      if(!val) continue;
-      const y = topY - (idx * step);
-      page.drawText(val.substring(0,30), {
-        x: leftX,
-        y: y,
-        size: 11,
+    const marginX = width * 0.08;
+    const marginTop = height * 0.88;
+    const marginBottom = height * 0.08;
+    const colWidth = (width - marginX*2) / cols;
+    const rowHeight = (marginTop - marginBottom) / Math.max(rows, 1);
+
+    vals.forEach(([key, val], idx) => {
+      if(!val) return;
+      const col = idx % cols;
+      const row = Math.floor(idx / cols);
+      const x = marginX + col * colWidth + colWidth * 0.3;
+      const y = marginTop - row * rowHeight - rowHeight * 0.5;
+      // Очищаем значение от лишних символов
+      const cleanVal = val.replace(/[*_`]/g,'').substring(0, 25);
+      page.drawText(cleanVal, {
+        x: Math.min(x, width - 80),
+        y: Math.max(y, 10),
+        size: 12,
         font,
-        color: rgb(0.1, 0.1, 0.8), // синий цвет — как написано ручкой
+        color: rgb(0.0, 0.0, 0.8),
       });
-      idx++;
-    }
+    });
 
     // 7. Сохраняем и скачиваем
     const filledBytes = await pdfDoc.save();

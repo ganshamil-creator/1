@@ -22,6 +22,7 @@
     });
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -670,6 +671,30 @@ function escHtml(t){ return (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").r
 function renderMd(text){
   if(!text) return "";
   let t = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+  // Таблицы — обрабатываем до остального
+  t = t.replace(/((?:^\|.+\|[ \t]*\n)+)/gm, function(block){
+    const lines = block.trim().split("\n").filter(l=>l.trim());
+    if(lines.length < 2) return block;
+    let html = '<div style="overflow-x:auto;margin:10px 0"><table style="width:100%;border-collapse:collapse;font-size:13px">';
+    lines.forEach(function(line, i){
+      if(/^\|[-:| ]+\|$/.test(line.trim())) return; // разделитель
+      const cells = line.replace(/^\|/,'').replace(/\|$/,'').split('|');
+      const isHeader = i===0;
+      const tag = isHeader ? 'th' : 'td';
+      const rowStyle = isHeader
+        ? 'background:#f1f5f9;font-weight:700;'
+        : (i%2===0?'background:#f8fafc;':'background:#fff;');
+      html += '<tr>';
+      cells.forEach(function(cell){
+        html += '<'+tag+' style="'+rowStyle+'border:1px solid #e2e8f0;padding:6px 10px;text-align:left;white-space:normal">'+cell.trim()+'</'+tag+'>';
+      });
+      html += '</tr>';
+    });
+    html += '</table></div>';
+    return html;
+  });
+
   t = t.replace(/^### (.+)$/gm,'<b style="font-size:13px;color:#7c3aed;display:block;margin:8px 0 3px">$1</b>');
   t = t.replace(/^## (.+)$/gm, '<b style="font-size:15px;color:#1e293b;display:block;margin:10px 0 4px;border-bottom:1px solid #e2e8f0;padding-bottom:3px">$1</b>');
   t = t.replace(/^# (.+)$/gm,  '<b style="font-size:17px;color:#111827;display:block;margin:12px 0 5px">$1</b>');
@@ -3309,6 +3334,20 @@ async function sendFirst(){
   const agents=getAgents();
   if(!agents.length){alert("Нет активных агентов");return;}
 
+  // Файлы
+  const filesToSend=[...currentFiles];
+  const imageFiles=filesToSend.filter(f=>f.type.startsWith("image/")&&f.b64);
+  const otherFiles=filesToSend.filter(f=>!f.type.startsWith("image/"));
+  let fileCtx="";
+  if(otherFiles.length>0){
+    otherFiles.forEach(f=>{if(f.text)fileCtx+="\n[Файл: "+f.name+"]\n"+f.text+"\n";});
+  }
+  if(imageFiles.length>0){
+    fileCtx+="\n[Изображений: "+imageFiles.length+"]\n";
+    for(const f of imageFiles){if(f.text)fileCtx+=f.text+"\n";}
+  }
+  const enrichedMsg=(fileCtx?fileCtx+"\n":"")+today+text;
+
   const history=[];
   if(chat.messages){
     for(let i=0;i<chat.messages.length;i+=2){
@@ -3317,16 +3356,17 @@ async function sendFirst(){
       if(a)history.push({role:"assistant",content:a.content});
     }
   }
-  history.push({role:"user",content:today+text});
+  history.push({role:"user",content:enrichedMsg});
 
   chat.messages=chat.messages||[];
-  chat.messages.push({role:"user",content:text,ts:Date.now()});
+  chat.messages.push({role:"user",content:text,files:filesToSend.map(f=>({name:f.name,type:f.type,size:f.size,b64:f.b64,text:f.text})),ts:Date.now()});
   if(chat.title==="Новая тема"&&text.length>3){
     chat.title=text.slice(0,40)+(text.length>40?"...":"");
     document.getElementById("chatTitle").textContent=chat.title;
   }
   saveChats(chats);
-  appendUserBubble(text,[]);
+  appendUserBubble(text,filesToSend);
+  currentFiles=[]; renderFilePreview();
   inp.value=""; inp.style.height="auto";
   thinking=true;
   document.getElementById("sendBtn").disabled=true;
@@ -3356,7 +3396,22 @@ async function sendFirst(){
   // Запускаем всех агентов одновременно, берём первый успешный
   await Promise.race(agents.map(async a=>{
     try{
-      const ans = await callAgent(a, today+a.system, history, null);
+      // Формируем историю с изображениями для каждого агента
+      let agentHistory=[...history];
+      if(imageFiles.length>0){
+        const lastMsg=agentHistory[agentHistory.length-1];
+        if(a.id==="claude"){
+          const content=[{type:"text",text:lastMsg.content}];
+          imageFiles.forEach(f=>{const mt=f.type==="image/jpg"?"image/jpeg":f.type;content.push({type:"image",source:{type:"base64",media_type:mt,data:f.b64}});});
+          agentHistory=[...agentHistory.slice(0,-1),{role:"user",content}];
+        } else if(["gemini","gpt"].includes(a.id)){
+          const content=[];
+          imageFiles.forEach(f=>content.push({type:"image_url",image_url:{url:`data:${f.type};base64,${f.b64}`}}));
+          content.push({type:"text",text:lastMsg.content});
+          agentHistory=[...agentHistory.slice(0,-1),{role:"user",content}];
+        }
+      }
+      const ans = await callAgent(a, today+a.system, agentHistory, null);
       if(!won){
         won = true;
         const textEl=document.getElementById(turnId+"_text");
@@ -3408,6 +3463,15 @@ async function sendChain(text, inp){
     deepseek:"проверь логику и факты, исправь ошибки если есть"
   };
 
+  // Файлы
+  const filesToSend=[...currentFiles];
+  const imageFiles=filesToSend.filter(f=>f.type.startsWith("image/")&&f.b64);
+  const otherFiles=filesToSend.filter(f=>!f.type.startsWith("image/"));
+  let fileCtx="";
+  if(otherFiles.length>0){ otherFiles.forEach(f=>{if(f.text)fileCtx+="\n[Файл: "+f.name+"]\n"+f.text+"\n";}); }
+  if(imageFiles.length>0){ fileCtx+="\n[Изображений: "+imageFiles.length+"]\n"; for(const f of imageFiles){if(f.text)fileCtx+=f.text+"\n";} }
+  const enrichedMsg=(fileCtx?fileCtx+"\n":"")+today+text;
+
   // Build history
   const history=[];
   if(chat.messages){
@@ -3417,16 +3481,17 @@ async function sendChain(text, inp){
       if(a)history.push({role:"assistant",content:a.content});
     }
   }
-  history.push({role:"user",content:today+text});
+  history.push({role:"user",content:enrichedMsg});
 
   chat.messages=chat.messages||[];
-  chat.messages.push({role:"user",content:text,ts:Date.now()});
+  chat.messages.push({role:"user",content:text,files:filesToSend.map(f=>({name:f.name,type:f.type,size:f.size,b64:f.b64,text:f.text})),ts:Date.now()});
   if(chat.title==="Новая тема"&&text.length>3){
     chat.title=text.slice(0,40)+(text.length>40?"...":"");
     document.getElementById("chatTitle").textContent=chat.title;
   }
   saveChats(chats);
-  appendUserBubble(text,[]);
+  appendUserBubble(text,filesToSend);
+  currentFiles=[]; renderFilePreview();
   inp.value=""; inp.style.height="auto";
   thinking=true;
   document.getElementById("sendBtn").disabled=true;
@@ -3466,7 +3531,20 @@ async function sendChain(text, inp){
       chainMsg=text+"\n\n=== Контекст от предыдущих агентов ===\n"+prevSummary+"\n=== Конец контекста ===\n\nТвоя задача: "+role+". Не повторяй уже сказанное — добавь своё уникальное.";
     }
 
-    const h=[...history.slice(0,-1),{role:"user",content:today+chainMsg}];
+    let h=[...history.slice(0,-1),{role:"user",content:today+chainMsg}];
+    // Передаём изображения первому агенту цепочки
+    if(i===0&&imageFiles.length>0){
+      if(a.id==="claude"){
+        const imgContent=[{type:"text",text:today+chainMsg}];
+        imageFiles.forEach(f=>{const mt=f.type==="image/jpg"?"image/jpeg":f.type;imgContent.push({type:"image",source:{type:"base64",media_type:mt,data:f.b64}});});
+        h=[...history.slice(0,-1),{role:"user",content:imgContent}];
+      } else if(["gemini","gpt"].includes(a.id)){
+        const imgContent=[];
+        imageFiles.forEach(f=>imgContent.push({type:"image_url",image_url:{url:`data:${f.type};base64,${f.b64}`}}));
+        imgContent.push({type:"text",text:today+chainMsg});
+        h=[...history.slice(0,-1),{role:"user",content:imgContent}];
+      }
+    }
 
     const chunkHandler=(partial)=>{
       const el=document.getElementById(turnId+"_"+a.id+"_text");
@@ -3870,7 +3948,8 @@ function appendTurnContainer(turnId, agents, cols){
   h+=`<span style="font-size:11px;color:#94a3b8;align-self:center">💾</span>`;
   h+=`<button class="export-tool" onclick="exportWord('${turnId}')" style="padding:4px 10px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Word</button>`;
   h+=`<button class="export-tool" onclick="exportExcel('${turnId}')" style="padding:4px 10px;background:#1a4731;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📊 Excel</button>`;
-  h+=`<button class="export-tool" onclick="openEditBanana('${turnId}')" style="padding:4px 10px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">🍌 Edit Banana</button>`;
+  h+=`<button class="export-tool" onclick="fillPdfFromAnswer('${turnId}')" style="padding:4px 10px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Заполнить PDF</button>`;
+
   h+=`</div>`;
   // Text
   h+=`<div id="${turnId}_consolidated" style="font-size:16px;line-height:2.0;color:#1e293b" class="pulse">Синтез...</div>`;
@@ -4106,8 +4185,9 @@ function renderMessages(){
   h+=`<span style="font-size:11px;color:#94a3b8;align-self:center">💾</span>`;
   h+=`<button onclick="exportWord('${tid}')" style="padding:4px 10px;background:#1e3a5f;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Word</button>`;
   h+=`<button onclick="exportExcel('${tid}')" style="padding:4px 10px;background:#1a4731;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📊 Excel</button>`;
+  h+=`<button onclick="fillPdfFromAnswer('${tid}')" style="padding:4px 10px;background:#7c3aed;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📝 Заполнить PDF</button>`;
   h+=`<button onclick="exportTxt('${tid}')" style="padding:4px 10px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">📄 TXT</button>`;
-  h+=`<button onclick="openEditBanana('${tid}')" style="padding:4px 10px;background:#f59e0b;color:#fff;border:none;border-radius:6px;font-size:11px;cursor:pointer">🍌 Edit Banana</button>`;
+
   h+=`</div>`;
       h+=`<div id="${tid}_consolidated" style="font-size:16px;line-height:2.0;color:#1e293b" data-raw="${escHtml(assistant.content)}">${renderMd(assistant.content)}</div>`;
       h+=`<div id="${tid}_consolidated_short" style="display:none;font-size:16px;line-height:2.0;color:#1e293b"></div>`;
@@ -4484,6 +4564,142 @@ function downloadBlob(blob, filename){
 function escRtf(s){ return (s||"").replace(/\\/g,"\\\\").replace(/\{/g,"\\{").replace(/\}/g,"\\}"); }
 
 // Word — через RTF (открывается в Word/LibreOffice без библиотек)
+
+// ════════════════════════════════════════════════════════════════
+// 📝 ЗАПОЛНЕНИЕ PDF — накладываем ответы агентов на оригинальный файл
+// ════════════════════════════════════════════════════════════════
+async function fillPdfFromAnswer(turnId){
+  // 1. Получаем ответ агентов
+  const ansEl = document.getElementById(turnId+"_consolidated") || document.getElementById(turnId+"_text");
+  const answerText = ansEl ? (ansEl.dataset.raw || ansEl.innerText) : "";
+  if(!answerText){ showToast("❌ Нет ответа для заполнения"); return; }
+
+  // 2. Проверяем есть ли загруженный PDF или изображение
+  const chat = getChat();
+  // Ищем последнее сообщение с файлом
+  let pdfFile = null, imgFile = null;
+  const msgs = chat.messages || [];
+  for(let i = msgs.length-1; i >= 0; i--){
+    const m = msgs[i];
+    if(m.files && m.files.length > 0){
+      for(const f of m.files){
+        if(f.type === "application/pdf") { pdfFile = f; break; }
+        if(f.type.startsWith("image/") && f.b64) { imgFile = f; }
+      }
+      if(pdfFile || imgFile) break;
+    }
+  }
+
+  if(!pdfFile && !imgFile){
+    showToast("❌ Загрузи PDF или изображение задания перед запросом");
+    return;
+  }
+
+  showToast("⏳ Создаю заполненный PDF...");
+
+  try{
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+
+    let pdfBytes;
+    if(pdfFile){
+      // Из PDF файла
+      const binStr = atob(pdfFile.b64);
+      pdfBytes = new Uint8Array(binStr.length);
+      for(let i=0;i<binStr.length;i++) pdfBytes[i] = binStr.charCodeAt(i);
+    } else {
+      // Из изображения — создаём новый PDF с картинкой
+      const newPdf = await PDFDocument.create();
+      const imgData = Uint8Array.from(atob(imgFile.b64), c=>c.charCodeAt(0));
+      let embeddedImg;
+      if(imgFile.type === "image/png"){
+        embeddedImg = await newPdf.embedPng(imgData);
+      } else {
+        embeddedImg = await newPdf.embedJpg(imgData);
+      }
+      const page = newPdf.addPage([embeddedImg.width, embeddedImg.height]);
+      page.drawImage(embeddedImg, {x:0,y:0,width:embeddedImg.width,height:embeddedImg.height});
+      pdfBytes = await newPdf.save();
+    }
+
+    // 3. Загружаем PDF
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const pages = pdfDoc.getPages();
+    const page = pages[0];
+    const { width, height } = page.getSize();
+
+    // 4. Парсим ответы агентов — ищем паттерны заполнения
+    // Поддерживаем форматы: "a. nervous", "a) nervous", "a: nervous", "a - nervous"
+    const lines = answerText.split(/\n/);
+    const answers = {};
+    const patterns = [
+      /^([a-z])[.):\-]\s*(.+)/i,           // a. answer  или  a) answer
+      /^(\d+)[.):\-]\s*(.+)/,              // 1. answer
+      /^([a-z])[.):\-][^a-z]*?([A-Z][a-z]+)/i, // a. Chris is NERVOUS
+      /is\s+([A-Z]+)/g,                      // "is NERVOUS" — берём слово после is
+    ];
+
+    let fillItems = [];
+
+    // Ищем строки вида "a. Chris is NERVOUS" или "a - nervous"
+    for(const line of lines){
+      // Паттерн 1: буква/цифра + ответ
+      const m1 = line.match(/^\s*([a-z])\.?\s+[\w\s]+is\s+([A-Z][a-z]+)/i);
+      if(m1){ answers[m1[1].toLowerCase()] = m1[2]; continue; }
+
+      const m2 = line.match(/^\s*([a-z])[.):]\s*([\w\s]+)/i);
+      if(m2){ answers[m2[1].toLowerCase()] = m2[2].trim().split(/[,.]/)[0]; continue; }
+
+      const m3 = line.match(/^\s*(\d+)[.):]\s*(.+)/);
+      if(m3){ answers["n"+m3[1]] = m3[2].trim().split(/[,.]|\n/)[0]; continue; }
+    }
+
+    // 5. Запрашиваем у Claude точные координаты через специальный промт
+    // Пока используем равномерное распределение по строкам
+    const itemCount = Object.keys(answers).length;
+    if(itemCount === 0){
+      showToast("⚠️ Не удалось распознать ответы. Убедись что агенты дали ответы в формате 'a. слово'");
+      return;
+    }
+
+    // 6. Накладываем текст — позиционируем по высоте равномерно
+    // Отступ сверху ~85%, снизу ~15% (область заданий)
+    const topY = height * 0.82;
+    const bottomY = height * 0.18;
+    const step = (topY - bottomY) / Math.max(itemCount - 1, 1);
+    const leftX = width * 0.25; // отступ слева ~25%
+
+    let idx = 0;
+    for(const [key, val] of Object.entries(answers)){
+      if(!val) continue;
+      const y = topY - (idx * step);
+      page.drawText(val.substring(0,30), {
+        x: leftX,
+        y: y,
+        size: 11,
+        font,
+        color: rgb(0.1, 0.1, 0.8), // синий цвет — как написано ручкой
+      });
+      idx++;
+    }
+
+    // 7. Сохраняем и скачиваем
+    const filledBytes = await pdfDoc.save();
+    const blob = new Blob([filledBytes], {type:"application/pdf"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "filled_task.pdf";
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("✅ PDF заполнен и скачан!");
+
+  } catch(e){
+    console.error("fillPdf error:", e);
+    showToast("❌ Ошибка: "+e.message);
+  }
+}
+
 function exportWord(turnId){
   const {text,title,date}=getExportContent(turnId);
   if(!text){showToast("❌ Нет текста");return;}

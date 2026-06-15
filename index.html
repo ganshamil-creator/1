@@ -4575,108 +4575,17 @@ function escRtf(s){ return (s||"").replace(/\\/g,"\\\\").replace(/\{/g,"\\{").re
 // 📝 ЗАПОЛНЕНИЕ PDF — накладываем ответы агентов на оригинальный файл
 // ════════════════════════════════════════════════════════════════
 
-// ════════════════════════════════════════════
-// PDF ИНТЕРАКТИВНЫЙ ПРЕДПРОСМОТР
-// ════════════════════════════════════════════
-async function showPdfEditPreview(pdfBytes, vals, numCols, pageW, pageH){
-  const { PDFDocument, rgb, StandardFonts } = PDFLib;
-
-  // Создаём модальное окно с редактируемыми полями
-  let existing = document.getElementById("pdfPreviewModal");
-  if(existing) existing.remove();
-
-  const modal = document.createElement("div");
-  modal.id = "pdfPreviewModal";
-  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px";
-
-  const box = document.createElement("div");
-  box.style.cssText = "background:#fff;border-radius:16px;padding:20px;max-width:600px;width:100%;max-height:85vh;overflow-y:auto";
-
-  let inputsHtml = vals.map(([key,val],i) => `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-      <span style="min-width:24px;font-weight:700;color:#6366f1">${i+1}.</span>
-      <input id="pdf_ans_${i}" value="${val.replace(/[*_`#]/g,'').trim()}" 
-        style="flex:1;padding:6px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:14px"/>
-    </div>`).join("");
-
-  box.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
-      <span style="font-size:20px">📝</span>
-      <b style="font-size:16px">Проверь и исправь ответы</b>
-      <button onclick="document.getElementById('pdfPreviewModal').remove()" 
-        style="margin-left:auto;background:none;border:none;font-size:20px;cursor:pointer;color:#64748b">✕</button>
-    </div>
-    <div style="font-size:12px;color:#64748b;margin-bottom:12px">Отредактируй ответы если нужно, потом нажми Скачать PDF</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
-      ${inputsHtml}
-    </div>
-    <div style="display:flex;gap:10px;margin-top:16px">
-      <button id="pdfDownloadBtn" style="flex:1;padding:10px;background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer">
-        ⬇️ Скачать PDF
-      </button>
-      <button onclick="document.getElementById('pdfPreviewModal').remove()" 
-        style="padding:10px 20px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;cursor:pointer">
-        Отмена
-      </button>
-    </div>`;
-
-  modal.appendChild(box);
-  document.body.appendChild(modal);
-
-  // При нажатии Скачать — пересоздаём PDF с исправленными ответами
-  document.getElementById("pdfDownloadBtn").onclick = async () => {
-    const { PDFDocument, rgb, StandardFonts } = PDFLib;
-    const pdfDoc2 = await PDFDocument.load(pdfBytes);
-    const font2 = await pdfDoc2.embedFont(StandardFonts.Helvetica);
-    const page2 = pdfDoc2.getPages()[0];
-    const {width:w2, height:h2} = page2.getSize();
-
-    const nc = numCols || 5;
-    const nr = Math.ceil(vals.length / nc);
-    const aTop = h2 * 0.85, aBot = h2 * 0.10;
-    const lm = w2 * 0.06, rm = w2 * 0.06;
-    const colW = (w2-lm-rm)/nc;
-    const rowH = (aTop-aBot)/nr;
-
-    vals.forEach(([key,val],idx)=>{
-      const input = document.getElementById("pdf_ans_"+idx);
-      const newVal = (input ? input.value : val).trim().substring(0,20);
-      if(!newVal) return;
-      const col = idx%nc, row = Math.floor(idx/nc);
-      const x = lm + col*colW + colW*0.2;
-      const y = aTop - row*rowH - rowH*0.55;
-      page2.drawText(newVal, {
-        x: Math.max(5,Math.min(x,w2-60)),
-        y: Math.max(5,Math.min(y,h2-10)),
-        size:13, font:font2, color:rgb(0,0.15,0.85)
-      });
-    });
-
-    const bytes2 = await pdfDoc2.save();
-    const blob2 = new Blob([bytes2],{type:"application/pdf"});
-    const url2 = URL.createObjectURL(blob2);
-    const a2 = document.createElement("a");
-    a2.href=url2; a2.download="filled_task.pdf"; a2.click();
-    URL.revokeObjectURL(url2);
-    document.getElementById("pdfPreviewModal").remove();
-    showToast("✅ PDF скачан!");
-  };
-}
-
 async function fillPdfFromAnswer(turnId){
   // 1. Получаем ответ агентов
-  // Ищем текст ответа в разных местах — consolidated, text, или по turnId напрямую
   let ansEl = document.getElementById(turnId+"_consolidated") 
            || document.getElementById(turnId+"_text")
            || document.getElementById(turnId);
   let answerText = "";
   if(ansEl){
-    // Если это контейнер — ищем внутри consolidated или text элемент
-    const inner = ansEl.querySelector("[id$='_consolidated']") || ansEl.querySelector("[id$='_text']");
+    const inner = ansEl.querySelector("[id$=\'_consolidated\']") || ansEl.querySelector("[id$=\'_text\']");
     if(inner) ansEl = inner;
     answerText = ansEl.dataset.raw || ansEl.innerText || ansEl.textContent || "";
   }
-  // Если turnId заканчивается на _text — убираем суффикс и ищем ещё раз
   if(!answerText && turnId.endsWith("_text")){
     const baseId = turnId.replace("_text","");
     const baseEl = document.getElementById(baseId+"_consolidated") || document.getElementById(baseId+"_text");
@@ -4684,153 +4593,213 @@ async function fillPdfFromAnswer(turnId){
   }
   if(!answerText){ showToast("❌ Нет ответа для заполнения"); return; }
 
-  // 2. Проверяем есть ли загруженный PDF или изображение
+  // 2. Находим файл
   const chat = getChat();
-  // Ищем последнее сообщение с файлом
   let pdfFile = null, imgFile = null;
   const msgs = chat.messages || [];
   for(let i = msgs.length-1; i >= 0; i--){
     const m = msgs[i];
     if(m.files && m.files.length > 0){
       for(const f of m.files){
-        if(f.type === "application/pdf") { pdfFile = f; break; }
-        if(f.type.startsWith("image/") && f.b64) { imgFile = f; }
+        if(f.type === "application/pdf"){ pdfFile = f; break; }
+        if(f.type && f.type.startsWith("image/") && f.b64) imgFile = f;
       }
       if(pdfFile || imgFile) break;
     }
   }
+  if(!pdfFile && !imgFile){ showToast("❌ Загрузи PDF или изображение задания"); return; }
 
-  if(!pdfFile && !imgFile){
-    showToast("❌ Загрузи PDF или изображение задания перед запросом");
-    return;
+  // 3. Парсим ответы
+  const cleanText = answerText.replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/#{1,3}\s/g,"").replace(/`([^`]+)`/g,"$1");
+  const lines = cleanText.split(/\n/);
+  const answers = [];
+  for(const line of lines){
+    const trimmed = line.trim();
+    if(!trimmed) continue;
+
+    // Паттерн 1: "11. ... He feels so **excited**." — берём слово из **...**
+    const mBold = trimmed.match(/^(\d+)[.):].*?\*\*([a-z/]+)\*\*/i);
+    if(mBold){ answers.push({key:"n"+mBold[1], val:mBold[2]}); continue; }
+
+    // Паттерн 2: "11. ... He feels so excited." — берём последнее слово перед точкой
+    const mSoEnd = trimmed.match(/^(\d+)[.):].*?(?:is\s+so|feels\s+so|feels|is)\s+([a-z]+)[.,]?$/i);
+    if(mSoEnd){ answers.push({key:"n"+mSoEnd[1], val:mSoEnd[2]}); continue; }
+
+    // Паттерн 3: "a. word" или "1. word"  
+    const m1 = trimmed.match(/^([a-z])[.):]\s*([\w/]+)/i);
+    if(m1){ answers.push({key:m1[1].toLowerCase(), val:m1[2]}); continue; }
+
+    // Паттерн 4: "1. is/feels + слово"
+    const m2 = trimmed.match(/^(\d+)[.):]?\s+(?:\w+\s+)?(?:is\s+so\s+|is\s+|feels\s+so\s+|feels\s+)([a-z/]+)/i);
+    if(m2){ answers.push({key:"n"+m2[1], val:m2[2]}); continue; }
+
+    // Паттерн 5: просто "1. слово"
+    const m3 = trimmed.match(/^(\d+)[.):]\s*([a-zA-Z/]{2,20})$/);
+    if(m3){ answers.push({key:"n"+m3[1], val:m3[2]}); continue; }
+  }
+  if(!answers.length){ showToast("⚠️ Не удалось распознать ответы"); return; }
+
+  showToast("⏳ Открываю редактор PDF...");
+
+  // 4. Конвертируем в изображение для отображения
+  let imgUrl = "";
+  if(imgFile){
+    imgUrl = "data:"+imgFile.type+";base64,"+imgFile.b64;
+  } else if(pdfFile && window.pdfjsLib){
+    try{
+      const binStr = atob(pdfFile.b64);
+      const arr = new Uint8Array(binStr.length);
+      for(let i=0;i<binStr.length;i++) arr[i]=binStr.charCodeAt(i);
+      const pdf = await pdfjsLib.getDocument({data:arr}).promise;
+      const page = await pdf.getPage(1);
+      const vp = page.getViewport({scale:1.5});
+      const canvas = document.createElement("canvas");
+      canvas.width=vp.width; canvas.height=vp.height;
+      await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
+      imgUrl = canvas.toDataURL("image/png");
+    }catch(e){ imgUrl=""; }
   }
 
-  showToast("⏳ Создаю заполненный PDF...");
+  // 5. Показываем интерактивный редактор
+  showPdfInteractiveEditor(imgUrl, answers, pdfFile, imgFile);
+}
 
-  try{
+function showPdfInteractiveEditor(imgUrl, answers, pdfFile, imgFile){
+  let existing = document.getElementById("pdfEditorModal");
+  if(existing) existing.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "pdfEditorModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;overflow:hidden";
+
+  modal.innerHTML = `
+    <div style="background:#1e293b;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0">
+      <span style="color:#fff;font-weight:700;font-size:14px">📝 Редактор PDF — перетащи слова на нужные места</span>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button id="pdfSaveBtn" style="padding:6px 16px;background:#6366f1;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600">⬇️ Скачать PDF</button>
+        <button onclick="document.getElementById('pdfEditorModal').remove()" style="padding:6px 12px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer">✕</button>
+      </div>
+    </div>
+    <div style="display:flex;flex:1;overflow:hidden">
+      <!-- Левая панель: слова -->
+      <div id="pdfWordBank" style="width:160px;background:#0f172a;padding:12px 8px;overflow-y:auto;flex-shrink:0">
+        <div style="color:#94a3b8;font-size:11px;margin-bottom:8px;text-align:center">Перетащи слово на PDF</div>
+        ${answers.map((a,i)=>`
+          <div draggable="true" data-idx="${i}" data-val="${a.val}" 
+            style="background:#6366f1;color:#fff;padding:6px 8px;border-radius:6px;margin-bottom:6px;font-size:13px;font-weight:600;cursor:grab;text-align:center;user-select:none"
+            ondragstart="pdfDragStart(event)">
+            ${a.val}
+          </div>`).join("")}
+      </div>
+      <!-- Правая панель: изображение PDF -->
+      <div style="flex:1;overflow:auto;position:relative;background:#374151;display:flex;align-items:flex-start;justify-content:center;padding:10px">
+        <div id="pdfCanvas" style="position:relative;display:inline-block">
+          ${imgUrl ? `<img src="${imgUrl}" style="display:block;max-width:100%;user-select:none" ondragover="event.preventDefault()" ondrop="pdfDrop(event)">` : '<div style="color:#fff;padding:40px">Нет изображения для предпросмотра</div>'}
+          <div id="pdfLabels"></div>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+
+  // Drag & Drop логика
+  window.pdfDragStart = (e) => {
+    e.dataTransfer.setData("text/plain", JSON.stringify({idx:e.target.dataset.idx, val:e.target.dataset.val}));
+  };
+
+  window.pdfDrop = (e) => {
+    e.preventDefault();
+    const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+    const canvas = document.getElementById("pdfCanvas");
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Создаём редактируемый лейбл
+    const label = document.createElement("div");
+    label.contentEditable = "true";
+    label.dataset.val = data.val;
+    label.textContent = data.val;
+    label.style.cssText = `position:absolute;left:${x}px;top:${y}px;color:#0000cc;font-weight:700;font-size:14px;cursor:move;background:rgba(255,255,255,0.85);padding:1px 4px;border-radius:3px;min-width:30px;outline:none;border:1px dashed #6366f1`;
+    label.setAttribute("data-x", x);
+    label.setAttribute("data-y", y);
+
+    // Перетаскивание лейбла
+    label.onmousedown = (me) => {
+      const startX = me.clientX - label.offsetLeft;
+      const startY = me.clientY - label.offsetTop;
+      const onMove = (mv) => {
+        label.style.left = (mv.clientX-startX)+"px";
+        label.style.top = (mv.clientY-startY)+"px";
+        label.setAttribute("data-x", mv.clientX-startX);
+        label.setAttribute("data-y", mv.clientY-startY);
+      };
+      const onUp = () => { document.removeEventListener("mousemove",onMove); document.removeEventListener("mouseup",onUp); };
+      document.addEventListener("mousemove",onMove);
+      document.addEventListener("mouseup",onUp);
+    };
+
+    // Двойной клик — удалить
+    label.ondblclick = () => { if(confirm("Удалить?")) label.remove(); };
+
+    document.getElementById("pdfLabels").appendChild(label);
+  };
+
+  // Скачать PDF с наложенными текстами
+  document.getElementById("pdfSaveBtn").onclick = async () => {
     const { PDFDocument, rgb, StandardFonts } = PDFLib;
-
     let pdfBytes;
     if(pdfFile){
-      // Из PDF файла
-      const binStr = atob(pdfFile.b64);
-      pdfBytes = new Uint8Array(binStr.length);
-      for(let i=0;i<binStr.length;i++) pdfBytes[i] = binStr.charCodeAt(i);
-    } else {
-      // Из изображения — создаём новый PDF с картинкой
+      const bin = atob(pdfFile.b64);
+      pdfBytes = new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) pdfBytes[i]=bin.charCodeAt(i);
+    } else if(imgFile){
       const newPdf = await PDFDocument.create();
-      const imgData = Uint8Array.from(atob(imgFile.b64), c=>c.charCodeAt(0));
-      let embeddedImg;
-      if(imgFile.type === "image/png"){
-        embeddedImg = await newPdf.embedPng(imgData);
-      } else {
-        embeddedImg = await newPdf.embedJpg(imgData);
-      }
-      const page = newPdf.addPage([embeddedImg.width, embeddedImg.height]);
-      page.drawImage(embeddedImg, {x:0,y:0,width:embeddedImg.width,height:embeddedImg.height});
+      const imgData = Uint8Array.from(atob(imgFile.b64),c=>c.charCodeAt(0));
+      let emb = imgFile.type==="image/png" ? await newPdf.embedPng(imgData) : await newPdf.embedJpg(imgData);
+      const p = newPdf.addPage([emb.width,emb.height]);
+      p.drawImage(emb,{x:0,y:0,width:emb.width,height:emb.height});
       pdfBytes = await newPdf.save();
     }
 
-    // 3. Загружаем PDF
     const pdfDoc = await PDFDocument.load(pdfBytes);
-    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const pages = pdfDoc.getPages();
-    const page = pages[0];
-    const { width, height } = page.getSize();
+    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const page = pdfDoc.getPages()[0];
+    const {width:pw, height:ph} = page.getSize();
 
-    // 4. Чистим markdown и парсим ответы
-    const cleanText = answerText
-      .replace(/\*\*([^*]+)\*\*/g, '$1')  // убираем **bold**
-      .replace(/\*([^*]+)\*/g, '$1')         // убираем *italic*
-      .replace(/#{1,3}\s/g, '')               // убираем заголовки
-      .replace(/`([^`]+)`/g, '$1');            // убираем код
+    // Получаем размер изображения в DOM для пересчёта координат
+    const img = document.querySelector("#pdfCanvas img");
+    const dispW = img ? img.offsetWidth : pw;
+    const dispH = img ? img.offsetHeight : ph;
+    const scaleX = pw / dispW;
+    const scaleY = ph / dispH;
 
-    const lines = cleanText.split(/\n/);
-    const answers = {};
-
-    for(const line of lines){
-      const trimmed = line.trim();
-      if(!trimmed) continue;
-
-      // Паттерн: "1. Ron is so angry" — берём слово после "is so" или "is"
-      const mSo = trimmed.match(/^\s*(\d+)[.):]?\s+\w+\s+is\s+so\s+([a-z]+)/i);
-      if(mSo){ answers["n"+mSo[1]] = mSo[2]; continue; }
-
-      const mIs = trimmed.match(/^\s*(\d+)[.):]?\s+\w+\s+is\s+([a-z_]+)/i);
-      if(mIs){ answers["n"+mIs[1]] = mIs[2]; continue; }
-
-      // Паттерн: "a. word" или "1. word"
-      const mLetter = trimmed.match(/^([a-z])[.):]\s*([\w]+)/i);
-      if(mLetter){ answers[mLetter[1].toLowerCase()] = mLetter[2]; continue; }
-
-      const mNum = trimmed.match(/^(\d+)[.):]\s*([\w\s]{2,30})/);
-      if(mNum){
-        // берём первое значимое слово
-        const word = mNum[2].trim().split(/\s+/).find(w=>w.length>2) || mNum[2].trim();
-        answers["n"+mNum[1]] = word.replace(/[.,!?]$/,'');
-        continue;
-      }
-    }
-
-    // 5. Запрашиваем у Claude точные координаты через специальный промт
-    // Пока используем равномерное распределение по строкам
-    const itemCount = Object.keys(answers).length;
-    if(itemCount === 0){
-      showToast("⚠️ Не удалось распознать ответы. Убедись что агенты дали ответы в формате 'a. слово'");
-      return;
-    }
-
-    // 6. Умное позиционирование — спрашиваем Claude где именно разместить ответы
-    const vals = Object.entries(answers);
-    if(vals.length === 0) return;
-
-    // Для заданий с картинками (типа feelings) — позиционируем под каждой картинкой
-    // Определяем количество колонок по количеству ответов
-    const numAnswers = vals.length;
-    let numCols = 5; // стандарт для учебных заданий с картинками (5 в ряд)
-    if(numAnswers <= 4) numCols = numAnswers;
-    else if(numAnswers <= 6) numCols = 3;
-    else if(numAnswers <= 9) numCols = 3;
-    else if(numAnswers <= 12) numCols = 4;
-    const numRows = Math.ceil(numAnswers / numCols);
-
-    // Область картинок обычно занимает верхние 70% страницы
-    // Ответы размещаем ПОД каждой картинкой
-    const areaTop = height * 0.85;    // верх первого ряда
-    const areaBottom = height * 0.10; // низ последнего ряда
-    const leftMargin = width * 0.06;
-    const rightMargin = width * 0.06;
-    const usableWidth = width - leftMargin - rightMargin;
-    const colW = usableWidth / numCols;
-    const rowH = (areaTop - areaBottom) / numRows;
-
-    vals.forEach(([key, val], idx) => {
-      if(!val) return;
-      const col = idx % numCols;
-      const row = Math.floor(idx / numCols);
-      // Центрируем текст под каждой картинкой
-      const x = leftMargin + col * colW + colW * 0.2;
-      const y = areaTop - row * rowH - rowH * 0.55;
-      const cleanVal = val.replace(/[*_`#]/g,'').trim().substring(0, 20);
-      page.drawText(cleanVal, {
-        x: Math.max(5, Math.min(x, width - 60)),
-        y: Math.max(5, Math.min(y, height - 10)),
-        size: 13,
-        font,
-        color: rgb(0.0, 0.15, 0.85),
+    const labels = document.querySelectorAll("#pdfLabels div");
+    labels.forEach(lbl => {
+      const domX = parseFloat(lbl.getAttribute("data-x") || lbl.style.left);
+      const domY = parseFloat(lbl.getAttribute("data-y") || lbl.style.top);
+      const text = (lbl.textContent||"").trim().substring(0,25);
+      if(!text) return;
+      const pdfX = domX * scaleX;
+      const pdfY = ph - (domY * scaleY) - 14;
+      page.drawText(text, {
+        x: Math.max(2, Math.min(pdfX, pw-60)),
+        y: Math.max(2, Math.min(pdfY, ph-10)),
+        size: 13, font, color: rgb(0,0,0.8)
       });
     });
 
-    // 7. Показываем интерактивный предпросмотр с редактированием
-    const filledBytes = await pdfDoc.save();
-    showPdfEditPreview(filledBytes, vals, numCols, width, height);
-    showToast("✅ PDF заполнен! Проверь и исправь если нужно");
-
-  } catch(e){
-    console.error("fillPdf error:", e);
-    showToast("❌ Ошибка: "+e.message);
-  }
+    const bytes = await pdfDoc.save();
+    const blob = new Blob([bytes],{type:"application/pdf"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download="filled_task.pdf"; a.click();
+    URL.revokeObjectURL(url);
+    showToast("✅ PDF скачан!");
+  };
 }
+
+
 
 function exportWord(turnId){
   const {text,title,date}=getExportContent(turnId);

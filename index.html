@@ -4625,17 +4625,21 @@ async function fillPdfFromAnswer(turnId){
     const mBold = trimmed.match(/^(\d+)[.):].*?\*\*([a-z/]+)\*\*/i);
     if(mBold){ answers.push({key:"n"+mBold[1], val:mBold[2]}); continue; }
 
-    // Паттерн 2a: "I feel **relaxed**." — feel + жирное слово
-    const mFeel = trimmed.match(/^(\d+)[.):].*?(?:feel|feels|felt)\s+\*\*([a-z]+)\*\*[.,]?/i);
-    if(mFeel){ answers.push({key:"n"+mFeel[1], val:mFeel[2]}); continue; }
+    // Паттерн 2a: любое **слово** в строке — самый универсальный
+    const mAnyBold = trimmed.match(/^(\d+)[.):].*?\*\*([a-z]+)\*\*/i);
+    if(mAnyBold){ answers.push({key:"n"+mAnyBold[1], val:mAnyBold[2]}); continue; }
 
-    // Паттерн 2b: "I feel relaxed." — feel + обычное слово в конце
-    const mFeelEnd = trimmed.match(/^(\d+)[.):].*?(?:feel|feels|felt)\s+([a-z]+)[.,]?\s*$/i);
-    if(mFeelEnd){ answers.push({key:"n"+mFeelEnd[1], val:mFeelEnd[2]}); continue; }
+    // Паттерн 2b: "She is worried." / "She feels scared." — последнее слово (жирное убрано)
+    // Сначала убираем markdown из строки и берём последнее слово
+    const stripped = trimmed.replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/_([^_]+)_/g,"$1");
+    const mIsEnd = stripped.match(/^(\d+)[.):].*?(?:is|feels?|felt|got|was)\s+([a-z]+)[.,]?\s*$/i);
+    if(mIsEnd){ answers.push({key:"n"+mIsEnd[1], val:mIsEnd[2]}); continue; }
 
-    // Паттерн 3: "He feels so excited." — последнее слово после feel/is/got
-    const mSoEnd = trimmed.match(/^(\d+)[.):].*?(?:is\s+so|feels\s+so|feels|is|got)\s+([a-z]+)[.,]?$/i);
-    if(mSoEnd){ answers.push({key:"n"+mSoEnd[1], val:mSoEnd[2]}); continue; }
+    // Паттерн 2c: просто последнее слово строки (без точки)
+    const mLast = stripped.match(/^(\d+)[.):].*\s([a-z]{3,15})[.,]?\s*$/i);
+    if(mLast && !["the","and","for","but","she","her","his","him","they","are","was","not","can"].includes(mLast[2].toLowerCase())){
+      answers.push({key:"n"+mLast[1], val:mLast[2]}); continue;
+    }
 
     // Паттерн 3: "a. word" или "1. word"  
     const m1 = trimmed.match(/^([a-z])[.):]\s*([\w/]+)/i);

@@ -4576,22 +4576,31 @@ function escRtf(s){ return (s||"").replace(/\\/g,"\\\\").replace(/\{/g,"\\{").re
 // ════════════════════════════════════════════════════════════════
 
 async function fillPdfFromAnswer(turnId){
-  // 1. Получаем ответ агентов
-  let ansEl = document.getElementById(turnId+"_consolidated") 
-           || document.getElementById(turnId+"_text")
-           || document.getElementById(turnId);
+  // 1. Универсальный поиск текста ответа
   let answerText = "";
-  if(ansEl){
-    const inner = ansEl.querySelector("[id$=\'_consolidated\']") || ansEl.querySelector("[id$=\'_text\']");
-    if(inner) ansEl = inner;
-    answerText = ansEl.dataset.raw || ansEl.innerText || ansEl.textContent || "";
-  }
-  if(!answerText && turnId.endsWith("_text")){
-    const baseId = turnId.replace("_text","");
-    const baseEl = document.getElementById(baseId+"_consolidated") || document.getElementById(baseId+"_text");
-    if(baseEl) answerText = baseEl.dataset.raw || baseEl.innerText || "";
+  const tryIds = [
+    turnId,
+    turnId+"_text",
+    turnId+"_consolidated",
+    turnId.replace(/_text$/,""),
+    turnId.replace(/_text$/,"")+"_consolidated",
+    turnId.replace(/_text$/,"")+"_text",
+  ];
+  for(const id of tryIds){
+    const el = document.getElementById(id);
+    if(!el) continue;
+    const t = el.dataset.raw || el.innerText || el.textContent || "";
+    if(t.trim().length > 10){ answerText = t; break; }
+    // Ищем внутри контейнера
+    const children = el.querySelectorAll("div,p,span");
+    for(const child of children){
+      const ct = child.dataset.raw || child.innerText || "";
+      if(ct.trim().length > 20){ answerText = ct; break; }
+    }
+    if(answerText) break;
   }
   if(!answerText){ showToast("❌ Нет ответа для заполнения"); return; }
+
 
   // 2. Находим файл
   const chat = getChat();

@@ -4939,10 +4939,42 @@ async function exportWordDocx(turnId,text,title,date){
       new Paragraph({children:[new TextRun({text:"Дата: "+date,color:"888888",size:20})],alignment:AlignmentType.CENTER}),
       new Paragraph({text:""}),
     ];
-    lines.forEach(line=>{
-      const t=line.trim();
-      if(!t){paragraphs.push(new Paragraph({text:""}));return;}
-      if(t.startsWith("### ")) paragraphs.push(new Paragraph({text:t.slice(4),heading:HeadingLevel.HEADING_3}));
+    const {Table,TableRow,TableCell,WidthType,BorderStyle}=window.docx;
+    
+    // Группируем строки — обычный текст и таблицы
+    let i=0;
+    while(i<lines.length){
+      const t=lines[i].trim();
+      
+      // Markdown таблица
+      if(t.startsWith("|") && t.includes("|",1)){
+        const tableLines=[];
+        while(i<lines.length && lines[i].trim().startsWith("|")){
+          tableLines.push(lines[i].trim());
+          i++;
+        }
+        // Парсим таблицу
+        const dataRows=tableLines.filter(l=>!/^\|[-:\s|]+\|$/.test(l));
+        if(dataRows.length>0){
+          const tableRows=dataRows.map((row,ri)=>{
+            const cells=row.replace(/^\|/,"").replace(/\|$/,"").split("|")
+              .map(c=>c.trim().replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1"));
+            return new TableRow({
+              children:cells.map(cell=>new TableCell({
+                children:[new Paragraph({children:[new TextRun({text:cell,bold:ri===0,size:ri===0?20:18})]})],
+                width:{size:Math.floor(9000/cells.length),type:WidthType.DXA},
+              }))
+            });
+          });
+          paragraphs.push(new Table({rows:tableRows,width:{size:9000,type:WidthType.DXA}}));
+          paragraphs.push(new Paragraph({text:""}));
+        }
+        continue;
+      }
+      
+      // Обычные строки
+      if(!t){paragraphs.push(new Paragraph({text:""}));}
+      else if(t.startsWith("### ")) paragraphs.push(new Paragraph({text:t.slice(4),heading:HeadingLevel.HEADING_3}));
       else if(t.startsWith("## ")) paragraphs.push(new Paragraph({text:t.slice(3),heading:HeadingLevel.HEADING_2}));
       else if(t.startsWith("# ")) paragraphs.push(new Paragraph({text:t.slice(2),heading:HeadingLevel.HEADING_1}));
       else if(t.startsWith("- ")||t.startsWith("• ")) paragraphs.push(new Paragraph({text:t.slice(2),bullet:{level:0}}));
@@ -4951,7 +4983,8 @@ async function exportWordDocx(turnId,text,title,date){
         const runs=parts.map((p,i)=>new TextRun({text:p,bold:i%2===1,size:24}));
         paragraphs.push(new Paragraph({children:runs}));
       }
-    });
+      i++;
+    }
     const doc=new Document({sections:[{properties:{},children:paragraphs}]});
     const blob=await Packer.toBlob(doc);
     downloadBlob(blob,title.replace(/[^\wа-яёА-ЯЁ ]/g,"_").slice(0,50)+".docx");
@@ -4986,18 +5019,67 @@ function exportExcel(turnId){
   if(!text){showToast("❌ Нет текста");return;}
   if(!window.XLSX){showToast("❌ Excel библиотека не загружена");return;}
   try{
-    const lines=text.split("\n").filter(l=>l.trim());
-    const rows=[[title],["Дата: "+date],[""],[["Содержимое"]],
-      ...lines.map(l=>{
-        const t=l.trim();
-        if(!t) return [""];
-        return [t.replace(/^#+\s*/,"").replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/^[-•]\s*/,"• ")];
-      })
-    ];
     const wb=XLSX.utils.book_new();
-    const ws=XLSX.utils.aoa_to_sheet(rows);
-    ws["!cols"]=[{wch:120}];
-    XLSX.utils.book_append_sheet(wb,ws,"AI Hub");
+    const lines=text.split("\n");
+    
+    // Проверяем есть ли markdown таблицы
+    const hasTable = lines.some(l=>l.trim().startsWith("|") && l.includes("|",1));
+    
+    if(hasTable){
+      // Парсим все секции — обычный текст и таблицы
+      const allRows=[[title],["Дата: "+date],[""]];
+      let i=0;
+      while(i<lines.length){
+        const line=lines[i].trim();
+        // Строка таблицы
+        if(line.startsWith("|") && line.includes("|",1)){
+          // Собираем блок таблицы
+          const tableLines=[];
+          while(i<lines.length && lines[i].trim().startsWith("|")){
+            tableLines.push(lines[i].trim());
+            i++;
+          }
+          // Парсим строки таблицы (пропускаем разделитель |---|)
+          tableLines.forEach(tl=>{
+            if(/^\|[-:\s|]+\|$/.test(tl)) return; // разделитель
+            const cells=tl.replace(/^\|/,"").replace(/\|$/,"").split("|")
+              .map(c=>c.trim().replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1"));
+            allRows.push(cells);
+          });
+          allRows.push([]); // пустая строка после таблицы
+        } else {
+          // Обычный текст
+          if(line){
+            const clean=line.replace(/^#+\s*/,"").replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/^[-•]\s*/,"• ");
+            allRows.push([clean]);
+          } else {
+            allRows.push([]);
+          }
+          i++;
+        }
+      }
+      const ws=XLSX.utils.aoa_to_sheet(allRows);
+      // Автоширина колонок
+      const maxCols=Math.max(...allRows.map(r=>r.length));
+      ws["!cols"]=Array(maxCols).fill(0).map((_,ci)=>{
+        const maxLen=Math.max(...allRows.map(r=>((r[ci]||"")+"").length));
+        return {wch:Math.min(Math.max(maxLen+2,8),50)};
+      });
+      XLSX.utils.book_append_sheet(wb,ws,"AI Hub");
+    } else {
+      // Нет таблиц — обычный экспорт текстом
+      const rows=[[title],["Дата: "+date],[""],
+        ...lines.map(l=>{
+          const t=l.trim();
+          if(!t) return [""];
+          return [t.replace(/^#+\s*/,"").replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/^[-•]\s*/,"• ")];
+        })
+      ];
+      const ws=XLSX.utils.aoa_to_sheet(rows);
+      ws["!cols"]=[{wch:120}];
+      XLSX.utils.book_append_sheet(wb,ws,"AI Hub");
+    }
+    
     XLSX.writeFile(wb,title.replace(/[^\wа-яёА-ЯЁ ]/g,"_").slice(0,50)+".xlsx");
     showToast("✅ Excel (.xlsx) скачан!");
   }catch(e){showToast("❌ Ошибка: "+e.message);}

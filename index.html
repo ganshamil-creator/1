@@ -4617,12 +4617,24 @@ async function fillPdfFromAnswer(turnId){
     const trimmed = line.trim();
     if(!trimmed) continue;
 
-    // Паттерн 1: "11. ... He feels so **excited**." — берём слово из **...**
+    // Паттерн 1a: слово в _..._
+    const mUnder = trimmed.match(/^(\d+)[.):].*?_([a-z/]+)_/i);
+    if(mUnder){ answers.push({key:"n"+mUnder[1], val:mUnder[2]}); continue; }
+
+    // Паттерн 1b: слово в **...** (жирный) — в любом месте строки
     const mBold = trimmed.match(/^(\d+)[.):].*?\*\*([a-z/]+)\*\*/i);
     if(mBold){ answers.push({key:"n"+mBold[1], val:mBold[2]}); continue; }
 
-    // Паттерн 2: "11. ... He feels so excited." — берём последнее слово перед точкой
-    const mSoEnd = trimmed.match(/^(\d+)[.):].*?(?:is\s+so|feels\s+so|feels|is)\s+([a-z]+)[.,]?$/i);
+    // Паттерн 2a: "I feel **relaxed**." — feel + жирное слово
+    const mFeel = trimmed.match(/^(\d+)[.):].*?(?:feel|feels|felt)\s+\*\*([a-z]+)\*\*[.,]?/i);
+    if(mFeel){ answers.push({key:"n"+mFeel[1], val:mFeel[2]}); continue; }
+
+    // Паттерн 2b: "I feel relaxed." — feel + обычное слово в конце
+    const mFeelEnd = trimmed.match(/^(\d+)[.):].*?(?:feel|feels|felt)\s+([a-z]+)[.,]?\s*$/i);
+    if(mFeelEnd){ answers.push({key:"n"+mFeelEnd[1], val:mFeelEnd[2]}); continue; }
+
+    // Паттерн 3: "He feels so excited." — последнее слово после feel/is/got
+    const mSoEnd = trimmed.match(/^(\d+)[.):].*?(?:is\s+so|feels\s+so|feels|is|got)\s+([a-z]+)[.,]?$/i);
     if(mSoEnd){ answers.push({key:"n"+mSoEnd[1], val:mSoEnd[2]}); continue; }
 
     // Паттерн 3: "a. word" или "1. word"  

@@ -4635,17 +4635,8 @@ async function fillPdfFromAnswer(turnId){
         {type:"text",text:prompt}
       ]}]
     });
-    let resp;
-    if(isMobile){
-      resp = await proxyFetch("https://api.anthropic.com/v1/messages",{"x-api-key":keys.claude,"anthropic-version":"2023-06-01"},body);
-    } else {
-      const r = await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":keys.claude,"anthropic-version":"2023-06-01"},
-        body
-      });
-      resp = await r.json();
-    }
+    // Всегда через прокси — прямой fetch Claude заблокирован CORS
+    const resp = await proxyFetch("https://api.anthropic.com/v1/messages",{"x-api-key":keys.claude,"anthropic-version":"2023-06-01"},body);
     const raw = resp.content?.[0]?.text||"";
     const clean = raw.replace(/```json|```/g,"").trim();
     const start = clean.indexOf("{");

@@ -4576,33 +4576,7 @@ function escRtf(s){ return (s||"").replace(/\\/g,"\\\\").replace(/\{/g,"\\{").re
 // ════════════════════════════════════════════════════════════════
 
 async function fillPdfFromAnswer(turnId){
-  // 1. Универсальный поиск текста ответа
-  let answerText = "";
-  const tryIds = [
-    turnId,
-    turnId+"_text",
-    turnId+"_consolidated",
-    turnId.replace(/_text$/,""),
-    turnId.replace(/_text$/,"")+"_consolidated",
-    turnId.replace(/_text$/,"")+"_text",
-  ];
-  for(const id of tryIds){
-    const el = document.getElementById(id);
-    if(!el) continue;
-    const t = el.dataset.raw || el.innerText || el.textContent || "";
-    if(t.trim().length > 10){ answerText = t; break; }
-    // Ищем внутри контейнера
-    const children = el.querySelectorAll("div,p,span");
-    for(const child of children){
-      const ct = child.dataset.raw || child.innerText || "";
-      if(ct.trim().length > 20){ answerText = ct; break; }
-    }
-    if(answerText) break;
-  }
-  if(!answerText){ showToast("❌ Нет ответа для заполнения"); return; }
-
-
-  // 2. Находим файл
+  // 1. Находим файл
   const chat = getChat();
   let pdfFile = null, imgFile = null;
   const msgs = chat.messages || [];
@@ -4618,76 +4592,207 @@ async function fillPdfFromAnswer(turnId){
   }
   if(!pdfFile && !imgFile){ showToast("❌ Загрузи PDF или изображение задания"); return; }
 
-  // 3. Парсим ответы
-  const cleanText = answerText.replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/#{1,3}\s/g,"").replace(/`([^`]+)`/g,"$1");
-  const lines = cleanText.split(/\n/);
-  const answers = [];
-  for(const line of lines){
-    const trimmed = line.trim();
-    if(!trimmed) continue;
+  showToast("⏳ Claude анализирует пропуски...");
 
-    // Паттерн 1a: слово в _..._
-    const mUnder = trimmed.match(/^(\d+)[.):].*?_([a-z/]+)_/i);
-    if(mUnder){ answers.push({key:"n"+mUnder[1], val:mUnder[2]}); continue; }
-
-    // Паттерн 1b: слово в **...** (жирный) — в любом месте строки
-    const mBold = trimmed.match(/^(\d+)[.):].*?\*\*([a-z/]+)\*\*/i);
-    if(mBold){ answers.push({key:"n"+mBold[1], val:mBold[2]}); continue; }
-
-    // Паттерн 2a: любое **слово** в строке — самый универсальный
-    const mAnyBold = trimmed.match(/^(\d+)[.):].*?\*\*([a-z]+)\*\*/i);
-    if(mAnyBold){ answers.push({key:"n"+mAnyBold[1], val:mAnyBold[2]}); continue; }
-
-    // Паттерн 2b: "She is worried." / "She feels scared." — последнее слово (жирное убрано)
-    // Сначала убираем markdown из строки и берём последнее слово
-    const stripped = trimmed.replace(/\*\*([^*]+)\*\*/g,"$1").replace(/\*([^*]+)\*/g,"$1").replace(/_([^_]+)_/g,"$1");
-    const mIsEnd = stripped.match(/^(\d+)[.):].*?(?:is|feels?|felt|got|was)\s+([a-z]+)[.,]?\s*$/i);
-    if(mIsEnd){ answers.push({key:"n"+mIsEnd[1], val:mIsEnd[2]}); continue; }
-
-    // Паттерн 2c: просто последнее слово строки (без точки)
-    const mLast = stripped.match(/^(\d+)[.):].*\s([a-z]{3,15})[.,]?\s*$/i);
-    if(mLast && !["the","and","for","but","she","her","his","him","they","are","was","not","can"].includes(mLast[2].toLowerCase())){
-      answers.push({key:"n"+mLast[1], val:mLast[2]}); continue;
-    }
-
-    // Паттерн 3: "a. word" или "1. word"  
-    const m1 = trimmed.match(/^([a-z])[.):]\s*([\w/]+)/i);
-    if(m1){ answers.push({key:m1[1].toLowerCase(), val:m1[2]}); continue; }
-
-    // Паттерн 4: "1. is/feels + слово"
-    const m2 = trimmed.match(/^(\d+)[.):]?\s+(?:\w+\s+)?(?:is\s+so\s+|is\s+|feels\s+so\s+|feels\s+)([a-z/]+)/i);
-    if(m2){ answers.push({key:"n"+m2[1], val:m2[2]}); continue; }
-
-    // Паттерн 5: просто "1. слово"
-    const m3 = trimmed.match(/^(\d+)[.):]\s*([a-zA-Z/]{2,20})$/);
-    if(m3){ answers.push({key:"n"+m3[1], val:m3[2]}); continue; }
-  }
-  if(!answers.length){ showToast("⚠️ Не удалось распознать ответы"); return; }
-
-  showToast("⏳ Открываю редактор PDF...");
-
-  // 4. Конвертируем в изображение для отображения
-  let imgUrl = "";
-  if(imgFile){
-    imgUrl = "data:"+imgFile.type+";base64,"+imgFile.b64;
-  } else if(pdfFile && window.pdfjsLib){
+  // 2. Конвертируем в base64 изображение
+  let imgB64 = "", imgType = "image/jpeg";
+  if(imgFile){ imgB64 = imgFile.b64; imgType = imgFile.type||"image/jpeg"; }
+  else if(pdfFile && window.pdfjsLib){
     try{
-      const binStr = atob(pdfFile.b64);
-      const arr = new Uint8Array(binStr.length);
-      for(let i=0;i<binStr.length;i++) arr[i]=binStr.charCodeAt(i);
+      const bin = atob(pdfFile.b64);
+      const arr = new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
       const pdf = await pdfjsLib.getDocument({data:arr}).promise;
       const page = await pdf.getPage(1);
-      const vp = page.getViewport({scale:1.5});
+      const vp = page.getViewport({scale:2});
       const canvas = document.createElement("canvas");
       canvas.width=vp.width; canvas.height=vp.height;
       await page.render({canvasContext:canvas.getContext("2d"),viewport:vp}).promise;
-      imgUrl = canvas.toDataURL("image/png");
-    }catch(e){ imgUrl=""; }
+      imgB64 = canvas.toDataURL("image/jpeg",0.9).split(",")[1];
+      imgType = "image/jpeg";
+    }catch(e){ showToast("❌ Ошибка чтения PDF: "+e.message); return; }
+  }
+  if(!imgB64){ showToast("❌ Не удалось получить изображение"); return; }
+
+  // 3. Спрашиваем Claude где пропуски и какие ответы
+  const keys = getKeys();
+  if(!keys.claude){ showToast("❌ Нужен ключ Claude"); return; }
+
+  const prompt = `Проанализируй это учебное задание с пропусками (___).
+Найди все пропуски и верные ответы для них.
+Верни ТОЛЬКО JSON в таком формате (без пояснений, без markdown):
+{"items":[{"n":1,"answer":"слово","x":0.25,"y":0.45},{"n":2,"answer":"слово","x":0.55,"y":0.45}]}
+Где x,y — относительные координаты пропуска (от 0 до 1, x=0 левый край, y=0 верхний край).
+Координаты должны указывать точно на место пропуска в тексте.`;
+
+  let coordData;
+  try{
+    const body = JSON.stringify({
+      model:"claude-sonnet-4-6",
+      max_tokens:2000,
+      messages:[{role:"user",content:[
+        {type:"image",source:{type:"base64",media_type:imgType,data:imgB64}},
+        {type:"text",text:prompt}
+      ]}]
+    });
+    let resp;
+    if(isMobile){
+      resp = await proxyFetch("https://api.anthropic.com/v1/messages",{"x-api-key":keys.claude,"anthropic-version":"2023-06-01"},body);
+    } else {
+      const r = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":keys.claude,"anthropic-version":"2023-06-01"},
+        body
+      });
+      resp = await r.json();
+    }
+    const raw = resp.content?.[0]?.text||"";
+    const clean = raw.replace(/```json|```/g,"").trim();
+    const start = clean.indexOf("{");
+    const end = clean.lastIndexOf("}");
+    coordData = JSON.parse(clean.slice(start, end+1));
+  }catch(e){
+    showToast("❌ Ошибка анализа: "+e.message);
+    return;
   }
 
-  // 5. Показываем интерактивный редактор
-  showPdfInteractiveEditor(imgUrl, answers, pdfFile, imgFile);
+  if(!coordData?.items?.length){ showToast("⚠️ Пропуски не найдены"); return; }
+  showToast("✅ Найдено "+coordData.items.length+" пропусков — открываю редактор");
+
+  // 4. Показываем интерактивный редактор с автоматически размещёнными словами
+  const imgUrl = "data:"+imgType+";base64,"+imgB64;
+  showAutoFilledEditor(imgUrl, coordData.items, pdfFile, imgFile, imgB64, imgType);
 }
+
+function showAutoFilledEditor(imgUrl, items, pdfFile, imgFile, imgB64, imgType){
+  let existing = document.getElementById("pdfEditorModal");
+  if(existing) existing.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "pdfEditorModal";
+  modal.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;overflow:hidden";
+
+  modal.innerHTML = `
+    <div style="background:#1e293b;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0">
+      <span style="color:#fff;font-weight:700;font-size:14px">📝 Автозаполнение — перемести или отредактируй слово</span>
+      <span style="color:#94a3b8;font-size:12px">• Перетащи чтобы переместить • Двойной клик — изменить текст</span>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button id="pdfSaveBtn" style="padding:6px 16px;background:#6366f1;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;font-weight:600">⬇️ Скачать PDF</button>
+        <button onclick="document.getElementById('pdfEditorModal').remove()" style="padding:6px 12px;background:#374151;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer">✕</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow:auto;background:#374151;display:flex;align-items:flex-start;justify-content:center;padding:16px">
+      <div id="pdfCanvas" style="position:relative;display:inline-block">
+        <img id="pdfImg" src="${imgUrl}" style="display:block;max-width:900px;width:100%;user-select:none">
+        <div id="pdfLabels"></div>
+      </div>
+    </div>`;
+
+  document.body.appendChild(modal);
+
+  // Ждём загрузки изображения и размещаем слова
+  const img = document.getElementById("pdfImg");
+  const placeLabels = () => {
+    const labelsDiv = document.getElementById("pdfLabels");
+    labelsDiv.innerHTML = "";
+    const iw = img.offsetWidth;
+    const ih = img.offsetHeight;
+
+    items.forEach((item, idx) => {
+      const x = item.x * iw;
+      const y = item.y * ih;
+
+      const label = document.createElement("div");
+      label.style.cssText = `position:absolute;left:${x}px;top:${y}px;color:#0000cc;font-weight:700;font-size:14px;background:rgba(255,255,200,0.9);padding:1px 5px;border-radius:3px;cursor:move;border:1px solid #6366f1;white-space:nowrap;transform:translate(-50%,-50%)`;
+      label.textContent = item.answer;
+      label.dataset.x = x;
+      label.dataset.y = y;
+
+      // Перетаскивание
+      label.onmousedown = (me) => {
+        if(me.detail === 2) return; // двойной клик — редактирование
+        me.preventDefault();
+        const canvas = document.getElementById("pdfCanvas");
+        const rect = canvas.getBoundingClientRect();
+        const startX = me.clientX - parseFloat(label.style.left);
+        const startY = me.clientY - parseFloat(label.style.top);
+        const onMove = (mv) => {
+          const nx = mv.clientX - startX;
+          const ny = mv.clientY - startY;
+          label.style.left = nx+"px";
+          label.style.top = ny+"px";
+          label.dataset.x = nx;
+          label.dataset.y = ny;
+        };
+        const onUp = () => {
+          document.removeEventListener("mousemove",onMove);
+          document.removeEventListener("mouseup",onUp);
+        };
+        document.addEventListener("mousemove",onMove);
+        document.addEventListener("mouseup",onUp);
+      };
+
+      // Двойной клик — редактировать текст
+      label.ondblclick = () => {
+        const newVal = prompt("Исправь ответ:", label.textContent);
+        if(newVal !== null) label.textContent = newVal.trim();
+      };
+
+      labelsDiv.appendChild(label);
+    });
+  };
+
+  if(img.complete) placeLabels();
+  else img.onload = placeLabels;
+
+  // Скачать PDF
+  document.getElementById("pdfSaveBtn").onclick = async () => {
+    const { PDFDocument, rgb, StandardFonts } = PDFLib;
+    let pdfBytes;
+    if(pdfFile){
+      const bin = atob(pdfFile.b64);
+      pdfBytes = new Uint8Array(bin.length);
+      for(let i=0;i<bin.length;i++) pdfBytes[i]=bin.charCodeAt(i);
+    } else {
+      const newPdf = await PDFDocument.create();
+      const imgData = Uint8Array.from(atob(imgB64),c=>c.charCodeAt(0));
+      let emb = imgType==="image/png" ? await newPdf.embedPng(imgData) : await newPdf.embedJpg(imgData);
+      const p = newPdf.addPage([emb.width,emb.height]);
+      p.drawImage(emb,{x:0,y:0,width:emb.width,height:emb.height});
+      pdfBytes = await newPdf.save();
+    }
+
+    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const page = pdfDoc.getPages()[0];
+    const {width:pw,height:ph} = page.getSize();
+    const img2 = document.getElementById("pdfImg");
+    const dispW = img2.offsetWidth, dispH = img2.offsetHeight;
+
+    document.querySelectorAll("#pdfLabels div").forEach(lbl => {
+      const domX = parseFloat(lbl.dataset.x||lbl.style.left);
+      const domY = parseFloat(lbl.dataset.y||lbl.style.top);
+      const text = (lbl.textContent||"").trim().substring(0,30);
+      if(!text) return;
+      const pdfX = (domX/dispW)*pw;
+      const pdfY = ph - (domY/dispH)*ph - 8;
+      page.drawText(text,{
+        x:Math.max(2,Math.min(pdfX,pw-80)),
+        y:Math.max(2,Math.min(pdfY,ph-5)),
+        size:11, font, color:rgb(0,0,0.8)
+      });
+    });
+
+    const bytes = await pdfDoc.save();
+    const blob = new Blob([bytes],{type:"application/pdf"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href=url; a.download="filled_task.pdf"; a.click();
+    URL.revokeObjectURL(url);
+    showToast("✅ PDF скачан!");
+  };
+}
+
 
 function showPdfInteractiveEditor(imgUrl, answers, pdfFile, imgFile){
   let existing = document.getElementById("pdfEditorModal");

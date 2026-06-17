@@ -826,14 +826,14 @@ function openVaultUpload(){
   inp.click();
 }
 
-function addToHealthVault(name, text, type){
+function addToHealthVault(name, text, type, cardId){
   // Vault отдельный для каждого профиля
   if(!window.allProfilesData) window.allProfilesData = {};
   if(!window.allProfilesData[activeProfile]) window.allProfilesData[activeProfile] = {};
   var pd = window.allProfilesData[activeProfile];
   if(!pd.documents) pd.documents = [];
   pd.documents = pd.documents.filter(function(d){return d.name!==name;});
-  pd.documents.push({name:name, text:(text||"").slice(0,8000), type:type, date:new Date().toISOString().split("T")[0]});
+  pd.documents.push({name:name, text:(text||"").slice(0,8000), type:type, date:new Date().toISOString().split("T")[0], cardId:cardId||null});
   window.healthData.documents = pd.documents; // синхронизируем
   window.healthData.lastUpdated = Date.now();
   // Сохраняем в localStorage
@@ -1083,10 +1083,11 @@ function buildBioRows(){
       var vals = window.healthData.biomarkers[bm.n] || [];
       var last = vals.length ? vals[vals.length-1] : null;
       var cnt = vals.length > 1 ? ('<span style="color:#4f46e5;cursor:pointer;font-size:11px" onclick="hTab(\'trends\')">' + vals.length + 'x 📈</span>') : "";
+      var delBtn = last ? '<button onclick="deleteBiomarker(\''+bm.n+'\',\''+last.date+'\',\'all\')" style="background:none;border:none;color:#ef4444;font-size:13px;cursor:pointer;padding:1px 4px" title="Удалить все записи">🗑</button>' : '';
       h += '<tr><td style="padding:4px 8px;font-size:12px;color:#334155;width:45%"><b>' + bm.n + '</b></td>';
       h += '<td style="padding:4px 4px"><input type="number" step="0.01" id="bio_' + bm.n.replace(/\s/g,"_") + '" placeholder="' + bm.u + '" value="' + (last?last.value:"") + '" style="width:85px;padding:4px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px"></td>';
       h += '<td style="font-size:11px;color:#6b7280;padding:4px">' + (last ? "от "+last.date : "—") + '</td>';
-      h += '<td style="padding:4px">' + cnt + '</td></tr>';
+      h += '<td style="padding:4px">' + cnt + ' ' + delBtn + '</td></tr>';
     });
     h += '</table>';
   });
@@ -1129,14 +1130,38 @@ function buildVaultList(){
 function removeFromVault(idx){
   var pd = (window.allProfilesData && window.allProfilesData[activeProfile]) || {};
   if(!pd.documents) return;
-  var name = pd.documents[idx]?.name;
+  var doc = pd.documents[idx];
+  var name = doc?.name;
+  var docId = doc?.cardId; // ID карточки для поиска биомаркеров
+  var docDate = doc?.date;
+  
+  // Удаляем биомаркеры связанные с этим документом
+  var removedMarkers = 0;
+  if(window.healthData.biomarkers){
+    Object.keys(window.healthData.biomarkers).forEach(function(bname){
+      var before = window.healthData.biomarkers[bname].length;
+      window.healthData.biomarkers[bname] = window.healthData.biomarkers[bname].filter(function(e){
+        // Удаляем если source совпадает с cardId или дата совпадает с датой документа
+        if(docId && e.source === docId) return false;
+        return true;
+      });
+      removedMarkers += before - window.healthData.biomarkers[bname].length;
+      // Очищаем пустые массивы
+      if(window.healthData.biomarkers[bname].length === 0) delete window.healthData.biomarkers[bname];
+    });
+    pd.biomarkers = window.healthData.biomarkers;
+  }
+  
   pd.documents.splice(idx, 1);
   window.healthData.documents = pd.documents;
+  
+  // Сохраняем
+  localStorage.setItem("ai_hub_all_profiles_data", JSON.stringify(window.allProfilesData||{}));
   if(window.cloudSync && window.cloudSync.userId){
+    window.cloudSync.saveBiomarkers(window.healthData.biomarkers);
     window.cloudSync.saveWearable({"__profiles":JSON.stringify(FAMILY_PROFILES),"__allData":JSON.stringify(window.allProfilesData)});
   }
-  showToast("🗑 Удалён из Vault: " + (name||""));
-  // Обновляем вкладку Vault если открыта
+  showToast("🗑 Удалён из Vault: " + (name||"") + (removedMarkers?" + "+removedMarkers+" биомаркеров":""));
   var vc = document.getElementById("htab_vault_c");
   if(vc) vc.innerHTML = buildVaultList();
 }
@@ -2895,8 +2920,10 @@ function handleHealthVaultUpload(files){
           card.style.cssText="background:#f0fdf4;border:1px solid #4ade80;border-radius:12px;padding:12px 14px;";
           card.innerHTML="<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px'>"
             +"<span style='font-size:20px'>"+medType.icon+"</span>"
-            +"<div><div style='font-size:13px;font-weight:700;color:#15803d'>"+file.name+"</div>"
-            +"<div style='font-size:11px;color:#6b7280'>"+medType.type+" · Vision AI</div></div></div>"
+            +"<div style='flex:1'><div style='font-size:13px;font-weight:700;color:#15803d'>"+file.name+"</div>"
+            +"<div style='font-size:11px;color:#6b7280'>"+medType.type+" · Vision AI</div></div>"
+            +'<button onclick="deleteHealthCard(\'"+cardId+"\')" style="background:none;border:none;color:#ef4444;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0" title="Удалить">🗑</button>'
+            +"</div>"
             +"<div id='"+cardId+"_status' style='font-size:12px;color:#6366f1'>⏳ Сжимаю изображение...</div>";
           msgsEl.appendChild(card); scrollToBottom();
         }
@@ -2989,10 +3016,42 @@ async function extractFromImageWithVision(apiKey, filename, b64, mimeType, docTy
   }
 }
 
+
+
+function deleteBiomarker(name, date, mode){
+  var msg = mode==="all" ? "Удалить ВСЕ записи для '"+name+"'?" : "Удалить запись '"+name+"' от "+date+"?";
+  if(!confirm(msg)) return;
+  if(!window.healthData.biomarkers[name]) return;
+  if(mode==="all"){
+    delete window.healthData.biomarkers[name];
+  } else {
+    window.healthData.biomarkers[name] = window.healthData.biomarkers[name].filter(function(e){return e.date!==date;});
+    if(window.healthData.biomarkers[name].length===0) delete window.healthData.biomarkers[name];
+  }
+  var pd = getProfileData();
+  pd.biomarkers = window.healthData.biomarkers;
+  localStorage.setItem("ai_hub_all_profiles_data", JSON.stringify(window.allProfilesData||{}));
+  if(window.cloudSync && window.cloudSync.userId) window.cloudSync.saveBiomarkers(window.healthData.biomarkers);
+  showToast("🗑 Удалено: "+name);
+  // Перерисовываем вкладку Анализы
+  var ac = document.getElementById("htab_analyses_c");
+  if(ac) ac.innerHTML = buildAnalysesTab();
+}
+
+function deleteHealthCard(cardId){
+  if(!confirm("Удалить этот документ из Health Vault?")) return;
+  // Удаляем карточку из UI
+  var card = document.getElementById(cardId);
+  if(card){ card.style.opacity="0"; card.style.transition="opacity 0.3s"; setTimeout(()=>card.remove(),300); }
+  // Данные остаются в Health Vault (биомаркеры уже сохранены)
+  // Но удаляем из списка загруженных файлов vault если есть
+  showToast("🗑 Документ удалён");
+}
+
 function processVaultFile(filename, text, claudeKey){
   var medType = detectMedDocType(filename, text);
-  addToHealthVault(filename, text, medType.type);
   var cardId = "vault_card_"+Date.now();
+  addToHealthVault(filename, text, medType.type, cardId);
       var msgsEl = document.getElementById("messages");
       if(msgsEl){
         var card = document.createElement("div");
@@ -3001,8 +3060,10 @@ function processVaultFile(filename, text, claudeKey){
         card.style.cssText = "background:#f0fdf4;border:1px solid #4ade80;border-radius:12px;padding:12px 14px;";
         card.innerHTML = "<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px'>"
           + "<span style='font-size:20px'>"+medType.icon+"</span>"
-          + "<div><div style='font-size:13px;font-weight:700;color:#15803d'>"+file.name+"</div>"
-          + "<div style='font-size:11px;color:#6b7280'>"+medType.type+" · Сохранён в Vault</div></div></div>"
+          + "<div style='flex:1'><div style='font-size:13px;font-weight:700;color:#15803d'>"+file.name+"</div>"
+          + "<div style='font-size:11px;color:#6b7280'>"+medType.type+" · Сохранён в Vault</div></div>"
+          + '<button onclick="deleteHealthCard(\'"+cardId+"\')" style="background:none;border:none;color:#ef4444;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0" title="Удалить">🗑</button>'
+          + "</div>"
           + "<div id='"+cardId+"_status' style='font-size:12px;color:#6366f1'>🤖 AI извлекает показатели...</div>";
         msgsEl.appendChild(card);
         scrollToBottom();
@@ -3035,7 +3096,7 @@ function saveParsedBiomarkers(markers, cardId){
     var markerDate = m.date || date;
     if(!window.healthData.biomarkers[m.name]) window.healthData.biomarkers[m.name] = [];
     window.healthData.biomarkers[m.name] = window.healthData.biomarkers[m.name].filter(function(e){return e.date!==markerDate;});
-    window.healthData.biomarkers[m.name].push({date:markerDate, value:m.value, unit:m.unit||""});
+    window.healthData.biomarkers[m.name].push({date:markerDate, value:m.value, unit:m.unit||"", source:cardId});
     window.healthData.biomarkers[m.name].sort(function(a,b){return a.date>b.date?1:-1;});
     saved++;
   });
@@ -3055,6 +3116,16 @@ function saveParsedBiomarkers(markers, cardId){
       +"</div>";
   }).join("");
   if(statusEl){
+    // Add delete button if not already there
+    var cardEl = statusEl ? statusEl.closest ? statusEl.closest("[id^='vault_card_']") : null : null;
+    if(cardEl && !cardEl.querySelector("button[title='Удалить']")){
+      var delBtn = document.createElement("button");
+      delBtn.onclick = function(){ deleteHealthCard(cardEl.id); };
+      delBtn.title = "Удалить"; delBtn.textContent = "🗑";
+      delBtn.style.cssText = "background:none;border:none;color:#ef4444;font-size:16px;cursor:pointer;padding:2px 6px;border-radius:4px;flex-shrink:0";
+      var headerDiv = cardEl.querySelector("div");
+      if(headerDiv) headerDiv.appendChild(delBtn);
+    }
     statusEl.innerHTML = "<div style='color:#15803d;font-weight:600;margin-bottom:6px'>✅ Извлечено "+saved+" показателей:</div>"
       + lights
       + (markers.length>12?"<div style='font-size:11px;color:#6b7280;margin-top:4px'>...и ещё "+(markers.length-12)+"</div>":"")
@@ -4142,11 +4213,13 @@ function renderMessages(){
     return;
   }
   const msgs=chat.messages;
-  for(let i=0;i<msgs.length;i+=2){
-    const user=msgs[i], assistant=msgs[i+1];
-    // User bubble
-    appendUserBubble(user.content||"", user.files||[]);
-    // Assistant
+  // Фильтруем сообщения по роли — строго
+  const userMsgs=[], assistantMsgs=[];
+  msgs.forEach(function(m){ if(m.role==="user") userMsgs.push(m); else if(m.role==="assistant") assistantMsgs.push(m); });
+  const pairCount=Math.max(userMsgs.length, assistantMsgs.length);
+  for(let i=0;i<pairCount;i++){
+    const user=userMsgs[i], assistant=assistantMsgs[i];
+    if(user) appendUserBubble(user.content||"", user.files||[]);
     if(assistant){
       const tid="hist_"+i;
       const agents=getAgents();

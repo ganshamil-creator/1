@@ -22,7 +22,8 @@
     });
   </script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
   <!-- Firebase SDK -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -818,7 +819,7 @@ function compressImage(dataUrl, maxSize, quality){
 function openVaultUpload(){
   var inp = document.createElement("input");
   inp.type = "file";
-  inp.accept = ".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx";
+  inp.accept = ".pdf,.jpg,.jpeg,.png,.txt,.doc,.docx,.xlsx,.xls,.csv";
   inp.multiple = true;
   inp.onchange = function(){
     handleHealthVaultUpload(inp.files);
@@ -2873,6 +2874,52 @@ function handleFiles(input){
         if(txt) obj.text="[OCR текст]\n"+txt;
         if(sendBtn){sendBtn.disabled=false;sendBtn.textContent="↑";sendBtn.style.background="linear-gradient(135deg,#6366f1,#8b5cf6)";}
         showToast(txt?"✅ OCR: "+txt.length+" символов":"⚠️ Текст не распознан (визуальный анализ через AI)");
+      } else if(f.name.endsWith(".docx")||f.type==="application/vnd.openxmlformats-officedocument.wordprocessingml.document"){
+        // Читаем DOCX через mammoth
+        showToast("📄 Читаю DOCX: "+f.name);
+        try{
+          if(window.mammoth){
+            const arrBuf=await f.arrayBuffer();
+            const result=await mammoth.extractRawText({arrayBuffer:arrBuf});
+            if(result.value && result.value.length>10){
+              obj.text=result.value;
+              showToast("✅ DOCX прочитан: "+result.value.length+" символов");
+            } else {
+              showToast("⚠️ DOCX: текст не извлечён");
+            }
+          } else {
+            // Mammoth не загружен — пробуем base64 decode
+            try{ obj.text = decodeURIComponent(escape(atob(b64))); }catch(e){}
+            showToast("⚠️ Mammoth не загружен — частичное чтение");
+          }
+        }catch(docxErr){ showToast("⚠️ Ошибка чтения DOCX: "+docxErr.message); }
+      } else if(f.name.endsWith(".doc")||f.type==="application/msword"){
+        showToast("⚠️ Формат .doc не поддерживается. Сохрани как .docx");
+      } else if(f.name.endsWith(".xlsx")||f.name.endsWith(".xls")||
+                f.type==="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"||
+                f.type==="application/vnd.ms-excel"){
+        // Читаем Excel через SheetJS
+        showToast("📊 Читаю Excel: "+f.name);
+        try{
+          if(window.XLSX){
+            const arrBuf=await f.arrayBuffer();
+            const wb=XLSX.read(arrBuf,{type:"array"});
+            let text="";
+            wb.SheetNames.forEach(function(sheetName){
+              const ws=wb.Sheets[sheetName];
+              const csv=XLSX.utils.sheet_to_csv(ws,{blankrows:false});
+              if(csv.trim()) text+="[Лист: "+sheetName+"]\n"+csv+"\n\n";
+            });
+            if(text.trim().length>10){
+              obj.text=text.slice(0,15000); // ограничиваем контекст
+              showToast("✅ Excel прочитан: "+wb.SheetNames.length+" листов");
+            } else {
+              showToast("⚠️ Excel: данные не извлечены");
+            }
+          } else {
+            showToast("⚠️ XLSX библиотека не загружена");
+          }
+        }catch(xlsxErr){ showToast("⚠️ Ошибка чтения Excel: "+xlsxErr.message); }
       } else if(f.type.startsWith("text/")||f.name.endsWith(".txt")||f.name.endsWith(".md")||f.name.endsWith(".csv")){
         try{obj.text=atob(b64);}catch(e){}
       }

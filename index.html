@@ -1075,7 +1075,63 @@ function buildBioRows(){
     });
     h += '</table>';
   });
+  // ── Динамический блок: ВСЕ сохранённые показатели, которых нет в фиксированном списке выше ──
+  // (например, показатели ОАК, извлечённые из загруженного документа: СОЭ, Эритроциты, MCV и т.д.,
+  // а также качественные результаты типа "не обнаружено")
+  var fixedNames = {};
+  BIO_GROUPS.forEach(function(grp){ grp.items.forEach(function(bm){ fixedNames[bm.n] = true; }); });
+  var extraNames = Object.keys(window.healthData.biomarkers || {}).filter(function(n){ return !fixedNames[n]; });
+  if(extraNames.length){
+    var categorized = categorizeBiomarkerNames(extraNames);
+    Object.keys(categorized).forEach(function(catName){
+      var names = categorized[catName];
+      if(!names.length) return;
+      h += '<div style="font-size:11px;font-weight:700;color:#16a34a;padding:4px 8px;background:#f0fdf4;border-radius:6px;margin-bottom:5px;margin-top:10px">' + catName + ' <span style="color:#86efac;font-weight:400">(из загруженных документов)</span></div>';
+      h += '<table style="width:100%;border-collapse:collapse;margin-bottom:4px">';
+      names.forEach(function(name){
+        var vals = window.healthData.biomarkers[name] || [];
+        var last = vals.length ? vals[vals.length-1] : null;
+        if(!last) return;
+        var isQual = typeof last.value !== "number";
+        var cnt = vals.length > 1 ? ('<span style="color:#4f46e5;cursor:pointer;font-size:11px" onclick="hTab(\'trends\')">' + vals.length + 'x 📈</span>') : "";
+        var delBtn = '<button onclick="deleteBiomarker(\''+name.replace(/'/g,"\\'")+'\',\''+last.date+'\',\'all\')" style="background:none;border:none;color:#ef4444;font-size:13px;cursor:pointer;padding:1px 4px" title="Удалить все записи">🗑</button>';
+        var valueDisplay = isQual
+          ? '<span style="font-size:12px;font-weight:600;color:#475569">' + escHtml(last.qualitative||"") + '</span>'
+          : '<span style="font-size:12px;font-weight:600;color:#1e293b">' + last.value + ' ' + (last.unit||"") + '</span>';
+        h += '<tr><td style="padding:4px 8px;font-size:12px;color:#334155;width:45%"><b>' + name + '</b></td>';
+        h += '<td style="padding:4px 4px">' + valueDisplay + '</td>';
+        h += '<td style="font-size:11px;color:#6b7280;padding:4px">' + "от "+last.date + '</td>';
+        h += '<td style="padding:4px">' + cnt + ' ' + delBtn + '</td></tr>';
+      });
+      h += '</table>';
+    });
+  }
   return h;
+}
+
+// Группирует произвольные названия показателей по категориям на основе ключевых слов в названии.
+// Используется для динамического отображения показателей, которых нет в фиксированном списке BIO_GROUPS.
+function categorizeBiomarkerNames(names){
+  var groups = {
+    "Общий анализ крови": [],
+    "Инфекции / Серология": [],
+    "Гормоны": [],
+    "Печень / Почки": [],
+    "Витамины / Минералы": [],
+    "Другие показатели": []
+  };
+  var rules = [
+    {cat:"Общий анализ крови", re:/соэ|эритроцит|гематокрит|mcv|mch|mchc|rdw|тромбоцит|mpv|pct|нейтрофил|лимфоцит|моноцит|эозинофил|базофил|лейкоцит/i},
+    {cat:"Инфекции / Серология", re:/гепатит|hbsag|hcv|вич|hiv|антитела|antibod|rw|сифилис|covid|корона/i},
+    {cat:"Гормоны", re:/тестостерон|ттг|кортизол|эстрадиол|прогестерон|пролактин|дгэа|инсулин|т3|т4|лг|фсг/i},
+    {cat:"Печень / Почки", re:/алт|аст|билирубин|креатинин|мочевин|щелочная фосфатаза|ггт/i},
+    {cat:"Витамины / Минералы", re:/витамин|магний|цинк|железо|кальций|калий|натрий|фосфор/i}
+  ];
+  names.forEach(function(name){
+    var matched = rules.find(function(r){ return r.re.test(name); });
+    groups[matched ? matched.cat : "Другие показатели"].push(name);
+  });
+  return groups;
 }
 
 function buildWearRows(){
@@ -1100,15 +1156,47 @@ function buildVaultList(){
     h += '<div style="color:#94a3b8;font-size:13px;padding:20px 0;text-align:center">Нет загруженных документов.<br>Нажми "📂 Загрузить в Health Vault" в панели Health.</div>';
     return h;
   }
-  docs.forEach(function(d, i){
-    h += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;background:#fafafa">';
-    h += '<span style="font-size:20px">' + (d.icon||"📄") + '</span>';
-    h += '<div style="flex:1"><div style="font-size:13px;font-weight:600;color:#1e293b">' + d.name + '</div>';
-    h += '<div style="font-size:11px;color:#6b7280">' + d.type + ' · ' + d.date + '</div></div>';
-    h += '<button onclick="removeFromVault(' + i + ')" style="background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer" title="Удалить">🗑</button>';
-    h += '</div>';
-  });
+  // Нарративные заключения (УЗИ/МРТ/КТ/Рентген/ЭКГ) — текстовое описание врача, не таблица чисел
+  var narrativeTypes = {"МРТ":1,"КТ":1,"УЗИ":1,"Рентген":1,"ЭКГ":1};
+  var narrativeDocs = [], labDocs = [];
+  docs.forEach(function(d, i){ (narrativeTypes[d.type] ? narrativeDocs : labDocs).push({d:d, idx:i}); });
+
+  function renderDocCard(item, expandedByDefault){
+    var d = item.d, i = item.idx;
+    var hasText = d.text && d.text.trim().length > 0;
+    var vaultDocId = "vaultdoc_" + i;
+    var s = '<div style="border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;background:#fafafa;overflow:hidden">';
+    s += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px">';
+    s += '<span style="font-size:20px">' + (d.icon||"📄") + '</span>';
+    s += '<div style="flex:1"><div style="font-size:13px;font-weight:600;color:#1e293b">' + escHtml(d.name) + '</div>';
+    s += '<div style="font-size:11px;color:#6b7280">' + escHtml(d.type) + ' · ' + d.date + '</div></div>';
+    if(hasText){
+      s += '<button onclick="toggleVaultDocText(\'' + vaultDocId + '\')" style="background:none;border:none;color:#6366f1;font-size:12px;cursor:pointer;font-weight:600;white-space:nowrap" title="Показать/скрыть текст заключения">📄 Текст</button>';
+    }
+    s += '<button onclick="removeFromVault(' + i + ')" style="background:none;border:none;color:#94a3b8;font-size:16px;cursor:pointer" title="Удалить">🗑</button>';
+    s += '</div>';
+    if(hasText){
+      s += '<div id="' + vaultDocId + '" style="display:' + (expandedByDefault?"block":"none") + ';padding:10px 12px;border-top:1px solid #e2e8f0;background:#fff;font-size:12px;color:#334155;white-space:pre-wrap;max-height:260px;overflow-y:auto;line-height:1.6">' + escHtml(d.text) + '</div>';
+    }
+    s += '</div>';
+    return s;
+  }
+
+  if(narrativeDocs.length){
+    h += '<div style="font-size:12px;font-weight:700;color:#7c3aed;padding:5px 8px;background:#f5f3ff;border-radius:6px;margin-bottom:6px">🖼️ Заключения визуализации (УЗИ / МРТ / КТ / Рентген / ЭКГ)</div>';
+    narrativeDocs.forEach(function(item){ h += renderDocCard(item, true); });
+  }
+  if(labDocs.length){
+    if(narrativeDocs.length) h += '<div style="font-size:12px;font-weight:700;color:#6366f1;padding:5px 8px;background:#eff6ff;border-radius:6px;margin-bottom:6px;margin-top:10px">🩸 Анализы и прочие документы</div>';
+    labDocs.forEach(function(item){ h += renderDocCard(item, false); });
+  }
   return h;
+}
+
+function toggleVaultDocText(id){
+  var el = document.getElementById(id);
+  if(!el) return;
+  el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
 function removeFromVault(idx){
@@ -1179,14 +1267,23 @@ function buildSamsungTab(){
 
 function buildTrendHtml(){
   var h = "";
-  var bkeys = Object.keys(window.healthData.biomarkers).filter(function(k){
-    return window.healthData.biomarkers[k] && window.healthData.biomarkers[k].length > 1;
+  var allKeys = Object.keys(window.healthData.biomarkers || {});
+  // Числовые показатели с 2+ измерениями — строим график
+  var numericKeys = allKeys.filter(function(k){
+    var vals = window.healthData.biomarkers[k] || [];
+    var numericVals = vals.filter(function(v){ return typeof v.value === "number"; });
+    return numericVals.length > 1;
   });
-  if(!bkeys.length){
+  // Качественные показатели (хотя бы 1 запись без числового value) — список без графика
+  var qualitativeKeys = allKeys.filter(function(k){
+    var vals = window.healthData.biomarkers[k] || [];
+    return vals.some(function(v){ return typeof v.value !== "number" && v.qualitative; });
+  });
+  if(!numericKeys.length && !qualitativeKeys.length){
     return '<div style="color:#94a3b8;font-size:13px;padding:20px 0">Введи минимум 2 измерения одного биомаркера чтобы увидеть тренд</div>';
   }
-  bkeys.forEach(function(name){
-    var vals = window.healthData.biomarkers[name];
+  numericKeys.forEach(function(name){
+    var vals = (window.healthData.biomarkers[name]||[]).filter(function(v){ return typeof v.value === "number"; });
     var mn = Math.min.apply(null, vals.map(function(v){return v.value;}));
     var mx = Math.max.apply(null, vals.map(function(v){return v.value;}));
     var rng = mx - mn || 1;
@@ -1207,6 +1304,21 @@ function buildTrendHtml(){
     });
     h += '</div></div>';
   });
+  // Качественные результаты — показываем как историю значений без графика
+  if(qualitativeKeys.length){
+    h += '<div style="font-size:11px;font-weight:700;color:#7c3aed;padding:4px 8px;background:#f5f3ff;border-radius:6px;margin-bottom:8px;margin-top:6px">📋 Качественные результаты (без графика)</div>';
+    qualitativeKeys.forEach(function(name){
+      var vals = (window.healthData.biomarkers[name]||[]).filter(function(v){ return typeof v.value !== "number"; });
+      h += '<div style="margin-bottom:10px;background:#f8fafc;border-radius:10px;padding:10px 12px">';
+      h += '<div style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:6px">' + name + '</div>';
+      vals.forEach(function(v){
+        h += '<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;border-bottom:1px solid #f1f5f9">';
+        h += '<span style="color:#475569">' + escHtml(v.qualitative||"") + '</span>';
+        h += '<span style="color:#94a3b8;font-size:11px">' + v.date + '</span></div>';
+      });
+      h += '</div>';
+    });
+  }
   return h;
 }
 
@@ -1478,7 +1590,23 @@ var BIO_NORMS = {
   "АСТ":            {lo:0,   hi:35,  unit:"Ед/л"},
   "Креатинин":      {lo:44,  hi:106, unit:"мкмоль/л"},
   "Тестостерон":    {lo:8.6, hi:29,  unit:"нмоль/л"},
-  "ДГЭА-С":         {lo:3.0, hi:10,  unit:"мкмоль/л"}
+  "ДГЭА-С":         {lo:3.0, hi:10,  unit:"мкмоль/л"},
+  // ── Общий анализ крови (ОАК) — стандартные нормы для взрослых ──
+  "СОЭ":            {lo:0,   hi:15,  unit:"мм/час"},
+  "Эритроциты":     {lo:3.9, hi:5.7, unit:"10¹²/л"},
+  "Гематокрит":     {lo:35,  hi:52,  unit:"%"},
+  "Средний объем эритроцитов (MCV)":            {lo:80,  hi:100, unit:"фл"},
+  "Среднее содержание гемоглобина в эритроците (MCH)": {lo:27,  hi:34,  unit:"пг"},
+  "Средняя концентрация Hb в эритроцитах (MCHC)":      {lo:32,  hi:36,  unit:"г/дл"},
+  "Ширина распределения эритроцитов по объему (RDW)":  {lo:11.5,hi:14.5,unit:"%"},
+  "Тромбоциты":     {lo:150, hi:400, unit:"10⁹/л"},
+  "Средний объем тромбоцитов (MPV)":            {lo:7.5, hi:11.5, unit:"фл"},
+  "Тромбокрит (PCT)": {lo:0.15,hi:0.4, unit:"%"},
+  "Нейтрофилы":     {lo:1.8, hi:7.7,  unit:"10⁹/л"},
+  "Лимфоциты":      {lo:1.0, hi:4.8,  unit:"10⁹/л"},
+  "Моноциты":       {lo:0.1, hi:1.0,  unit:"10⁹/л"},
+  "Эозинофилы":     {lo:0.0, hi:0.5,  unit:"10⁹/л"},
+  "Базофилы":       {lo:0.0, hi:0.2,  unit:"10⁹/л"}
 };
 
 function getBioStatus(name, value){
@@ -3067,18 +3195,46 @@ function deleteBiomarker(name, date, mode){
   if(window.cloudSync && window.cloudSync.userId) window.cloudSync.saveBiomarkers(window.healthData.biomarkers);
   showToast("🗑 Удалено: "+name);
   // Перерисовываем вкладку Анализы
-  var ac = document.getElementById("htab_analyses_c");
-  if(ac) ac.innerHTML = buildAnalysesTab();
+  var ac = document.getElementById("htab_bio_c");
+  if(ac && typeof buildBioRows === "function") ac.innerHTML = buildBioRows();
 }
 
 function deleteHealthCard(cardId){
-  if(!confirm("Удалить этот документ из Health Vault?")) return;
+  // Считаем, сколько показателей реально будет удалено, для информативного confirm
+  var bm = window.healthData.biomarkers || {};
+  var affectedNames = [];
+  var totalEntries = 0;
+  Object.keys(bm).forEach(function(name){
+    var matching = (bm[name]||[]).filter(function(e){ return e.source === cardId; });
+    if(matching.length){ affectedNames.push(name); totalEntries += matching.length; }
+  });
+  var msg = totalEntries > 0
+    ? "Удалить этот документ из Health Vault?\nБудет удалено " + totalEntries + " показателей (" + affectedNames.slice(0,5).join(", ") + (affectedNames.length>5?"...":"") + ")."
+    : "Удалить этот документ из Health Vault?";
+  if(!confirm(msg)) return;
+
+  // Удаляем все записи биомаркеров, привязанные к этому документу
+  Object.keys(bm).forEach(function(name){
+    bm[name] = (bm[name]||[]).filter(function(e){ return e.source !== cardId; });
+    if(bm[name].length === 0) delete bm[name];
+  });
+  window.healthData.biomarkers = bm;
+  var pd = getProfileData();
+  pd.biomarkers = bm;
+  localStorage.setItem("ai_hub_all_profiles_data", JSON.stringify(window.allProfilesData||{}));
+  if(window.cloudSync && window.cloudSync.userId) window.cloudSync.saveBiomarkers(bm);
+
   // Удаляем карточку из UI
   var card = document.getElementById(cardId);
   if(card){ card.style.opacity="0"; card.style.transition="opacity 0.3s"; setTimeout(()=>card.remove(),300); }
-  // Данные остаются в Health Vault (биомаркеры уже сохранены)
-  // Но удаляем из списка загруженных файлов vault если есть
-  showToast("🗑 Документ удалён");
+
+  // Перерисовываем вкладку Анализы/Тренды если она открыта
+  var ac = document.getElementById("htab_bio_c");
+  if(ac && typeof buildBioRows === "function") ac.innerHTML = buildBioRows();
+  var tc = document.getElementById("htab_trends_c");
+  if(tc && typeof buildTrendHtml === "function") tc.innerHTML = buildTrendHtml();
+
+  showToast(totalEntries > 0 ? "🗑 Документ и " + totalEntries + " показателей удалены" : "🗑 Документ удалён");
 }
 
 function processVaultFile(filename, text, claudeKey){
@@ -3154,11 +3310,20 @@ function saveParsedBiomarkers(markers, cardId){
   var hDateEl = document.getElementById("hDate");
   if(hDateEl && docDate) hDateEl.value = docDate;
   markers.forEach(function(m){
-    if(!m.name || typeof m.value !== "number") return;
+    if(!m.name) return;
+    var isNumeric = typeof m.value === "number";
+    var isQualitative = !isNumeric && typeof m.qualitative === "string" && m.qualitative.trim().length > 0;
+    if(!isNumeric && !isQualitative) return; // ни числа, ни качественного результата — пропускаем
     var markerDate = m._normDate || effectiveDate;
     if(!window.healthData.biomarkers[m.name]) window.healthData.biomarkers[m.name] = [];
     window.healthData.biomarkers[m.name] = window.healthData.biomarkers[m.name].filter(function(e){return e.date!==markerDate;});
-    window.healthData.biomarkers[m.name].push({date:markerDate, value:m.value, unit:m.unit||"", source:cardId, dateGuessed:!m._normDate});
+    var entry = {date:markerDate, source:cardId, dateGuessed:!m._normDate};
+    if(isNumeric){
+      entry.value = m.value; entry.unit = m.unit||"";
+    } else {
+      entry.qualitative = m.qualitative.trim(); entry.unit = "";
+    }
+    window.healthData.biomarkers[m.name].push(entry);
     window.healthData.biomarkers[m.name].sort(function(a,b){return a.date>b.date?1:-1;});
     saved++;
   });
@@ -3169,12 +3334,22 @@ function saveParsedBiomarkers(markers, cardId){
   localStorage.setItem("ai_hub_all_profiles_data", JSON.stringify(window.allProfilesData||{}));
   if(window.cloudSync && window.cloudSync.userId) window.cloudSync.saveBiomarkers(window.healthData.biomarkers);
   var lights = markers.slice(0,12).map(function(m){
-    if(typeof m.value !== "number") return "";
-    var st = getBioStatus(m.name, m.value);
+    var isNumeric = typeof m.value === "number";
+    var isQualitative = !isNumeric && typeof m.qualitative === "string" && m.qualitative.trim().length > 0;
+    if(!isNumeric && !isQualitative) return "";
+    if(isNumeric){
+      var st = getBioStatus(m.name, m.value);
+      return "<div style='display:flex;align-items:center;gap:6px;padding:2px 0'>"
+        +"<span>"+st.emoji+"</span>"
+        +"<span style='font-size:12px;color:#334155;flex:1'>"+m.name+"</span>"
+        +"<span style='font-size:12px;font-weight:700;color:"+st.color+"'>"+m.value+" "+(m.unit||"")+"</span>"
+        +"</div>";
+    }
+    // Качественный результат — нейтральная иконка, текст результата вместо числа
     return "<div style='display:flex;align-items:center;gap:6px;padding:2px 0'>"
-      +"<span>"+st.emoji+"</span>"
+      +"<span>📋</span>"
       +"<span style='font-size:12px;color:#334155;flex:1'>"+m.name+"</span>"
-      +"<span style='font-size:12px;font-weight:700;color:"+st.color+"'>"+m.value+" "+(m.unit||"")+"</span>"
+      +"<span style='font-size:12px;font-weight:700;color:#475569'>"+m.qualitative+"</span>"
       +"</div>";
   }).join("");
   if(statusEl){
@@ -3202,17 +3377,21 @@ function saveParsedBiomarkers(markers, cardId){
 async function extractBiomarkersWithAI(apiKey, filename, text, docType, cardId){
   var statusEl = document.getElementById(cardId+"_status");
   try{
-    var prompt = "Ты медицинский AI-ассистент. Из текста лабораторного анализа извлеки ВСЕ числовые показатели.\n\n"
+    var prompt = "Ты медицинский AI-ассистент. Из текста лабораторного анализа извлеки ВСЕ показатели — и числовые, и качественные (положительно/отрицательно, обнаружено/не обнаружено).\n\n"
       + "Верни ТОЛЬКО JSON массив в формате:\n"
-      + '[{"name":"Название показателя на русском","value":числовое_значение,"unit":"единица измерения","date":"ГГГГ-ММ-ДД или null"}]\n\n'
+      + '[{"name":"Название показателя на русском","value":число_или_null,"qualitative":"текст результата или null","unit":"единица измерения или пустая строка","date":"ГГГГ-ММ-ДД или null"}]\n\n'
       + "Правила:\n"
-      + "- name: используй стандартные названия (Гемоглобин, Ферритин, Глюкоза, Лейкоциты, Холестерин, ЛПНП, ЛПВП, Триглицериды, Витамин D, Витамин B12, ТТГ, АЛТ, АСТ, Креатинин, Инсулин, HbA1c, Кортизол, Тестостерон и т.д.)\n"
-      + "- value: только число (не строку)\n"
+      + "- name: используй СТРОГО эти стандартные названия, если показатель встречается в тексте (это важно для сопоставления с нормами):\n"
+      + "  Гемоглобин, Ферритин, Глюкоза, Лейкоциты, Холестерин, ЛПНП, ЛПВП, Триглицериды, Витамин D, Витамин B12, ТТГ, АЛТ, АСТ, Креатинин, Инсулин, HbA1c, Кортизол, Тестостерон, ДГЭА-С, Магний, Цинк, hsCRP,\n"
+      + "  СОЭ, Эритроциты, Гематокрит, 'Средний объем эритроцитов (MCV)', 'Среднее содержание гемоглобина в эритроците (MCH)', 'Средняя концентрация Hb в эритроцитах (MCHC)', 'Ширина распределения эритроцитов по объему (RDW)', Тромбоциты, 'Средний объем тромбоцитов (MPV)', 'Тромбокрит (PCT)', Нейтрофилы, Лимфоциты, Моноциты, Эозинофилы, Базофилы.\n"
+      + "  Если показателя нет в этом списке — используй обычное русское название (например: Поверхностный антиген гепатита B (HBsAg), Антитела к вирусу гепатита C (Anti-HCV), Группа крови, RW, ВИЧ и т.п.).\n"
+      + "- Для ЧИСЛОВЫХ показателей: value = число, qualitative = null, unit = единица измерения.\n"
+      + "- Для КАЧЕСТВЕННЫХ показателей (результат вида 'обнаружено'/'не обнаружено', 'положительно'/'отрицательно', группа крови и т.п.): value = null, qualitative = точный текст результата на русском, unit = \"\".\n"
+      + "- НЕ пропускай качественные результаты — они важны для медицинской истории так же, как числовые.\n"
       + "- date: ищи дату забора анализа/результата ГДЕ УГОДНО в тексте (шапка документа, отдельная строка, любой формат — '20.06.2025', '20/06/2025', '20 июня 2025', etc.) и переведи её в формат ГГГГ-ММ-ДД.\n"
       + "- ЗАПРЕЩЕНО подставлять сегодняшнюю дату или дату загрузки файла. Если дата анализа НЕ найдена в тексте нигде — обязательно верни \"date\":null. Угадывать дату НЕЛЬЗЯ, это критично для точности медицинской истории.\n"
       + "- Если в документе одна общая дата для всех показателей — укажи её у каждого показателя.\n"
-      + "- НЕ включай референсные значения, только фактические результаты пациента\n"
-      + "- Если показатель не числовой — пропусти\n\n"
+      + "- НЕ включай референсные значения, только фактические результаты пациента\n\n"
       + "Текст анализа:\n" + text.slice(0, 6000);
 
     var extractBody = JSON.stringify({model:"claude-haiku-4-5",max_tokens:1000,messages:[{role:"user",content:prompt}]});

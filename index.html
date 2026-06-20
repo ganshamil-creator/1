@@ -2624,7 +2624,6 @@ async function callGemini(key, system, history){
 
 async function callPerplexity(key, system, history){
   return callWithRetry(async()=>{
-    const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),40000);
     // Perplexity поддерживает vision через image_url
     // Фиксим чередование ролей для Perplexity (требует user->assistant->user...)
     var fixedHistory = [];
@@ -2648,18 +2647,9 @@ async function callPerplexity(key, system, history){
       return m;
     });
     const pBody=JSON.stringify({model:"sonar-pro",max_tokens:calcTokens(msgs),messages:[{role:"system",content:system},...msgs]});
-    let d;
-    if(isMobile){
-      d=await proxyFetch("https://api.perplexity.ai/chat/completions",{"Authorization":"Bearer "+key},pBody);
-    } else {
-      const ctrl2=new AbortController(); const t2=setTimeout(()=>ctrl2.abort(),40000);
-      const r=await fetch("https://api.perplexity.ai/chat/completions",{
-        method:"POST",signal:ctrl2.signal,
-        headers:{"Content-Type":"application/json","Authorization":"Bearer "+key},
-        body:pBody
-      });
-      clearTimeout(t2); d=await r.json();
-    }
+    // Perplexity API не отдаёт CORS-заголовки для браузерных запросов —
+    // всегда идём через серверный прокси, независимо от устройства
+    const d=await proxyFetch("https://api.perplexity.ai/chat/completions",{"Authorization":"Bearer "+key},pBody);
     if(d.error) throw new Error(d.error.message||JSON.stringify(d.error));
     return d.choices[0].message.content.trim();
   });

@@ -306,11 +306,18 @@
       }
       // Загружаем данные здоровья
       await loadHealthData();
-      // Загружаем сквозную память
+      // Загружаем сквозную память — безопасное слияние, не теряем локальные данные
       const savedMemory = await window.cloudSync.loadMemory();
       if(savedMemory) {
-        window.userMemory = Object.assign(window.userMemory || {}, savedMemory);
-        updateMemoryBadge();
+        window.userMemory = window.userMemory || {};
+        if(typeof mergeUserMemory === "function"){
+          mergeUserMemory(savedMemory);
+        } else {
+          // mergeUserMemory ещё не определена (скрипт памяти ниже не выполнился) —
+          // откладываем слияние, чтобы не перезатереть данные
+          window._pendingMemoryMerge = savedMemory;
+        }
+        if(typeof updateMemoryBadge === "function") updateMemoryBadge();
       }
     }
 
@@ -3107,22 +3114,51 @@ function processVaultFile(filename, text, claudeKey){
   }
 }
 
+// Нормализует дату из разных форматов в ISO ГГГГ-ММ-ДД.
+// Возвращает null если распарсить не удалось — НЕ подставляет сегодняшнюю дату.
+function normalizeDate(raw){
+  if(!raw || typeof raw !== "string") return null;
+  var s = raw.trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // уже ISO
+  // ДД.MM.ГГГГ или ДД/MM/ГГГГ или ДД-MM-ГГГГ
+  var m = s.match(/^(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{4})$/);
+  if(m){
+    var dd=m[1].padStart(2,"0"), mm=m[2].padStart(2,"0"), yyyy=m[3];
+    if(+mm>=1 && +mm<=12 && +dd>=1 && +dd<=31) return yyyy+"-"+mm+"-"+dd;
+  }
+  // ГГГГ.MM.ДД или ГГГГ/MM/ДД
+  var m2 = s.match(/^(\d{4})[.\/\-](\d{1,2})[.\/\-](\d{1,2})$/);
+  if(m2){
+    var yyyy2=m2[1], mm2=m2[2].padStart(2,"0"), dd2=m2[3].padStart(2,"0");
+    if(+mm2>=1 && +mm2<=12 && +dd2>=1 && +dd2<=31) return yyyy2+"-"+mm2+"-"+dd2;
+  }
+  // Текстовая дата на русском: "20 июня 2025"
+  var months={"января":"01","февраля":"02","марта":"03","апреля":"04","мая":"05","июня":"06","июля":"07","августа":"08","сентября":"09","октября":"10","ноября":"11","декабря":"12"};
+  var m3 = s.toLowerCase().match(/(\d{1,2})\s+([а-я]+)\s+(\d{4})/);
+  if(m3 && months[m3[2]]) return m3[3]+"-"+months[m3[2]]+"-"+m3[1].padStart(2,"0");
+  return null; // не смогли распарсить — лучше null, чем неверная дата
+}
+
 function saveParsedBiomarkers(markers, cardId){
   var statusEl = document.getElementById(cardId+"_status");
   var saved = 0;
-  var date = new Date().toISOString().split("T")[0];
-  // Берём дату из первого маркера у которого она есть
-  var docDate = markers.find(function(m){ return m.date && m.date.match(/^\d{4}-\d{2}-\d{2}$/); });
-  if(docDate && docDate.date) date = docDate.date;
-  // Обновляем поле hDate в UI
+  var today = new Date().toISOString().split("T")[0];
+  // Нормализуем дату каждого маркера (разные форматы -> ISO, или null если не распознана)
+  markers.forEach(function(m){ m._normDate = normalizeDate(m.date); });
+  // Берём общую дату документа из первого маркера у которого нормализация удалась
+  var docDateEntry = markers.find(function(m){ return m._normDate; });
+  var docDate = docDateEntry ? docDateEntry._normDate : null;
+  var dateWasGuessed = !docDate; // true если ни у одного маркера не нашлась дата анализа
+  var effectiveDate = docDate || today;
+  // Обновляем поле hDate в UI только если дата реально найдена в документе
   var hDateEl = document.getElementById("hDate");
-  if(hDateEl && docDate) hDateEl.value = date;
+  if(hDateEl && docDate) hDateEl.value = docDate;
   markers.forEach(function(m){
     if(!m.name || typeof m.value !== "number") return;
-    var markerDate = m.date || date;
+    var markerDate = m._normDate || effectiveDate;
     if(!window.healthData.biomarkers[m.name]) window.healthData.biomarkers[m.name] = [];
     window.healthData.biomarkers[m.name] = window.healthData.biomarkers[m.name].filter(function(e){return e.date!==markerDate;});
-    window.healthData.biomarkers[m.name].push({date:markerDate, value:m.value, unit:m.unit||"", source:cardId});
+    window.healthData.biomarkers[m.name].push({date:markerDate, value:m.value, unit:m.unit||"", source:cardId, dateGuessed:!m._normDate});
     window.healthData.biomarkers[m.name].sort(function(a,b){return a.date>b.date?1:-1;});
     saved++;
   });
@@ -3152,7 +3188,11 @@ function saveParsedBiomarkers(markers, cardId){
       var headerDiv = cardEl.querySelector("div");
       if(headerDiv) headerDiv.appendChild(delBtn);
     }
-    statusEl.innerHTML = "<div style='color:#15803d;font-weight:600;margin-bottom:6px'>✅ Извлечено "+saved+" показателей:</div>"
+    var dateWarning = dateWasGuessed
+      ? "<div style='background:#fef3c7;border:1px solid #fde68a;border-radius:6px;padding:6px 8px;margin-bottom:8px;font-size:11px;color:#92400e'>⚠️ Дата анализа не найдена в документе — подставлена дата загрузки (" + today + "). Проверь и поправь дату вручную в 📊 Мои данные → 🧬 Анализы, если она неверная.</div>"
+      : "<div style='font-size:11px;color:#15803d;margin-bottom:6px'>📅 Дата анализа из документа: " + docDate + "</div>";
+    statusEl.innerHTML = dateWarning
+      + "<div style='color:#15803d;font-weight:600;margin-bottom:6px'>✅ Извлечено "+saved+" показателей:</div>"
       + lights
       + (markers.length>12?"<div style='font-size:11px;color:#6b7280;margin-top:4px'>...и ещё "+(markers.length-12)+"</div>":"")
       + "<div style='font-size:11px;color:#6b7280;margin-top:6px;border-top:1px solid #e2e8f0;padding-top:5px'>Сохранено · 📊 Мои данные → 📈 Тренды</div>";
@@ -3164,11 +3204,13 @@ async function extractBiomarkersWithAI(apiKey, filename, text, docType, cardId){
   try{
     var prompt = "Ты медицинский AI-ассистент. Из текста лабораторного анализа извлеки ВСЕ числовые показатели.\n\n"
       + "Верни ТОЛЬКО JSON массив в формате:\n"
-      + '[{"name":"Название показателя на русском","value":числовое_значение,"unit":"единица измерения","date":"ГГГГ-ММ-ДД"}]\n\n'
+      + '[{"name":"Название показателя на русском","value":числовое_значение,"unit":"единица измерения","date":"ГГГГ-ММ-ДД или null"}]\n\n'
       + "Правила:\n"
       + "- name: используй стандартные названия (Гемоглобин, Ферритин, Глюкоза, Лейкоциты, Холестерин, ЛПНП, ЛПВП, Триглицериды, Витамин D, Витамин B12, ТТГ, АЛТ, АСТ, Креатинин, Инсулин, HbA1c, Кортизол, Тестостерон и т.д.)\n"
       + "- value: только число (не строку)\n"
-      + "- date: если дата есть в тексте — используй её, иначе сегодняшнюю\n"
+      + "- date: ищи дату забора анализа/результата ГДЕ УГОДНО в тексте (шапка документа, отдельная строка, любой формат — '20.06.2025', '20/06/2025', '20 июня 2025', etc.) и переведи её в формат ГГГГ-ММ-ДД.\n"
+      + "- ЗАПРЕЩЕНО подставлять сегодняшнюю дату или дату загрузки файла. Если дата анализа НЕ найдена в тексте нигде — обязательно верни \"date\":null. Угадывать дату НЕЛЬЗЯ, это критично для точности медицинской истории.\n"
+      + "- Если в документе одна общая дата для всех показателей — укажи её у каждого показателя.\n"
       + "- НЕ включай референсные значения, только фактические результаты пациента\n"
       + "- Если показатель не числовой — пропусти\n\n"
       + "Текст анализа:\n" + text.slice(0, 6000);
@@ -5390,10 +5432,47 @@ if(document.readyState==="loading"){
 // ════════════════════════════════════════════════════════════════
 // СКВОЗНАЯ ПАМЯТЬ — движок
 // ════════════════════════════════════════════════════════════════
-window.userMemory = {
-  profile: { profession:"", age:"", context:"", prefs:"", health:"" },
-  facts: []   // [{id, text, ts, confirmed}]
-};
+// ВАЖНО: не перезатираем window.userMemory, если он уже был установлен
+// раньше (например, Firebase initCloudData мог сработать первым из-за
+// асинхронности auth-колбэков). Инициализируем только недостающие поля.
+window.userMemory = window.userMemory || {};
+window.userMemory.profile = window.userMemory.profile || { profession:"", age:"", context:"", prefs:"", health:"" };
+window.userMemory.facts = window.userMemory.facts || [];   // [{id, text, ts, confirmed}]
+// Метка последнего изменения памяти — используется для безопасного слияния
+// при последующей загрузке из Firebase/localStorage (см. mergeUserMemory)
+window.userMemory._localTs = window.userMemory._localTs || 0;
+
+// Безопасное слияние памяти из внешнего источника (Firebase/localStorage)
+// с уже имеющимися локальными данными — никогда не теряет факты,
+// добавленные между загрузкой страницы и приходом облачных данных.
+function mergeUserMemory(incoming){
+  if(!incoming) return;
+  var cur = window.userMemory;
+  // Профиль: берём входящий только если у текущего профиля все поля пустые
+  // (т.е. пользователь ещё не успел ничего ввести локально в этой сессии)
+  var curProfileEmpty = cur.profile && !cur.profile.profession && !cur.profile.age && !cur.profile.context && !cur.profile.prefs && !cur.profile.health;
+  if(incoming.profile && (curProfileEmpty || !cur.profile)){
+    cur.profile = incoming.profile;
+  }
+  // Факты: объединяем по id, не теряя ни локальные, ни облачные
+  var incomingFacts = Array.isArray(incoming.facts) ? incoming.facts : [];
+  var curFacts = Array.isArray(cur.facts) ? cur.facts : [];
+  var byId = {};
+  curFacts.forEach(function(f){ byId[f.id || (f.text+f.ts)] = f; });
+  incomingFacts.forEach(function(f){
+    var key = f.id || (f.text+f.ts);
+    if(!byId[key]) byId[key] = f; // добавляем только то, чего не было локально
+  });
+  cur.facts = Object.values(byId).sort(function(a,b){ return (a.ts||0)-(b.ts||0); });
+}
+
+// Если Firebase успел загрузить память ДО того, как этот скрипт-блок выполнился
+// (initCloudData может сработать раньше из-за асинхронности auth-колбэков) —
+// обрабатываем отложенное слияние прямо сейчас.
+if(window._pendingMemoryMerge){
+  mergeUserMemory(window._pendingMemoryMerge);
+  window._pendingMemoryMerge = null;
+}
 
 // Строим блок контекста для системного промпта
 function getUserMemoryContext(){
@@ -5490,6 +5569,7 @@ function saveMemoryProfile(){
 
 // Сохранить в Firebase + localStorage
 function persistMemory(){
+  window.userMemory._localTs = Date.now();
   try{ localStorage.setItem("ai_hub_memory_v1", JSON.stringify(window.userMemory)); }catch(e){}
   if(window.cloudSync && window.cloudSync.userId && window.cloudSync.userId !== "anon_local"){
     window.cloudSync.saveMemory(window.userMemory).catch(function(){});
@@ -5560,12 +5640,18 @@ async function extractFactsFromDialog(messages){
     + "Если фактов нет — верни пустой массив [].\n\nДИАЛОГ:\n" + dialogText;
 
   try{
-    var resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type":"application/json", "x-api-key": keys.claude, "anthropic-version":"2023-06-01" },
-      body: JSON.stringify({ model:"claude-haiku-4-5", max_tokens:300, messages:[{role:"user",content:prompt}] })
-    });
-    var data = await resp.json();
+    var extractBody = JSON.stringify({ model:"claude-haiku-4-5", max_tokens:300, messages:[{role:"user",content:prompt}] });
+    var data;
+    if(isMobile){
+      data = await proxyFetch("https://api.anthropic.com/v1/messages", {"x-api-key":keys.claude,"anthropic-version":"2023-06-01"}, extractBody);
+    } else {
+      var resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "x-api-key": keys.claude, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" },
+        body: extractBody
+      });
+      data = await resp.json();
+    }
     var text = (data.content&&data.content[0]&&data.content[0].text)||"[]";
     text = text.replace(/```json|```/g,"").trim();
     var newFacts = JSON.parse(text);
@@ -5615,7 +5701,7 @@ async function extractFactsNow(){
 (function initMemory(){
   try{
     var saved = localStorage.getItem("ai_hub_memory_v1");
-    if(saved) window.userMemory = JSON.parse(saved);
+    if(saved) mergeUserMemory(JSON.parse(saved));
   }catch(e){}
   updateMemoryBadge();
 })();

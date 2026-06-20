@@ -1599,6 +1599,8 @@ var BIO_NORMS = {
   "Среднее содержание гемоглобина в эритроците (MCH)": {lo:27,  hi:34,  unit:"пг"},
   "Средняя концентрация Hb в эритроцитах (MCHC)":      {lo:32,  hi:36,  unit:"г/дл"},
   "Ширина распределения эритроцитов по объему (RDW)":  {lo:11.5,hi:14.5,unit:"%"},
+  "RDW-SD (стандартное отклонение ширины распределения эритроцитов)": {lo:37,  hi:54,  unit:"фл"},
+  "RDW-CV (коэффициент вариации ширины распределения эритроцитов)":   {lo:11.5,hi:14.8,unit:"%"},
   "Тромбоциты":     {lo:150, hi:400, unit:"10⁹/л"},
   "Средний объем тромбоцитов (MPV)":            {lo:7.5, hi:11.5, unit:"фл"},
   "Тромбокрит (PCT)": {lo:0.15,hi:0.4, unit:"%"},
@@ -3065,8 +3067,8 @@ function handleHealthVaultUpload(files){
 
       if(isImage){
         var medType = detectMedDocType(file.name, "");
-        addToHealthVault(file.name, "", medType.type);
         var cardId = "vault_card_"+Date.now();
+        addToHealthVault(file.name, "", medType.type, cardId);
         var msgsEl = document.getElementById("messages");
         if(msgsEl){
           var card=document.createElement("div");
@@ -3140,18 +3142,27 @@ async function extractFromImageWithVision(apiKey, filename, b64, mimeType, docTy
   var statusEl = document.getElementById(cardId+"_status");
   try{
     var visionBody = JSON.stringify({
-      model:"claude-haiku-4-5", max_tokens:1500,
+      model:"claude-haiku-4-5", max_tokens:2000,
       messages:[{role:"user",content:[
         {type:"image",source:{type:"base64",media_type:mimeType,data:b64}},
-        {type:"text",text:"Посмотри на изображение и определи тип документа. "
-          +"Если это ЭКГ/кардиограмма — извлеки: ЧСС (уд/мин), интервалы PQ, QRS, QT, QTc, ось (alpha). "
-          +"Если это анализ крови/биохимия/моча — извлеки все числовые показатели пациента. "
-          +"Если это рентген/МРТ/УЗИ — верни пустой массив []. "
-          +"Верни ТОЛЬКО JSON массив без пояснений: [{name,value,unit,date}]. "
-          +"name — название показателя на русском. value — только число (не строка). "
-          +"unit — единица измерения (уд/мин, с, мм, г/л и т.д.). "
-          +"date — ОБЯЗАТЕЛЬНО извлеки дату из документа (например 08.10.2026 → 2026-10-08). Если даты нет — "+new Date().toISOString().split("T")[0]+". "
-          +"ВАЖНО: извлекай только то что реально написано на изображении. Не придумывай данные."}
+        {type:"text",text:"Посмотри на изображение медицинского документа и извлеки данные.\n\n"
+          +"Верни ТОЛЬКО JSON объект (не массив!) в формате:\n"
+          +'{"markers":[{"name":"...","value":число_или_null,"qualitative":"текст или null","unit":"...","date":"ГГГГ-ММ-ДД или null"}],"narrative":"текст заключения или null","date":"ГГГГ-ММ-ДД общая дата документа или null"}\n\n'
+          +"Правила для markers (структурированные показатели):\n"
+          +"- Если это ЭКГ/кардиограмма — извлеки: ЧСС, PQ, QRS, QT, QTc, Электрическая ось (как числовые показатели).\n"
+          +"- Если это анализ крови/биохимия/моча/гормоны — извлеки ВСЕ показатели, и числовые, и качественные.\n"
+          +"- Если в анализе ширина распределения эритроцитов (RDW) дана ОДНИМ значением — назови 'Ширина распределения эритроцитов по объему (RDW)'. Если ДВУМЯ отдельными значениями (одно в фл — это RDW-SD, другое в % — это RDW-CV) — назови их 'RDW-SD (стандартное отклонение ширины распределения эритроцитов)' и 'RDW-CV (коэффициент вариации ширины распределения эритроцитов)' соответственно.\n"
+          +"- Для ЧИСЛОВЫХ показателей: value = число, qualitative = null, unit = единица измерения.\n"
+          +"- Для КАЧЕСТВЕННЫХ результатов (вида 'обнаружено'/'не обнаружено', 'положительно'/'отрицательно', результаты посевов на микрофлору, чувствительность к антибиотикам, группа крови): value = null, qualitative = точный текст результата на русском, unit = \"\".\n"
+          +"- НЕ пропускай качественные результаты — извлекай их так же, как числовые.\n"
+          +"- Если на изображении нет таблицы показателей (например, чистый снимок без подписанных результатов) — markers = [].\n\n"
+          +"Правила для narrative (текстовое заключение врача):\n"
+          +"- Если это МРТ/КТ/УЗИ/Рентген с текстовым заключением врача — перепиши заключение в поле narrative своими словами, сохраняя все важные медицинские детали (находки, размеры, диагнозы). Не выдумывай — только то, что реально написано.\n"
+          +"- Если заключения нет или документ не содержит текстового описания — narrative = null.\n\n"
+          +"Правила для date:\n"
+          +"- Ищи дату исследования/забора анализа ГДЕ УГОДНО на изображении, в любом формате, и переведи в ГГГГ-ММ-ДД.\n"
+          +"- ЗАПРЕЩЕНО подставлять сегодняшнюю дату. Если дата не найдена нигде на изображении — верни null. Угадывать дату НЕЛЬЗЯ.\n\n"
+          +"Верни ТОЛЬКО JSON объект, без пояснений и без markdown-разметки."}
       ]}]
     });
     var visionHeaders = {"x-api-key":apiKey,"anthropic-version":"2023-06-01"};
@@ -3168,15 +3179,35 @@ async function extractFromImageWithVision(apiKey, filename, b64, mimeType, docTy
     }
     if(data.error) throw new Error(data.error.message);
     var txt = (data.content||[]).map(function(b){return b.text||"";}).join("").trim().replace(/```json|```/g,"").trim();
-    var s2=txt.indexOf("["),e2=txt.lastIndexOf("]");
+    var s2=txt.indexOf("{"),e2=txt.lastIndexOf("}");
     if(s2>-1&&e2>s2) txt=txt.slice(s2,e2+1);
-    var markers = JSON.parse(txt);
+    var result = JSON.parse(txt);
+    var markers = Array.isArray(result.markers) ? result.markers : [];
     saveParsedBiomarkers(markers, cardId);
+    // Если AI вернул текстовое заключение (МРТ/УЗИ/КТ и т.п.) — дополняем запись в Vault полным текстом,
+    // чтобы оно было видно во вкладке "Vault" и участвовало в getVaultContext() для AI-функций
+    if(result.narrative && typeof result.narrative === "string" && result.narrative.trim().length > 0){
+      appendVaultNarrative(cardId, result.narrative.trim());
+    }
   }catch(err){
     if(statusEl) statusEl.innerHTML="<span style='color:#f59e0b'>⚠️ "+err.message+"</span>";
   }
 }
 
+// Дополняет уже сохранённый документ в Vault текстом заключения, извлечённым через Vision.
+// Используется когда документ — это нарративное заключение (МРТ/УЗИ/КТ), а не таблица показателей.
+function appendVaultNarrative(cardId, narrativeText){
+  var pd = (window.allProfilesData && window.allProfilesData[activeProfile]) || {};
+  if(!pd.documents) return;
+  var doc = pd.documents.find(function(d){ return d.cardId === cardId; });
+  if(!doc) return;
+  doc.text = narrativeText.slice(0, 8000);
+  window.healthData.documents = pd.documents;
+  localStorage.setItem("ai_hub_all_profiles_data", JSON.stringify(window.allProfilesData||{}));
+  if(window.cloudSync && window.cloudSync.userId){
+    window.cloudSync.saveWearable({"__profiles":JSON.stringify(FAMILY_PROFILES),"__allData":JSON.stringify(window.allProfilesData)});
+  }
+}
 
 
 function deleteBiomarker(name, date, mode){
@@ -3383,7 +3414,8 @@ async function extractBiomarkersWithAI(apiKey, filename, text, docType, cardId){
       + "Правила:\n"
       + "- name: используй СТРОГО эти стандартные названия, если показатель встречается в тексте (это важно для сопоставления с нормами):\n"
       + "  Гемоглобин, Ферритин, Глюкоза, Лейкоциты, Холестерин, ЛПНП, ЛПВП, Триглицериды, Витамин D, Витамин B12, ТТГ, АЛТ, АСТ, Креатинин, Инсулин, HbA1c, Кортизол, Тестостерон, ДГЭА-С, Магний, Цинк, hsCRP,\n"
-      + "  СОЭ, Эритроциты, Гематокрит, 'Средний объем эритроцитов (MCV)', 'Среднее содержание гемоглобина в эритроците (MCH)', 'Средняя концентрация Hb в эритроцитах (MCHC)', 'Ширина распределения эритроцитов по объему (RDW)', Тромбоциты, 'Средний объем тромбоцитов (MPV)', 'Тромбокрит (PCT)', Нейтрофилы, Лимфоциты, Моноциты, Эозинофилы, Базофилы.\n"
+      + "  СОЭ, Эритроциты, Гематокрит, 'Средний объем эритроцитов (MCV)', 'Среднее содержание гемоглобина в эритроците (MCH)', 'Средняя концентрация Hb в эритроцитах (MCHC)', 'RDW-SD (стандартное отклонение ширины распределения эритроцитов)', 'RDW-CV (коэффициент вариации ширины распределения эритроцитов)', Тромбоциты, 'Средний объем тромбоцитов (MPV)', 'Тромбокрит (PCT)', Нейтрофилы, Лимфоциты, Моноциты, Эозинофилы, Базофилы.\n"
+      + "  ВАЖНО: если в документе RDW указан как ОДНО значение без разделения на SD/CV — используй общее название 'Ширина распределения эритроцитов по объему (RDW)'. Если в документе указаны ДВА отдельных значения (одно в фл, другое в %) — используй 'RDW-SD...' для значения в фл и 'RDW-CV...' для значения в %.\n"
       + "  Если показателя нет в этом списке — используй обычное русское название (например: Поверхностный антиген гепатита B (HBsAg), Антитела к вирусу гепатита C (Anti-HCV), Группа крови, RW, ВИЧ и т.п.).\n"
       + "- Для ЧИСЛОВЫХ показателей: value = число, qualitative = null, unit = единица измерения.\n"
       + "- Для КАЧЕСТВЕННЫХ показателей (результат вида 'обнаружено'/'не обнаружено', 'положительно'/'отрицательно', группа крови и т.п.): value = null, qualitative = точный текст результата на русском, unit = \"\".\n"

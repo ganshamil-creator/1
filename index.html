@@ -319,6 +319,9 @@
         }
         if(typeof updateMemoryBadge === "function") updateMemoryBadge();
       }
+      // Попытка загрузки завершена (с данными или без) — теперь форму можно безопасно сохранять
+      window.userMemory = window.userMemory || {};
+      window.userMemory._ready = true;
     }
 
     // Автосинхронизация каждые 60 секунд — только сохраняем текущие темы (не воскрешаем удалённые)
@@ -532,8 +535,6 @@
   </button>
   <button onclick="openMemoryModal()" id="memoryBtn" title="Сквозная память" style="padding:5px 10px;background:#f5f3ff;border:1px solid #c4b5fd;border-radius:6px;color:#7c3aed;font-size:14px;position:relative">🧠<span id="memoryBadge" style="display:none;position:absolute;top:-4px;right:-4px;background:#7c3aed;color:#fff;border-radius:50%;width:14px;height:14px;font-size:9px;line-height:14px;text-align:center"></span></button>
   <button onclick="toggleHealthMode()" id="healthBtn" title="Health Manager" style="padding:5px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;color:#16a34a;font-size:14px">🫀</button>
-  <button onclick="toggleQuickMode()" id="quickBtn" title="Быстрый режим — один AI" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:12px">⚡</button>
-  <button onclick="toggleChainMode()" id="chainModeBtn" title="Цепочка агентов: Perplexity→Gemini→Kimi→GPT→Claude→DeepSeek" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#64748b;font-size:12px">🔗</button>
   <button onclick="showSettings()" style="padding:5px 10px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;color:#475569;font-size:18px;line-height:1">⚙️</button>
 </div>
 
@@ -2556,6 +2557,88 @@ setTimeout(function(){
   }
 }, 300);
 
+// ════════════════════════════════════════════════════════════════
+// УПРАВЛЕНИЕ КОНТЕКСТОМ — суммаризация старой истории через Haiku
+// ════════════════════════════════════════════════════════════════
+// Пороговые значения: если сообщений больше CONTEXT_KEEP_RECENT * 2 (user+assistant пары),
+// всё что старше последних CONTEXT_KEEP_RECENT пар сжимается в одно резюме.
+var CONTEXT_SUMMARY_THRESHOLD = 24; // сырых сообщений (user+assistant), после которых включаем суммаризацию
+var CONTEXT_KEEP_RECENT = 10;       // сколько последних сырых сообщений всегда оставляем целиком
+
+// Извлекает текст из content (строка или массив частей с image/text)
+function extractTextFromContent(content){
+  if(typeof content === "string") return content;
+  if(Array.isArray(content)){
+    var textPart = content.find(function(c){ return c.type === "text"; });
+    return textPart ? textPart.text : "[изображение/файл]";
+  }
+  return "";
+}
+
+// Суммаризирует переданный список сообщений (старая часть истории) в краткое резюме.
+// Возвращает текст резюме или null при ошибке/отсутствии ключа.
+async function summarizeOldMessages(oldMessages){
+  var keys = getKeys();
+  if(!keys.claude || !oldMessages.length) return null;
+  var dialogText = oldMessages.map(function(m){
+    var role = m.role === "user" ? "Пользователь" : "AI";
+    return role + ": " + extractTextFromContent(m.content).slice(0, 600);
+  }).join("\n");
+  if(dialogText.length < 200) return null; // слишком мало, суммаризация не даст экономии
+
+  var prompt = "Сожми этот диалог в краткое резюме (максимум 400 слов на русском), сохранив ВСЕ важные факты, цифры, имена, даты, решения и контекст, который мог понадобиться в продолжении разговора. Не добавляй вступлений типа 'вот резюме' — просто факты по пунктам.\n\nДИАЛОГ:\n" + dialogText;
+
+  try{
+    var body = JSON.stringify({ model:"claude-haiku-4-5", max_tokens:600, messages:[{role:"user",content:prompt}] });
+    var data;
+    if(isMobile){
+      data = await proxyFetch("https://api.anthropic.com/v1/messages", {"x-api-key":keys.claude,"anthropic-version":"2023-06-01"}, body);
+    } else {
+      var resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":keys.claude,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body: body
+      });
+      data = await resp.json();
+    }
+    if(data.error) return null;
+    return (data.content && data.content[0] && data.content[0].text) || null;
+  }catch(e){ return null; }
+}
+
+// Главная функция: применяет суммаризацию к истории чата, если она достаточно длинная.
+// Кэширует резюме на самом объекте chat, пересчитывая только когда появились новые "старые" сообщения.
+// Возвращает массив history готовый для отправки в API (с резюме вместо старых сообщений, если применимо).
+async function getManagedHistory(chat, rawHistory){
+  if(rawHistory.length <= CONTEXT_SUMMARY_THRESHOLD){
+    return rawHistory; // история короткая — отправляем как есть, без изменений
+  }
+  var splitPoint = rawHistory.length - CONTEXT_KEEP_RECENT;
+  var oldPart = rawHistory.slice(0, splitPoint);
+  var recentPart = rawHistory.slice(splitPoint);
+
+  // Проверяем кэш: если резюме уже посчитано для такого же объёма старой части — используем его
+  if(chat._contextSummary && chat._contextSummaryCoversCount === oldPart.length){
+    return [{role:"user",content:"[Контекст предыдущего разговора, сжато]:\n"+chat._contextSummary},
+            {role:"assistant",content:"Понял контекст, продолжаю с учётом этой информации."}]
+           .concat(recentPart);
+  }
+
+  // Нужно посчитать новое резюме (либо первый раз, либо появились новые "старые" сообщения)
+  var summary = await summarizeOldMessages(oldPart);
+  if(!summary){
+    // Суммаризация не удалась (нет ключа/ошибка) — fallback: просто берём последние N без резюме
+    return recentPart;
+  }
+  chat._contextSummary = summary;
+  chat._contextSummaryCoversCount = oldPart.length;
+  saveChats(chats);
+
+  return [{role:"user",content:"[Контекст предыдущего разговора, сжато]:\n"+summary},
+          {role:"assistant",content:"Понял контекст, продолжаю с учётом этой информации."}]
+         .concat(recentPart);
+}
+
 function calcTokens(history){
   const lastMsg = history && history.length>0 ? 
     (history[history.length-1].content || "") : "";
@@ -3604,14 +3687,15 @@ async function sendQuick(text, inp){
   const today=getToday();
   const chat=getChat();
 
-  const history=[];
+  const rawHistory=[];
   if(chat.messages){
     for(let i=0;i<chat.messages.length;i+=2){
       const u=chat.messages[i],a=chat.messages[i+1];
-      if(u) history.push({role:"user",content:u.content});
-      if(a) history.push({role:"assistant",content:a.content});
+      if(u) rawHistory.push({role:"user",content:u.content});
+      if(a) rawHistory.push({role:"assistant",content:a.content});
     }
   }
+  const history = await getManagedHistory(chat, rawHistory);
 
   // File context
   const imageFiles=filesToSend.filter(f=>f.type.startsWith("image/")&&f.b64);
@@ -3735,14 +3819,15 @@ async function sendFirst(){
   }
   const enrichedMsg=(fileCtx?fileCtx+"\n":"")+today+text;
 
-  const history=[];
+  const rawHistory=[];
   if(chat.messages){
     for(let i=0;i<chat.messages.length;i+=2){
       const u=chat.messages[i],a=chat.messages[i+1];
-      if(u)history.push({role:"user",content:u.content});
-      if(a)history.push({role:"assistant",content:a.content});
+      if(u)rawHistory.push({role:"user",content:u.content});
+      if(a)rawHistory.push({role:"assistant",content:a.content});
     }
   }
+  const history = await getManagedHistory(chat, rawHistory);
   history.push({role:"user",content:enrichedMsg});
 
   chat.messages=chat.messages||[];
@@ -3866,14 +3951,15 @@ async function sendChain(text, inp){
   const enrichedMsg=(fileCtx?fileCtx+"\n":"")+today+text;
 
   // Build history
-  const history=[];
+  const rawHistory=[];
   if(chat.messages){
     for(let i=0;i<chat.messages.length;i+=2){
       const u=chat.messages[i],a=chat.messages[i+1];
-      if(u)history.push({role:"user",content:u.content});
-      if(a)history.push({role:"assistant",content:a.content});
+      if(u)rawHistory.push({role:"user",content:u.content});
+      if(a)rawHistory.push({role:"assistant",content:a.content});
     }
   }
+  const history = await getManagedHistory(chat, rawHistory);
   history.push({role:"user",content:enrichedMsg});
 
   chat.messages=chat.messages||[];
@@ -4074,14 +4160,16 @@ async function send(){
   if(!agents.length){alert("Нет активных агентов");return;}
 
   // Build history — полная история разговора
-  const history=[];
+  const rawHistory=[];
   if(chat.messages){
     for(let i=0;i<chat.messages.length;i+=2){
       const u=chat.messages[i], a=chat.messages[i+1];
-      if(u) history.push({role:"user",content:u.content});
-      if(a) history.push({role:"assistant",content:a.content});
+      if(u) rawHistory.push({role:"user",content:u.content});
+      if(a) rawHistory.push({role:"assistant",content:a.content});
     }
   }
+  // Если история длинная — старая часть сжимается в резюме через Haiku, экономя токены
+  const history = await getManagedHistory(chat, rawHistory);
 
   // Build file context
   const imageFiles=filesToSend.filter(f=>f.type.startsWith("image/")&&f.b64);
@@ -5702,27 +5790,49 @@ if(document.readyState==="loading"){
     </div>
     <!-- TAB 1: Profile -->
     <div id="memTabContent1" style="padding:16px">
-      <div style="font-size:12px;color:#94a3b8;margin-bottom:12px;padding:8px;background:#f8fafc;border-radius:8px">💡 Эта информация добавляется в начало каждого запроса ко всем AI автоматически</div>
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:12px;padding:8px;background:#f8fafc;border-radius:8px">💡 Эта информация добавляется в начало каждого запроса ко всем AI автоматически. Медицинские данные хранятся отдельно во вкладке 🫀 Health — оттуда AI берёт их сам.</div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div>
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Профессия / Роль</label>
-          <input id="memProfession" placeholder="напр. врач-кардиолог, программист, студент..." style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'">
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Имя</label>
+          <input id="memName" placeholder="напр. Шамиль" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'">
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="flex:1">
+            <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Дата рождения</label>
+            <input id="memBirthdate" type="date" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'">
+          </div>
+          <div style="flex:1">
+            <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Пол</label>
+            <select id="memGender" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none;background:#fff">
+              <option value="">—</option>
+              <option value="мужской">Мужской</option>
+              <option value="женский">Женский</option>
+            </select>
+          </div>
         </div>
         <div>
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Возраст / Пол</label>
-          <input id="memAge" placeholder="напр. 38 лет, мужчина" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'">
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Семейное положение</label>
+          <input id="memMaritalStatus" placeholder="напр. женат, в отношениях, холост" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'">
         </div>
         <div>
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Контекст / Интересы</label>
-          <textarea id="memContext" placeholder="напр. занимаюсь превентивной медициной, разрабатываю AI-инструменты..." rows="3" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;outline:none;font-family:inherit" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Образование</label>
+          <input id="memEducation" placeholder="напр. высшее техническое, МГУ" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Профессия</label>
+          <input id="memProfession" placeholder="напр. инженер, маркетолог, предприниматель" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Место работы и должность</label>
+          <input id="memWorkplace" placeholder="напр. ООО «Ромашка», руководитель отдела" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'">
+        </div>
+        <div>
+          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Хобби и интересы</label>
+          <textarea id="memHobbies" placeholder="напр. бег, разработка AI-инструментов, путешествия..." rows="2" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;outline:none;font-family:inherit" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
         </div>
         <div>
           <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Предпочтения ответов</label>
           <input id="memPrefs" placeholder="напр. отвечай кратко, используй таблицы, на русском" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;outline:none" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'">
-        </div>
-        <div>
-          <label style="font-size:12px;font-weight:600;color:#475569;display:block;margin-bottom:4px">Важные факты о здоровье</label>
-          <textarea id="memHealth" placeholder="напр. холестерин 5.8 (июнь 2025), принимаю магний 400мг, бегаю 3×/нед..." rows="2" style="width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;outline:none;font-family:inherit" onfocus="this.style.borderColor='#7c3aed'" onblur="this.style.borderColor='#e2e8f0'"></textarea>
         </div>
       </div>
       <button onclick="saveMemoryProfile()" style="width:100%;margin-top:14px;padding:11px;background:#7c3aed;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">💾 Сохранить профиль</button>
@@ -5758,11 +5868,16 @@ if(document.readyState==="loading"){
 // раньше (например, Firebase initCloudData мог сработать первым из-за
 // асинхронности auth-колбэков). Инициализируем только недостающие поля.
 window.userMemory = window.userMemory || {};
-window.userMemory.profile = window.userMemory.profile || { profession:"", age:"", context:"", prefs:"", health:"" };
+window.userMemory.profile = window.userMemory.profile || { name:"", birthdate:"", gender:"", maritalStatus:"", education:"", profession:"", workplace:"", hobbies:"", prefs:"" };
 window.userMemory.facts = window.userMemory.facts || [];   // [{id, text, ts, confirmed}]
 // Метка последнего изменения памяти — используется для безопасного слияния
 // при последующей загрузке из Firebase/localStorage (см. mergeUserMemory)
 window.userMemory._localTs = window.userMemory._localTs || 0;
+// Готовность памяти: становится true либо после завершения попытки загрузки
+// из Firebase (см. initCloudData), либо немедленно для анонимного режима
+// (там нет облака, ждать нечего). Защищает от сохранения пустой формы,
+// открытой до того, как реальные данные успели прийти из облака.
+window.userMemory._ready = window.userMemory._ready || false;
 
 // Безопасное слияние памяти из внешнего источника (Firebase/localStorage)
 // с уже имеющимися локальными данными — никогда не теряет факты,
@@ -5772,8 +5887,8 @@ function mergeUserMemory(incoming){
   var cur = window.userMemory;
   // Профиль: берём входящий только если у текущего профиля все поля пустые
   // (т.е. пользователь ещё не успел ничего ввести локально в этой сессии)
-  var curProfileEmpty = cur.profile && !cur.profile.profession && !cur.profile.age && !cur.profile.context && !cur.profile.prefs && !cur.profile.health;
-  if(incoming.profile && (curProfileEmpty || !cur.profile)){
+  var curProfileEmpty = !cur.profile || Object.values(cur.profile).every(function(v){ return !v; });
+  if(incoming.profile && curProfileEmpty){
     cur.profile = incoming.profile;
   }
   // Факты: объединяем по id, не теряя ни локальные, ни облачные
@@ -5794,18 +5909,27 @@ function mergeUserMemory(incoming){
 if(window._pendingMemoryMerge){
   mergeUserMemory(window._pendingMemoryMerge);
   window._pendingMemoryMerge = null;
+  window.userMemory._ready = true;
 }
+// Защитный таймаут: если по какой-то причине initCloudData() не вызвался вообще
+// (сбой Firebase Auth, блокировщики, отсутствие сети) — не блокируем форму памяти
+// навечно, разрешаем сохранение через 6 секунд в любом случае.
+setTimeout(function(){ window.userMemory._ready = true; }, 6000);
 
 // Строим блок контекста для системного промпта
 function getUserMemoryContext(){
   var mem = window.userMemory;
   var lines = [];
   var p = mem.profile || {};
-  if(p.profession) lines.push("Профессия: " + p.profession);
-  if(p.age)        lines.push("Возраст/пол: " + p.age);
-  if(p.context)    lines.push("Контекст: " + p.context);
-  if(p.health)     lines.push("Здоровье: " + p.health);
-  if(p.prefs)      lines.push("Предпочтения: " + p.prefs);
+  if(p.name)          lines.push("Имя: " + p.name);
+  if(p.birthdate)     lines.push("Дата рождения: " + p.birthdate);
+  if(p.gender)        lines.push("Пол: " + p.gender);
+  if(p.maritalStatus) lines.push("Семейное положение: " + p.maritalStatus);
+  if(p.education)     lines.push("Образование: " + p.education);
+  if(p.profession)    lines.push("Профессия: " + p.profession);
+  if(p.workplace)     lines.push("Место работы и должность: " + p.workplace);
+  if(p.hobbies)        lines.push("Хобби и интересы: " + p.hobbies);
+  if(p.prefs)          lines.push("Предпочтения ответов: " + p.prefs);
   var facts = (mem.facts||[]).filter(function(f){ return f.confirmed !== false; });
   if(facts.length){
     lines.push("Известные факты о пользователе:");
@@ -5819,7 +5943,7 @@ function getUserMemoryContext(){
 function updateMemoryBadge(){
   var mem = window.userMemory;
   var p = mem.profile || {};
-  var hasProfile = p.profession || p.age || p.context || p.health || p.prefs;
+  var hasProfile = Object.values(p).some(function(v){ return !!v; });
   var factsCount = (mem.facts||[]).length;
   var badge = document.getElementById("memoryBadge");
   var btn = document.getElementById("memoryBtn");
@@ -5849,11 +5973,20 @@ function openMemoryModal(){
   modal.style.display = "flex";
   // Заполняем поля из памяти
   var p = window.userMemory.profile || {};
+  document.getElementById("memName").value = p.name || "";
+  document.getElementById("memBirthdate").value = p.birthdate || "";
+  document.getElementById("memGender").value = p.gender || "";
+  document.getElementById("memMaritalStatus").value = p.maritalStatus || "";
+  document.getElementById("memEducation").value = p.education || "";
   document.getElementById("memProfession").value = p.profession || "";
-  document.getElementById("memAge").value = p.age || "";
-  document.getElementById("memContext").value = p.context || "";
+  document.getElementById("memWorkplace").value = p.workplace || "";
+  document.getElementById("memHobbies").value = p.hobbies || "";
   document.getElementById("memPrefs").value = p.prefs || "";
-  document.getElementById("memHealth").value = p.health || "";
+  // Если данные из облака ещё не дозагрузились — предупреждаем, чтобы пользователь
+  // не сохранил случайно пустую форму поверх реальных облачных данных
+  if(!window.userMemory._ready){
+    showToast("⏳ Загружаю сохранённые данные...");
+  }
   renderFactsList();
   updateMemoryBadge();
 }
@@ -5876,13 +6009,28 @@ function switchMemTab(n){
 
 // Сохранить профиль
 function saveMemoryProfile(){
-  window.userMemory.profile = {
-    profession: document.getElementById("memProfession").value.trim(),
-    age:        document.getElementById("memAge").value.trim(),
-    context:    document.getElementById("memContext").value.trim(),
-    prefs:      document.getElementById("memPrefs").value.trim(),
-    health:     document.getElementById("memHealth").value.trim()
+  var newProfile = {
+    name:          document.getElementById("memName").value.trim(),
+    birthdate:     document.getElementById("memBirthdate").value.trim(),
+    gender:        document.getElementById("memGender").value.trim(),
+    maritalStatus: document.getElementById("memMaritalStatus").value.trim(),
+    education:     document.getElementById("memEducation").value.trim(),
+    profession:    document.getElementById("memProfession").value.trim(),
+    workplace:     document.getElementById("memWorkplace").value.trim(),
+    hobbies:       document.getElementById("memHobbies").value.trim(),
+    prefs:         document.getElementById("memPrefs").value.trim()
   };
+  var newProfileEmpty = Object.values(newProfile).every(function(v){ return !v; });
+  var curProfile = window.userMemory.profile || {};
+  var curProfileHasData = Object.values(curProfile).some(function(v){ return !!v; });
+  // Защита: если форма полностью пустая, а в памяти УЖЕ есть реальные данные,
+  // и загрузка из облака ещё не завершилась — это вероятно случай, когда
+  // пользователь открыл форму до прихода облачных данных. Не даём затереть.
+  if(newProfileEmpty && curProfileHasData && !window.userMemory._ready){
+    showToast("⏳ Подожди немного — данные ещё загружаются из облака");
+    return;
+  }
+  window.userMemory.profile = newProfile;
   persistMemory();
   updateMemoryBadge();
   showToast("✅ Профиль сохранён — теперь все AI знают о тебе");

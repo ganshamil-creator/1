@@ -657,7 +657,30 @@ function escHtml(t){ return (t||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").r
 
 function renderMd(text){
   if(!text) return "";
-  let t = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  // Изображения вида ![описание](url) — извлекаем ДО escape и подставляем плейсхолдерами,
+  // чтобы итоговый escape текста не сломал уже вставленные <img> теги
+  const imgPlaceholders = [];
+  let t = text.replace(/(?:!\[[^\]]*\]\([^)]+\)\s*){2,}/g, function(block){
+    const imgs = [];
+    const re = /!\[([^\]]*)\]\(([^)]+)\)/g;
+    let m;
+    while((m = re.exec(block))) imgs.push({alt:m[1], url:m[2]});
+    const grid = imgs.map(function(img){
+      return '<img src="'+img.url+'" alt="'+img.alt.replace(/"/g,"&quot;")+'" loading="lazy" style="width:100%;height:140px;object-fit:cover;border-radius:8px;display:block;background:#f1f5f9" onerror="this.style.display=\'none\'">';
+    }).join("");
+    const html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:8px 0">'+grid+'</div>';
+    const token = "\u0001IMG"+imgPlaceholders.length+"\u0001";
+    imgPlaceholders.push(html);
+    return token;
+  });
+  t = t.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(full, alt, url){
+    const html = '<img src="'+url+'" alt="'+alt.replace(/"/g,"&quot;")+'" loading="lazy" style="max-width:100%;border-radius:8px;display:block;margin:8px 0" onerror="this.style.display=\'none\'">';
+    const token = "\u0001IMG"+imgPlaceholders.length+"\u0001";
+    imgPlaceholders.push(html);
+    return token;
+  });
+
+  t = t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
   // Таблицы — обрабатываем до остального
   t = t.replace(/((?:^\|.+\|[ \t]*\n)+)/gm, function(block){
@@ -691,6 +714,10 @@ function renderMd(text){
   t = t.replace(/^([0-9]+)[.] (.+)$/gm,'<div style="display:flex;gap:6px;margin:2px 0"><span style="color:#6366f1;font-weight:600;flex-shrink:0">$1.</span><span>$2</span></div>');
   t = t.replace(/^---+$/gm,'<hr style="border:none;border-top:1px solid #e2e8f0;margin:8px 0">');
   t = t.replace(/\n/g,'<br>');
+  // Подставляем обратно реальные <img> теги вместо плейсхолдеров
+  imgPlaceholders.forEach(function(html, i){
+    t = t.replace("\u0001IMG"+i+"\u0001", html);
+  });
   return t;
 }
 
@@ -2859,6 +2886,44 @@ async function tavilySearch(query){
   }catch(e){ return ""; }
 }
 
+// Поиск реальных изображений по запросу через Tavily (include_images).
+// Возвращает массив {url, description} или [] при ошибке/отсутствии ключа.
+async function tavilyImageSearch(query, maxImages){
+  const keys=getKeys();
+  if(!keys.tavily) return [];
+  try{
+    const r=await fetch("https://api.tavily.com/search",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        api_key:keys.tavily, query, max_results:3, search_depth:"basic",
+        include_images:true, include_image_descriptions:true
+      })
+    });
+    const d=await r.json();
+    if(!Array.isArray(d.images)) return [];
+    return d.images.slice(0, maxImages||6).map(function(img){
+      // Tavily может вернуть либо строку URL, либо объект {url, description}
+      if(typeof img === "string") return {url:img, description:""};
+      return {url:img.url||"", description:img.description||""};
+    }).filter(function(img){ return img.url; });
+  }catch(e){ return []; }
+}
+
+// Определяет, явно ли пользователь просит ПОКАЗАТЬ изображения/фото
+// (а не просто упоминает слово "фото" в другом контексте).
+function detectImageShowRequest(text){
+  if(!text) return false;
+  var t = text.toLowerCase();
+  var triggers = [
+    /покаж[иь]\s+(несколько\s+)?фото/, /покаж[иь]\s+(несколько\s+)?картин/, /покаж[иь]\s+(несколько\s+)?изображ/,
+    /найди\s+фото/, /найди\s+картин/, /пришли\s+фото/, /скинь\s+фото/, /дай\s+фото/,
+    /show\s+(me\s+)?(some\s+)?(photos?|pictures?|images?)/
+  ];
+  return triggers.some(function(re){ return re.test(t); });
+}
+
+// Рендерит блок с найденными изображениями прямо в чат (не текстом для AI, а как настоящие <img>)
 
 
 // ── Веб-поиск для Claude через Perplexity ─────────────────────
@@ -2968,8 +3033,19 @@ function handleFiles(input){
     if(f.size>20*1024*1024){showToast("⚠️ "+f.name+" слишком большой (макс 20MB)");loaded++;if(loaded===files.length)renderFilePreview();return;}
     const reader=new FileReader();
     reader.onload=async e=>{
-      const b64=e.target.result.split(",")[1];
+      let b64=e.target.result.split(",")[1];
       const obj={name:f.name,type:f.type||"application/octet-stream",b64,size:f.size,text:null};
+      if(f.type.startsWith("image/")){
+        // Сжимаем изображение перед отправкой, чтобы не упереться в лимит 4.5MB у серверного прокси
+        // (актуально для фото прямо с камеры телефона, которые легко весят 5-10+ МБ)
+        try{
+          const compressed = await compressImage(e.target.result, 1600, 0.82);
+          const compressedB64 = compressed.split(",")[1];
+          b64 = compressedB64;
+          obj.b64 = compressedB64;
+          obj.type = "image/jpeg";
+        }catch(compressErr){ /* если сжатие не удалось — отправляем оригинал как раньше */ }
+      }
       if(f.type==="application/pdf"){
         showToast("📄 Читаю PDF: "+f.name);
         const txt=await extractPdfText(b64);
@@ -3944,6 +4020,41 @@ async function send(){
   const inp=document.getElementById("queryInput");
   const text=inp.value.trim();
   if(!text&&!currentFiles.length) return;
+
+  // 🖼️ ЗАПРОС НА ПОКАЗ ФОТО — ищем реальные изображения через Tavily вместо обычного AI-ответа
+  if(detectImageShowRequest(text) && !currentFiles.length){
+    const keys0=getKeys();
+    if(!keys0.tavily){
+      showToast("⚠️ Для показа фото нужен ключ Tavily в ⚙️ Настройки");
+      return;
+    }
+    const chat0=getChat();
+    chat0.messages.push({role:"user",content:text});
+    inp.value="";
+    renderMessages();
+    scrollToBottom();
+    // Используем сам текст запроса как поисковый запрос (убираем командные слова)
+    const searchQuery = text.replace(/покаж[иь]\s+(несколько\s+)?/i,"").replace(/фото|картин\w*|изображени\w*/i,"").trim() || text;
+    const msgsEl0=document.getElementById("messages");
+    const loadingCard=document.createElement("div");
+    loadingCard.style.cssText="color:#94a3b8;font-size:13px;padding:8px 0";
+    loadingCard.textContent="🔍 Ищу изображения...";
+    if(msgsEl0){ msgsEl0.appendChild(loadingCard); scrollToBottom(); }
+    const images = await tavilyImageSearch(searchQuery, 6);
+    loadingCard.remove();
+    if(images.length){
+      const md = "🖼️ Найдено по запросу «"+searchQuery+"»:\n\n"
+        + images.map(function(img){ return "![" + (img.description||"").replace(/[\[\]]/g,"") + "]("+img.url+")"; }).join(" ")
+        + "\n\n_Изображения через Tavily Search · могут быть неточными_";
+      chat0.messages.push({role:"assistant",content:md});
+    } else {
+      chat0.messages.push({role:"assistant",content:"⚠️ Не нашёл изображений по запросу «"+searchQuery+"». Попробуй переформулировать."});
+    }
+    saveChats(chats);
+    renderMessages();
+    scrollToBottom();
+    return;
+  }
 
   // ⚡ БЫСТРЫЙ РЕЖИМ — один агент без синтеза
   if(quickMode){

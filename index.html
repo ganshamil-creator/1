@@ -1130,9 +1130,11 @@ function buildBioRows(){
         var valueDisplay = isQual
           ? '<span style="font-size:12px;font-weight:600;color:#475569">' + escHtml(last.qualitative||"") + '</span>'
           : '<span style="font-size:12px;font-weight:600;color:#1e293b">' + last.value + ' ' + (last.unit||"") + '</span>';
+        var dateInput = '<input type="date" value="'+last.date+'" onchange="updateBiomarkerDate(\''+name.replace(/'/g,"\\'")+'\',\''+last.date+'\',this.value)" style="font-size:11px;color:#6b7280;padding:2px 4px;border:1px solid #e2e8f0;border-radius:4px;width:118px">'
+          + (last.dateGuessed ? '<span title="Дата не найдена в документе — подставлена автоматически, проверь и поправь" style="margin-left:3px">⚠️</span>' : '');
         h += '<tr><td style="padding:4px 8px;font-size:12px;color:#334155;width:45%"><b>' + name + '</b></td>';
         h += '<td style="padding:4px 4px">' + valueDisplay + '</td>';
-        h += '<td style="font-size:11px;color:#6b7280;padding:4px">' + "от "+last.date + '</td>';
+        h += '<td style="padding:4px">' + dateInput + '</td>';
         h += '<td style="padding:4px">' + cnt + ' ' + delBtn + '</td></tr>';
       });
       h += '</table>';
@@ -1642,6 +1644,14 @@ var BIO_NORMS = {
   "Эозинофилы":     {lo:0.0, hi:0.5,  unit:"10⁹/л"},
   "Базофилы":       {lo:0.0, hi:0.2,  unit:"10⁹/л"}
 };
+
+// Текст-инструкция со списком точных названий показателей из BIO_NORMS.
+// Используется ОБОИМИ промптами извлечения (текстовым и Vision), чтобы они
+// никогда не расходились между собой — иначе показатели не находят норму
+// и отображаются серым из-за несовпадения строк.
+var BIO_NAMES_PROMPT_HINT = "- name: используй СТРОГО эти точные названия (включая регистр, скобки, дефисы), если показатель встречается в тексте — это критично для сопоставления с нормами:\n  "
+  + Object.keys(BIO_NORMS).map(function(n){ return n.indexOf(" ")>-1 ? "'"+n+"'" : n; }).join(", ")
+  + ".\n  Если показателя нет в этом списке — используй обычное русское название (например: Поверхностный антиген гепатита B (HBsAg), Антитела к вирусу гепатита C (Anti-HCV), Группа крови, RW, ВИЧ и т.п.).\n";
 
 function getBioStatus(name, value){
   var n = BIO_NORMS[name];
@@ -3314,6 +3324,7 @@ async function extractFromImageWithVision(apiKey, filename, b64, mimeType, docTy
           +"Правила для markers (структурированные показатели):\n"
           +"- Если это ЭКГ/кардиограмма — извлеки: ЧСС, PQ, QRS, QT, QTc, Электрическая ось (как числовые показатели).\n"
           +"- Если это анализ крови/биохимия/моча/гормоны — извлеки ВСЕ показатели, и числовые, и качественные.\n"
+          +BIO_NAMES_PROMPT_HINT
           +"- Если в анализе ширина распределения эритроцитов (RDW) дана ОДНИМ значением — назови 'Ширина распределения эритроцитов по объему (RDW)'. Если ДВУМЯ отдельными значениями (одно в фл — это RDW-SD, другое в % — это RDW-CV) — назови их 'RDW-SD (стандартное отклонение ширины распределения эритроцитов)' и 'RDW-CV (коэффициент вариации ширины распределения эритроцитов)' соответственно.\n"
           +"- Для ЧИСЛОВЫХ показателей: value = число, qualitative = null, unit = единица измерения.\n"
           +"- Для КАЧЕСТВЕННЫХ результатов (вида 'обнаружено'/'не обнаружено', 'положительно'/'отрицательно', результаты посевов на микрофлору, чувствительность к антибиотикам, группа крови): value = null, qualitative = точный текст результата на русском, unit = \"\".\n"
@@ -3346,7 +3357,7 @@ async function extractFromImageWithVision(apiKey, filename, b64, mimeType, docTy
     if(s2>-1&&e2>s2) txt=txt.slice(s2,e2+1);
     var result = JSON.parse(txt);
     var markers = Array.isArray(result.markers) ? result.markers : [];
-    saveParsedBiomarkers(markers, cardId);
+    saveParsedBiomarkers(markers, cardId, result.date);
     // Если AI вернул текстовое заключение (МРТ/УЗИ/КТ и т.п.) — дополняем запись в Vault полным текстом,
     // чтобы оно было видно во вкладке "Vault" и участвовало в getVaultContext() для AI-функций
     if(result.narrative && typeof result.narrative === "string" && result.narrative.trim().length > 0){
@@ -3389,6 +3400,24 @@ function deleteBiomarker(name, date, mode){
   if(window.cloudSync && window.cloudSync.userId) window.cloudSync.saveBiomarkers(window.healthData.biomarkers);
   showToast("🗑 Удалено: "+name);
   // Перерисовываем вкладку Анализы
+  var ac = document.getElementById("htab_bio_c");
+  if(ac && typeof buildBioRows === "function") ac.innerHTML = buildBioRows();
+}
+
+// Исправляет дату конкретной записи показателя вручную (используется когда AI не нашёл
+// дату в документе или нашёл неверно, и пользователь поправляет её сам в UI).
+function updateBiomarkerDate(name, oldDate, newDate){
+  if(!window.healthData.biomarkers[name]) return;
+  var entry = window.healthData.biomarkers[name].find(function(e){ return e.date === oldDate; });
+  if(!entry) return;
+  entry.date = newDate;
+  entry.dateGuessed = false; // дата теперь подтверждена пользователем вручную
+  window.healthData.biomarkers[name].sort(function(a,b){ return a.date>b.date?1:-1; });
+  var pd = getProfileData();
+  pd.biomarkers = window.healthData.biomarkers;
+  localStorage.setItem("ai_hub_all_profiles_data", JSON.stringify(window.allProfilesData||{}));
+  if(window.cloudSync && window.cloudSync.userId) window.cloudSync.saveBiomarkers(window.healthData.biomarkers);
+  showToast("✅ Дата обновлена: "+name);
   var ac = document.getElementById("htab_bio_c");
   if(ac && typeof buildBioRows === "function") ac.innerHTML = buildBioRows();
 }
@@ -3489,16 +3518,18 @@ function normalizeDate(raw){
   return null; // не смогли распарсить — лучше null, чем неверная дата
 }
 
-function saveParsedBiomarkers(markers, cardId){
+function saveParsedBiomarkers(markers, cardId, fallbackDocDate){
   var statusEl = document.getElementById(cardId+"_status");
   var saved = 0;
   var today = new Date().toISOString().split("T")[0];
   // Нормализуем дату каждого маркера (разные форматы -> ISO, или null если не распознана)
   markers.forEach(function(m){ m._normDate = normalizeDate(m.date); });
-  // Берём общую дату документа из первого маркера у которого нормализация удалась
+  // Берём общую дату документа: сначала пробуем найти её у самих маркеров,
+  // если ни у одного нет — используем дату документа верхнего уровня (fallbackDocDate),
+  // которую AI мог найти в шапке бланка отдельно от таблицы результатов.
   var docDateEntry = markers.find(function(m){ return m._normDate; });
-  var docDate = docDateEntry ? docDateEntry._normDate : null;
-  var dateWasGuessed = !docDate; // true если ни у одного маркера не нашлась дата анализа
+  var docDate = docDateEntry ? docDateEntry._normDate : normalizeDate(fallbackDocDate);
+  var dateWasGuessed = !docDate; // true если ни у маркеров, ни в fallback дата не нашлась
   var effectiveDate = docDate || today;
   // Обновляем поле hDate в UI только если дата реально найдена в документе
   var hDateEl = document.getElementById("hDate");
@@ -3575,11 +3606,8 @@ async function extractBiomarkersWithAI(apiKey, filename, text, docType, cardId){
       + "Верни ТОЛЬКО JSON массив в формате:\n"
       + '[{"name":"Название показателя на русском","value":число_или_null,"qualitative":"текст результата или null","unit":"единица измерения или пустая строка","date":"ГГГГ-ММ-ДД или null"}]\n\n'
       + "Правила:\n"
-      + "- name: используй СТРОГО эти стандартные названия, если показатель встречается в тексте (это важно для сопоставления с нормами):\n"
-      + "  Гемоглобин, Ферритин, Глюкоза, Лейкоциты, Холестерин, ЛПНП, ЛПВП, Триглицериды, Витамин D, Витамин B12, ТТГ, АЛТ, АСТ, Креатинин, Инсулин, HbA1c, Кортизол, Тестостерон, ДГЭА-С, Магний, Цинк, hsCRP,\n"
-      + "  СОЭ, Эритроциты, Гематокрит, 'Средний объем эритроцитов (MCV)', 'Среднее содержание гемоглобина в эритроците (MCH)', 'Средняя концентрация Hb в эритроцитах (MCHC)', 'RDW-SD (стандартное отклонение ширины распределения эритроцитов)', 'RDW-CV (коэффициент вариации ширины распределения эритроцитов)', Тромбоциты, 'Средний объем тромбоцитов (MPV)', 'Тромбокрит (PCT)', Нейтрофилы, Лимфоциты, Моноциты, Эозинофилы, Базофилы.\n"
+      + BIO_NAMES_PROMPT_HINT
       + "  ВАЖНО: если в документе RDW указан как ОДНО значение без разделения на SD/CV — используй общее название 'Ширина распределения эритроцитов по объему (RDW)'. Если в документе указаны ДВА отдельных значения (одно в фл, другое в %) — используй 'RDW-SD...' для значения в фл и 'RDW-CV...' для значения в %.\n"
-      + "  Если показателя нет в этом списке — используй обычное русское название (например: Поверхностный антиген гепатита B (HBsAg), Антитела к вирусу гепатита C (Anti-HCV), Группа крови, RW, ВИЧ и т.п.).\n"
       + "- Для ЧИСЛОВЫХ показателей: value = число, qualitative = null, unit = единица измерения.\n"
       + "- Для КАЧЕСТВЕННЫХ показателей (результат вида 'обнаружено'/'не обнаружено', 'положительно'/'отрицательно', группа крови и т.п.): value = null, qualitative = точный текст результата на русском, unit = \"\".\n"
       + "- НЕ пропускай качественные результаты — они важны для медицинской истории так же, как числовые.\n"

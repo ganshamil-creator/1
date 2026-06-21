@@ -304,8 +304,8 @@
           showToast("☁️ История пуста — начни новый чат!");
         }
       }
-      // Загружаем данные здоровья
-      await loadHealthData();
+      // Health-данные хранятся в localStorage (ai_hub_all_profiles_data) и подгружаются
+      // отдельно при инициализации приложения — здесь не требуется доп. действий.
       // Загружаем сквозную память — безопасное слияние, не теряем локальные данные
       const savedMemory = await window.cloudSync.loadMemory();
       if(savedMemory) {

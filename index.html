@@ -1130,10 +1130,12 @@ function buildBioRows(){
         var valueDisplay = isQual
           ? '<span style="font-size:12px;font-weight:600;color:#475569">' + escHtml(last.qualitative||"") + '</span>'
           : '<span style="font-size:12px;font-weight:600;color:#1e293b">' + last.value + ' ' + (last.unit||"") + '</span>';
+        var rangeText = isQual ? "" : getBioRangeText(name);
         var dateInput = '<input type="date" value="'+last.date+'" onchange="updateBiomarkerDate(\''+name.replace(/'/g,"\\'")+'\',\''+last.date+'\',this.value)" style="font-size:11px;color:#6b7280;padding:2px 4px;border:1px solid #e2e8f0;border-radius:4px;width:118px">'
           + (last.dateGuessed ? '<span title="Дата не найдена в документе — подставлена автоматически, проверь и поправь" style="margin-left:3px">⚠️</span>' : '');
-        h += '<tr><td style="padding:4px 8px;font-size:12px;color:#334155;width:45%"><b>' + name + '</b></td>';
+        h += '<tr><td style="padding:4px 8px;font-size:12px;color:#334155;width:40%"><b>' + name + '</b></td>';
         h += '<td style="padding:4px 4px">' + valueDisplay + '</td>';
+        h += '<td style="padding:4px;font-size:11px;color:#94a3b8;white-space:nowrap">' + (rangeText||"—") + '</td>';
         h += '<td style="padding:4px">' + dateInput + '</td>';
         h += '<td style="padding:4px">' + cnt + ' ' + delBtn + '</td></tr>';
       });
@@ -1693,6 +1695,15 @@ function getBioStatus(name, value){
   return {color:"#16a34a", emoji:"🟢", label:"норма"};
 }
 
+// Возвращает строку с референсным диапазоном показателя (например "120–170 г/л"),
+// или пустую строку, если нормы для этого названия нет ни прямо, ни через алиас.
+function getBioRangeText(name){
+  var n = BIO_NORMS[name];
+  if(!n && BIO_NORMS_ALIASES[name]) n = BIO_NORMS[BIO_NORMS_ALIASES[name]];
+  if(!n) return "";
+  return n.lo + "–" + n.hi + " " + n.unit;
+}
+
 // ── БИОЛОГИЧЕСКИЙ ВОЗРАСТ (упрощённая модель) ────────────────
 function calcBioAge(chronoAge){
   var bm = window.healthData.biomarkers;
@@ -2233,6 +2244,15 @@ function doEditProfile(id){
   localStorage.setItem("ai_hub_all_profiles_data", JSON.stringify(window.allProfilesData||{}));
   if(window.cloudSync && window.cloudSync.userId){
     window.cloudSync.saveWearable({"__profiles":JSON.stringify(FAMILY_PROFILES),"__allData":JSON.stringify(window.allProfilesData||{})});
+  }
+  // Синхронизируем с сквозной памятью — только для профиля "me" (сам пользователь хаба,
+  // не члены семьи). Остальные семейные профили (Эльмира и т.п.) не трогают userMemory.
+  if(id === "me" && typeof window.userMemory === "object" && window.userMemory.profile){
+    window.userMemory.profile.name = name;
+    if(dob) window.userMemory.profile.birthdate = dob;
+    window.userMemory.profile.gender = p.gender === "f" ? "женский" : "мужской";
+    if(typeof persistMemory === "function") persistMemory();
+    if(typeof updateMemoryBadge === "function") updateMemoryBadge();
   }
   showToast("✅ Профиль обновлён");
 }
@@ -3587,16 +3607,18 @@ function saveParsedBiomarkers(markers, cardId, fallbackDocDate){
   // Сохраняем в localStorage и Firebase
   localStorage.setItem("ai_hub_all_profiles_data", JSON.stringify(window.allProfilesData||{}));
   if(window.cloudSync && window.cloudSync.userId) window.cloudSync.saveBiomarkers(window.healthData.biomarkers);
-  var lights = markers.slice(0,12).map(function(m){
+  var lights = markers.map(function(m){
     var isNumeric = typeof m.value === "number";
     var isQualitative = !isNumeric && typeof m.qualitative === "string" && m.qualitative.trim().length > 0;
     if(!isNumeric && !isQualitative) return "";
     if(isNumeric){
       var st = getBioStatus(m.name, m.value);
+      var range = getBioRangeText(m.name);
       return "<div style='display:flex;align-items:center;gap:6px;padding:2px 0'>"
         +"<span>"+st.emoji+"</span>"
         +"<span style='font-size:12px;color:#334155;flex:1'>"+m.name+"</span>"
         +"<span style='font-size:12px;font-weight:700;color:"+st.color+"'>"+m.value+" "+(m.unit||"")+"</span>"
+        +"<span style='font-size:11px;color:#94a3b8;min-width:90px;text-align:right'>"+(range||"—")+"</span>"
         +"</div>";
     }
     // Качественный результат — нейтральная иконка, текст результата вместо числа
@@ -3604,6 +3626,7 @@ function saveParsedBiomarkers(markers, cardId, fallbackDocDate){
       +"<span>📋</span>"
       +"<span style='font-size:12px;color:#334155;flex:1'>"+m.name+"</span>"
       +"<span style='font-size:12px;font-weight:700;color:#475569'>"+m.qualitative+"</span>"
+      +"<span style='font-size:11px;color:#94a3b8;min-width:90px;text-align:right'>—</span>"
       +"</div>";
   }).join("");
   if(statusEl){
@@ -3623,7 +3646,6 @@ function saveParsedBiomarkers(markers, cardId, fallbackDocDate){
     statusEl.innerHTML = dateWarning
       + "<div style='color:#15803d;font-weight:600;margin-bottom:6px'>✅ Извлечено "+saved+" показателей:</div>"
       + lights
-      + (markers.length>12?"<div style='font-size:11px;color:#6b7280;margin-top:4px'>...и ещё "+(markers.length-12)+"</div>":"")
       + "<div style='font-size:11px;color:#6b7280;margin-top:6px;border-top:1px solid #e2e8f0;padding-top:5px'>Сохранено · 📊 Мои данные → 📈 Тренды</div>";
   }
 }
@@ -6116,6 +6138,20 @@ function saveMemoryProfile(){
   window.userMemory.profile = newProfile;
   persistMemory();
   updateMemoryBadge();
+  // Синхронизируем с Health-профилем "Я" — имя/дата рождения/пол common для обоих мест
+  if(typeof FAMILY_PROFILES === "object" && FAMILY_PROFILES.me){
+    if(newProfile.name) FAMILY_PROFILES.me.name = newProfile.name;
+    if(newProfile.birthdate){
+      FAMILY_PROFILES.me.dob = newProfile.birthdate;
+      FAMILY_PROFILES.me.age = Math.floor((Date.now()-new Date(newProfile.birthdate))/(365.25*24*3600*1000)) || FAMILY_PROFILES.me.age;
+    }
+    if(newProfile.gender) FAMILY_PROFILES.me.gender = newProfile.gender === "женский" ? "f" : "m";
+    localStorage.setItem("ai_hub_profiles", JSON.stringify(FAMILY_PROFILES));
+    if(typeof updateProfileUI === "function") updateProfileUI();
+    if(window.cloudSync && window.cloudSync.userId){
+      window.cloudSync.saveWearable({"__profiles":JSON.stringify(FAMILY_PROFILES),"__allData":JSON.stringify(window.allProfilesData||{})});
+    }
+  }
   showToast("✅ Профиль сохранён — теперь все AI знают о тебе");
   closeMemoryModal();
 }

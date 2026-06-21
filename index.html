@@ -1642,7 +1642,33 @@ var BIO_NORMS = {
   "Лимфоциты":      {lo:1.0, hi:4.8,  unit:"10⁹/л"},
   "Моноциты":       {lo:0.1, hi:1.0,  unit:"10⁹/л"},
   "Эозинофилы":     {lo:0.0, hi:0.5,  unit:"10⁹/л"},
-  "Базофилы":       {lo:0.0, hi:0.2,  unit:"10⁹/л"}
+  "Базофилы":       {lo:0.0, hi:0.2,  unit:"10⁹/л"},
+  // ── Биохимия — недостающие распространённые показатели ──
+  "Общий белок":    {lo:64,  hi:83,  unit:"г/л"},
+  "Билирубин общий": {lo:5,  hi:21,  unit:"мкмоль/л"},
+  "Мочевина":       {lo:2.5, hi:8.3, unit:"ммоль/л"}
+};
+
+// Алиасы: альтернативные формулировки названий, которые AI может вернуть вместо
+// точного ключа из BIO_NORMS (например, развёрнутое медицинское название вместо
+// принятой аббревиатуры). Используется в getBioStatus как fallback, если прямое
+// совпадение по ключу не найдено — устраняет проблему "серых" показателей,
+// у которых норма реально есть, но название чуть отличается по формулировке.
+var BIO_NORMS_ALIASES = {
+  "Аланинаминотрансфераза": "АЛТ",
+  "Аланинаминотрансфераза (АЛТ)": "АЛТ",
+  "Аспартатаминотрансфераза": "АСТ",
+  "Аспартатаминотрансфераза (АСТ)": "АСТ",
+  "Тиреотропный гормон": "ТТГ",
+  "Тиреотропный гормон (ТТГ)": "ТТГ",
+  "Гликированный гемоглобин": "HbA1c",
+  "С-реактивный белок": "hsCRP",
+  "Высокочувствительный С-реактивный белок": "hsCRP",
+  "Дегидроэпиандростерон-сульфат": "ДГЭА-С",
+  "Холестерин общий": "Холестерин",
+  "Общий холестерин": "Холестерин",
+  "ЛПНП (липопротеины низкой плотности)": "ЛПНП",
+  "ЛПВП (липопротеины высокой плотности)": "ЛПВП"
 };
 
 // Текст-инструкция со списком точных названий показателей из BIO_NORMS.
@@ -1651,24 +1677,20 @@ var BIO_NORMS = {
 // и отображаются серым из-за несовпадения строк.
 var BIO_NAMES_PROMPT_HINT = "- name: используй СТРОГО эти точные названия (включая регистр, скобки, дефисы), если показатель встречается в тексте — это критично для сопоставления с нормами:\n  "
   + Object.keys(BIO_NORMS).map(function(n){ return n.indexOf(" ")>-1 ? "'"+n+"'" : n; }).join(", ")
-  + ".\n  Если показателя нет в этом списке — используй обычное русское название (например: Поверхностный антиген гепатита B (HBsAg), Антитела к вирусу гепатита C (Anti-HCV), Группа крови, RW, ВИЧ и т.п.).\n";
+  + ".\n  ВАЖНО: если в документе показатель назван развёрнутым медицинским термином с аббревиатурой в скобках (например 'Аланинаминотрансфераза (АЛТ)') — используй ТОЛЬКО короткую аббревиатуру из списка выше ('АЛТ'), а не полное название.\n  Если показателя нет в этом списке — используй обычное русское название (например: Поверхностный антиген гепатита B (HBsAg), Антитела к вирусу гепатита C (Anti-HCV), Группа крови, RW, ВИЧ и т.п.).\n";
 
 function getBioStatus(name, value){
   var n = BIO_NORMS[name];
+  if(!n && BIO_NORMS_ALIASES[name]) n = BIO_NORMS[BIO_NORMS_ALIASES[name]];
   if(!n) return {color:"#94a3b8", emoji:"⬜", label:"нет нормы"};
-  var pct = (value - n.lo) / (n.hi - n.lo);
-  if(value < n.lo){
-    var gap = (n.lo - value)/n.lo;
-    if(gap > 0.2) return {color:"#dc2626", emoji:"🔴", label:"низкий"};
-    return {color:"#f59e0b", emoji:"🟡", label:"ниже нормы"};
-  }
-  if(value > n.hi){
-    var gap2 = (value - n.hi)/n.hi;
-    if(gap2 > 0.2) return {color:"#dc2626", emoji:"🔴", label:"высокий"};
-    return {color:"#f59e0b", emoji:"🟡", label:"выше нормы"};
-  }
-  if(pct > 0.2 && pct < 0.8) return {color:"#16a34a", emoji:"🟢", label:"норма"};
-  return {color:"#4ade80", emoji:"🟢", label:"норма"};
+  // Вне диапазона нормы — всегда красный, независимо от стороны (выше или ниже)
+  if(value < n.lo) return {color:"#dc2626", emoji:"🔴", label:"ниже нормы"};
+  if(value > n.hi) return {color:"#dc2626", emoji:"🔴", label:"выше нормы"};
+  // В пределах нормы — градация по близости к границам
+  var pct = (value - n.lo) / (n.hi - n.lo); // 0 = на нижней границе, 1 = на верхней границе
+  if(pct < 0.2)  return {color:"#eab308", emoji:"🟡", label:"норма, у нижней границы"};
+  if(pct > 0.8)  return {color:"#f97316", emoji:"🟠", label:"норма, у верхней границы"};
+  return {color:"#16a34a", emoji:"🟢", label:"норма"};
 }
 
 // ── БИОЛОГИЧЕСКИЙ ВОЗРАСТ (упрощённая модель) ────────────────
@@ -1829,6 +1851,7 @@ function openBioAge(){
   });
   var red = lights.filter(function(l){return l.status.emoji==="🔴";});
   var yellow = lights.filter(function(l){return l.status.emoji==="🟡";});
+  var orange = lights.filter(function(l){return l.status.emoji==="🟠";});
   var green = lights.filter(function(l){return l.status.emoji==="🟢";});
 
   var m = document.createElement("div");
@@ -1876,8 +1899,12 @@ function openBioAge(){
     c += makeList(red)+'</div>';
   }
   if(yellow.length){
-    c += '<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:#d97706;margin-bottom:6px;padding:4px 8px;background:#fef3c7;border-radius:6px">🟡 ПОГРАНИЧНЫЕ ЗНАЧЕНИЯ ('+yellow.length+')</div>';
+    c += '<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:#ca8a04;margin-bottom:6px;padding:4px 8px;background:#fef9c3;border-radius:6px">🟡 НОРМА, БЛИЖЕ К НИЖНЕЙ ГРАНИЦЕ ('+yellow.length+')</div>';
     c += makeList(yellow)+'</div>';
+  }
+  if(orange.length){
+    c += '<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:#ea580c;margin-bottom:6px;padding:4px 8px;background:#ffedd5;border-radius:6px">🟠 НОРМА, БЛИЖЕ К ВЕРХНЕЙ ГРАНИЦЕ ('+orange.length+')</div>';
+    c += makeList(orange)+'</div>';
   }
   if(green.length){
     c += '<div style="margin-bottom:12px"><div style="font-size:11px;font-weight:700;color:#16a34a;margin-bottom:6px;padding:4px 8px;background:#dcfce7;border-radius:6px">🟢 В НОРМЕ ('+green.length+')</div>';
@@ -2372,7 +2399,9 @@ async function searchPubMed(){
     if(!vals || !vals.length) return;
     var v = vals[vals.length-1].value;
     var st = getBioStatus(name, v);
-    if(st.emoji !== "🟢" && PUBMED_TERMS[name]){
+    // Жёлтый/оранжевый теперь означают "в норме, у края диапазона" — не повод искать PubMed.
+    // Только реально вышедшие за границы нормы (красный) считаются отклонением.
+    if(st.emoji === "🔴" && PUBMED_TERMS[name]){
       abnormal.push({name:name, value:v, status:st, term:PUBMED_TERMS[name]});
     }
   });

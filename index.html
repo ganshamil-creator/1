@@ -322,6 +322,10 @@
       // Попытка загрузки завершена (с данными или без) — теперь форму можно безопасно сохранять
       window.userMemory = window.userMemory || {};
       window.userMemory._ready = true;
+      // Если модал памяти уже открыт (пользователь успел кликнуть 🧠 раньше,
+      // чем завершилась эта загрузка) — перезаполняем поля свежими данными,
+      // не дожидаясь повторного открытия модала.
+      if(typeof refillMemoryModalIfOpen === "function") refillMemoryModalIfOpen();
     }
 
     // Автосинхронизация каждые 60 секунд — только сохраняем текущие темы (не воскрешаем удалённые)
@@ -5968,20 +5972,42 @@ function updateMemoryBadge(){
 }
 
 // Открыть модал
+// Заполняет поля формы профиля из window.userMemory.
+// Если skipIfDirty=true — не трогает поле, если пользователь уже что-то в него ввёл
+// (используется при автообновлении после прихода данных из облака, чтобы не затереть
+// то, что пользователь успел напечатать сам, пока шла загрузка).
+function fillMemoryProfileForm(skipIfDirty){
+  var p = window.userMemory.profile || {};
+  var fieldMap = {
+    memName: p.name, memBirthdate: p.birthdate, memGender: p.gender,
+    memMaritalStatus: p.maritalStatus, memEducation: p.education,
+    memProfession: p.profession, memWorkplace: p.workplace,
+    memHobbies: p.hobbies, memPrefs: p.prefs
+  };
+  Object.keys(fieldMap).forEach(function(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    if(skipIfDirty && el.value && el.value.trim()) return; // пользователь уже ввёл что-то — не трогаем
+    el.value = fieldMap[id] || "";
+  });
+}
+
+// Если модал памяти сейчас открыт — обновляет его поля свежими данными из облака.
+// Вызывается после завершения initCloudData(), на случай если пользователь открыл
+// модал раньше, чем загрузка успела завершиться.
+function refillMemoryModalIfOpen(){
+  var modal = document.getElementById("memoryModal");
+  if(!modal || modal.style.display === "none" || !modal.style.display) return;
+  fillMemoryProfileForm(true); // skipIfDirty — не затираем то, что пользователь уже ввёл вручную
+  renderFactsList();
+  updateMemoryBadge();
+  showToast("✅ Данные загружены из облака");
+}
+
 function openMemoryModal(){
   var modal = document.getElementById("memoryModal");
   modal.style.display = "flex";
-  // Заполняем поля из памяти
-  var p = window.userMemory.profile || {};
-  document.getElementById("memName").value = p.name || "";
-  document.getElementById("memBirthdate").value = p.birthdate || "";
-  document.getElementById("memGender").value = p.gender || "";
-  document.getElementById("memMaritalStatus").value = p.maritalStatus || "";
-  document.getElementById("memEducation").value = p.education || "";
-  document.getElementById("memProfession").value = p.profession || "";
-  document.getElementById("memWorkplace").value = p.workplace || "";
-  document.getElementById("memHobbies").value = p.hobbies || "";
-  document.getElementById("memPrefs").value = p.prefs || "";
+  fillMemoryProfileForm(false); // при открытии — всегда показываем актуальное состояние памяти
   // Если данные из облака ещё не дозагрузились — предупреждаем, чтобы пользователь
   // не сохранил случайно пустую форму поверх реальных облачных данных
   if(!window.userMemory._ready){

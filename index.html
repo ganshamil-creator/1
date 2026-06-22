@@ -304,8 +304,16 @@
           showToast("☁️ История пуста — начни новый чат!");
         }
       }
-      // Health-данные хранятся в localStorage (ai_hub_all_profiles_data) и подгружаются
-      // отдельно при инициализации приложения — здесь не требуется доп. действий.
+      // Загружаем Health-данные (биомаркеры, wearable, семейные профили) из Firebase.
+      // loadAllProfiles() уже существовала в коде, но никогда не вызывалась — из-за
+      // этого данные, сохранённые на одном устройстве, не появлялись на другом,
+      // пока не истечёт localStorage или не переключится профиль вручную.
+      try{
+        const wrData = await window.cloudSync.loadWearable();
+        if(typeof loadAllProfiles === "function"){
+          loadAllProfiles(wrData, wrData);
+        }
+      }catch(healthLoadErr){ console.warn("Health data load error:", healthLoadErr); }
       // Загружаем сквозную память — безопасное слияние, не теряем локальные данные
       const savedMemory = await window.cloudSync.loadMemory();
       if(savedMemory) {
@@ -5802,6 +5810,10 @@ function initApp(){
     renderMessages();
     const ct = document.getElementById("chatTitle");
     if(ct) ct.textContent = getChat()?.title||"Новая тема";
+    // Подгружаем Health-данные (биомаркеры, wearable, документы) из уже загруженного
+    // window.allProfilesData (localStorage) в window.healthData — без этого вызова
+    // вкладка "Анализы" остаётся пустой, даже если данные реально сохранены.
+    if(typeof syncHealthDataToProfile === "function") syncHealthDataToProfile();
   }catch(e){ console.error("initApp error:", e); }
 
   // Hook для перезагрузки после облачной синхронизации

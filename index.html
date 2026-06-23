@@ -1655,6 +1655,12 @@ var BIO_NORMS = {
   "Моноциты":       {lo:0.1, hi:1.0,  unit:"10⁹/л"},
   "Эозинофилы":     {lo:0.0, hi:0.5,  unit:"10⁹/л"},
   "Базофилы":       {lo:0.0, hi:0.2,  unit:"10⁹/л"},
+  // ── Лейкоцитарная формула — относительное содержание (%), отдельно от абсолютных значений выше ──
+  "Нейтрофилы %":   {lo:45,  hi:70,  unit:"%"},
+  "Лимфоциты %":    {lo:20,  hi:40,  unit:"%"},
+  "Моноциты %":     {lo:3,   hi:12,  unit:"%"},
+  "Эозинофилы %":   {lo:1,   hi:5,   unit:"%"},
+  "Базофилы %":     {lo:0,   hi:1,   unit:"%"},
   // ── Биохимия — недостающие распространённые показатели ──
   "Общий белок":    {lo:64,  hi:83,  unit:"г/л"},
   "Билирубин общий": {lo:5,  hi:21,  unit:"мкмоль/л"},
@@ -3613,9 +3619,15 @@ function saveParsedBiomarkers(markers, cardId, fallbackDocDate){
     var isQualitative = !isNumeric && typeof m.qualitative === "string" && m.qualitative.trim().length > 0;
     if(!isNumeric && !isQualitative) return; // ни числа, ни качественного результата — пропускаем
     var markerDate = m._normDate || effectiveDate;
+    // dateGuessed должен отражать, была ли дата реально найдена в документе
+    // (у самого маркера ИЛИ на уровне всего документа через fallbackDocDate),
+    // а не только наличие даты непосредственно у этого маркера — иначе качественные
+    // результаты (где дата обычно указана один раз для всего бланка, а не у каждой строки)
+    // ошибочно помечались бы как "дата угадана", хотя дата реально найдена и верна.
+    var markerDateGuessed = !m._normDate && !docDate;
     if(!window.healthData.biomarkers[m.name]) window.healthData.biomarkers[m.name] = [];
     window.healthData.biomarkers[m.name] = window.healthData.biomarkers[m.name].filter(function(e){return e.date!==markerDate;});
-    var entry = {date:markerDate, source:cardId, dateGuessed:!m._normDate};
+    var entry = {date:markerDate, source:cardId, dateGuessed:markerDateGuessed};
     if(isNumeric){
       entry.value = m.value; entry.unit = m.unit||"";
     } else {

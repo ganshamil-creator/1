@@ -1113,7 +1113,7 @@ function buildBioRows(){
           + (last.dateGuessed ? '<span title="Дата не найдена в документе — подставлена автоматически, проверь и поправь" style="margin-left:3px">⚠️</span>' : '')
         : '—';
       h += '<tr><td style="padding:4px 8px;font-size:12px;color:#334155;width:45%"><b>' + bm.n + '</b></td>';
-      h += '<td style="padding:4px 4px"><input type="number" step="0.01" id="bio_' + bm.n.replace(/\s/g,"_") + '" placeholder="' + bm.u + '" value="' + (last?last.value:"") + '" style="width:85px;padding:4px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px"></td>';
+      h += '<td style="padding:4px 4px"><input type="number" step="0.01" id="bio_' + bm.n.replace(/\s/g,"_") + '" data-original="' + (last?last.value:"") + '" data-origdate="' + (last?last.date:"") + '" placeholder="' + bm.u + '" value="' + (last?last.value:"") + '" style="width:85px;padding:4px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px"></td>';
       h += '<td style="padding:4px">' + dateCell + '</td>';
       h += '<td style="padding:4px">' + cnt + ' ' + delBtn + '</td></tr>';
     });
@@ -1192,7 +1192,7 @@ function buildWearRows(){
     h += '<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f1f5f9">';
     h += '<span style="font-size:18px">' + m.i + '</span>';
     h += '<div style="flex:1;font-size:12px"><b>' + m.n + '</b><br><span style="font-size:10px;color:#94a3b8">' + m.u + '</span></div>';
-    h += '<input type="number" step="0.1" id="wear_' + m.k + '" value="' + (last?last.value:"") + '" placeholder="" style="width:80px;padding:4px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px">';
+    h += '<input type="number" step="0.1" id="wear_' + m.k + '" data-original="' + (last?last.value:"") + '" value="' + (last?last.value:"") + '" placeholder="" style="width:80px;padding:4px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px">';
     h += '<span style="font-size:10px;color:#6b7280;width:65px">' + (last?"от "+last.date:"") + '</span></div>';
   });
   return h;
@@ -1384,36 +1384,53 @@ function hTab(tab){
 
 function saveHData(){
   var date = document.getElementById("hDate") ? document.getElementById("hDate").value : new Date().toISOString().split("T")[0];
+  var savedCount = 0;
   BIO_GROUPS.forEach(function(grp){
     grp.items.forEach(function(bm){
       var inp = document.getElementById("bio_" + bm.n.replace(/\s/g,"_"));
       if(!inp || inp.value === "") return;
       var val = parseFloat(inp.value);
       if(isNaN(val)) return;
+      // Сравниваем с тем, что было загружено при отрисовке поля. Если значение
+      // не изменилось — это просто отображение существующей записи, а не новый
+      // ввод, и трогать её (тем более перезатирать дату) не нужно.
+      var origVal = inp.dataset.original;
+      var unchanged = origVal !== "" && parseFloat(origVal) === val;
+      if(unchanged) return;
       if(!window.healthData.biomarkers[bm.n]) window.healthData.biomarkers[bm.n] = [];
       window.healthData.biomarkers[bm.n] = window.healthData.biomarkers[bm.n].filter(function(e){return e.date !== date;});
       window.healthData.biomarkers[bm.n].push({date:date, value:val, unit:bm.u});
       window.healthData.biomarkers[bm.n].sort(function(a,b){return a.date > b.date ? 1 : -1;});
+      savedCount++;
     });
   });
+  var wearSavedCount = 0;
   WEAR_METRICS.forEach(function(m){
     var inp = document.getElementById("wear_" + m.k);
     if(!inp || inp.value === "") return;
     var val = parseFloat(inp.value);
     if(isNaN(val)) return;
+    var origVal = inp.dataset.original;
+    var unchanged = origVal !== "" && parseFloat(origVal) === val;
+    if(unchanged) return;
     if(!window.healthData.wearable[m.k]) window.healthData.wearable[m.k] = [];
     window.healthData.wearable[m.k] = window.healthData.wearable[m.k].filter(function(e){return e.date !== date;});
     window.healthData.wearable[m.k].push({date:date, value:val, unit:m.u});
     window.healthData.wearable[m.k].sort(function(a,b){return a.date > b.date ? 1 : -1;});
+    wearSavedCount++;
   });
   window.healthData.lastUpdated = Date.now();
   var pdSamsung = getProfileData();
   pdSamsung.biomarkers = window.healthData.biomarkers;
   pdSamsung.wearable = window.healthData.wearable;
   pdSamsung.lastUpdated = window.healthData.lastUpdated;
+  if(savedCount === 0 && wearSavedCount === 0){
+    showToast("ℹ️ Новых значений для сохранения не найдено");
+    return;
+  }
   if(window.cloudSync && window.cloudSync.userId){
     persistHealthData();
-    showToast("✅ Данные здоровья сохранены в облако!");
+    showToast("✅ Сохранено новых значений: " + (savedCount + wearSavedCount));
   } else {
     showToast("⚠️ Войди через Google для сохранения в облако");
   }
@@ -3509,8 +3526,24 @@ function deleteBiomarker(name, date, mode){
 // дату в документе или нашёл неверно, и пользователь поправляет её сам в UI).
 function updateBiomarkerDate(name, oldDate, newDate){
   if(!window.healthData.biomarkers[name]) return;
-  var entry = window.healthData.biomarkers[name].find(function(e){ return e.date === oldDate; });
+  var entries = window.healthData.biomarkers[name];
+  var entry = entries.find(function(e){ return e.date === oldDate; });
   if(!entry) return;
+  // Если на новую дату уже есть другая запись — спрашиваем, заменить ли её,
+  // иначе тихое создание дубликата с одинаковой датой ломает отображение
+  // (показывается только последняя запись массива, остальные становятся не видны).
+  var collision = entries.find(function(e){ return e.date === newDate && e !== entry; });
+  if(collision){
+    if(!confirm("На "+newDate+" уже есть запись ("+(collision.value!==undefined?collision.value+" "+(collision.unit||""):collision.qualitative)+"). Заменить её текущим значением?")){
+      // Пользователь отказался — возвращаем дату как было (перерисовываем без изменений)
+      var ac0 = document.getElementById("htab_bio_c");
+      if(ac0 && typeof buildBioRows === "function") ac0.innerHTML = buildBioRows();
+      return;
+    }
+    window.healthData.biomarkers[name] = entries.filter(function(e){ return e !== collision; });
+    entries = window.healthData.biomarkers[name];
+    entry = entries.find(function(e){ return e.date === oldDate; });
+  }
   entry.date = newDate;
   entry.dateGuessed = false; // дата теперь подтверждена пользователем вручную
   window.healthData.biomarkers[name].sort(function(a,b){ return a.date>b.date?1:-1; });
@@ -4981,14 +5014,30 @@ function showKimiModal(text, title){
 // ════════════════════════════════════════════════════════════════
 // CHAT MANAGEMENT
 // ════════════════════════════════════════════════════════════════
+// Удаляет пустые темы (без единого сообщения) из списка, кроме защищённой
+// (обычно — та, на которую сейчас переключаемся/которую только что создали).
+// Нужно, чтобы пустая "Новая тема", автоматически созданная при удалении
+// последнего чата, не оставалась висеть в списке навечно.
+function cleanupEmptyChats(protectedId){
+  var before = chats.length;
+  chats = chats.filter(function(c){
+    return c.id === protectedId || (c.messages && c.messages.length > 0);
+  });
+  if(!chats.length) chats = [makeChat()];
+  return before !== chats.length;
+}
+
 function createChat(){
-  const c=makeChat(); chats.unshift(c); activeChatId=c.id; saveChats(chats);
+  const c=makeChat(); 
+  cleanupEmptyChats(activeChatId); // убираем старую пустую тему, если она была
+  chats.unshift(c); activeChatId=c.id; saveChats(chats);
   clearFiles(); renderChatList(); renderMessages();
   document.getElementById("chatTitle").textContent="Новая тема";
   toggleSidebar(); setTimeout(()=>document.getElementById("queryInput").focus(),100);
 }
 
 function switchChat(id){
+  cleanupEmptyChats(id); // убираем пустую тему, с которой переключаемся (если она пуста)
   saveChats(chats); // сохраняем текущий чат перед переключением
   activeChatId=id; const chat=getChat();
   document.getElementById("chatTitle").textContent=chat?chat.title:"Новая тема";

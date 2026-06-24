@@ -1108,9 +1108,13 @@ function buildBioRows(){
       var last = vals.length ? vals[vals.length-1] : null;
       var cnt = vals.length > 1 ? ('<span style="color:#4f46e5;cursor:pointer;font-size:11px" onclick="hTab(\'trends\')">' + vals.length + 'x 📈</span>') : "";
       var delBtn = last ? '<button onclick="deleteBiomarker(\''+bm.n+'\',\''+last.date+'\',\'all\')" style="background:none;border:none;color:#ef4444;font-size:13px;cursor:pointer;padding:1px 4px" title="Удалить все записи">🗑</button>' : '';
+      var dateCell = last
+        ? '<input type="date" value="'+last.date+'" onchange="updateBiomarkerDate(\''+bm.n.replace(/'/g,"\\'")+'\',\''+last.date+'\',this.value)" style="font-size:11px;color:#6b7280;padding:2px 4px;border:1px solid #e2e8f0;border-radius:4px;width:118px">'
+          + (last.dateGuessed ? '<span title="Дата не найдена в документе — подставлена автоматически, проверь и поправь" style="margin-left:3px">⚠️</span>' : '')
+        : '—';
       h += '<tr><td style="padding:4px 8px;font-size:12px;color:#334155;width:45%"><b>' + bm.n + '</b></td>';
       h += '<td style="padding:4px 4px"><input type="number" step="0.01" id="bio_' + bm.n.replace(/\s/g,"_") + '" placeholder="' + bm.u + '" value="' + (last?last.value:"") + '" style="width:85px;padding:4px;border:1px solid #e2e8f0;border-radius:5px;font-size:12px"></td>';
-      h += '<td style="font-size:11px;color:#6b7280;padding:4px">' + (last ? "от "+last.date : "—") + '</td>';
+      h += '<td style="padding:4px">' + dateCell + '</td>';
       h += '<td style="padding:4px">' + cnt + ' ' + delBtn + '</td></tr>';
     });
     h += '</table>';
@@ -6045,13 +6049,23 @@ function mergeUserMemory(incoming){
   if(incoming.profile && curProfileEmpty){
     cur.profile = incoming.profile;
   }
-  // Факты: объединяем по id, не теряя ни локальные, ни облачные
+  // Объединяем надгробия (ID удалённых фактов) из обоих источников — это не даёт
+  // фактам, удалённым на любом устройстве, "воскреснуть" при следующей синхронизации.
+  var curTombstones = Array.isArray(cur._deletedFactIds) ? cur._deletedFactIds : [];
+  var incomingTombstones = Array.isArray(incoming._deletedFactIds) ? incoming._deletedFactIds : [];
+  var tombstoneSet = {};
+  curTombstones.concat(incomingTombstones).forEach(function(id){ tombstoneSet[id] = true; });
+  cur._deletedFactIds = Object.keys(tombstoneSet);
+
+  // Факты: объединяем по id, не теряя ни локальные, ни облачные — но пропускаем
+  // те, что есть в списке надгробий (то есть были намеренно удалены ранее).
   var incomingFacts = Array.isArray(incoming.facts) ? incoming.facts : [];
   var curFacts = Array.isArray(cur.facts) ? cur.facts : [];
   var byId = {};
   curFacts.forEach(function(f){ byId[f.id || (f.text+f.ts)] = f; });
   incomingFacts.forEach(function(f){
     var key = f.id || (f.text+f.ts);
+    if(tombstoneSet[key]) return; // факт был удалён ранее — не восстанавливаем
     if(!byId[key]) byId[key] = f; // добавляем только то, чего не было локально
   });
   cur.facts = Object.values(byId).sort(function(a,b){ return (a.ts||0)-(b.ts||0); });
@@ -6259,6 +6273,21 @@ function escHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;")
 
 // Удалить факт
 function deleteFact(i){
+  var fact = window.userMemory.facts[i];
+  if(fact){
+    // Запоминаем удалённый факт в "надгробиях" — без этого следующая загрузка
+    // из облака (если там сохранилась более старая версия) могла бы вернуть
+    // удалённый факт обратно, потому что merge-логика по умолчанию не теряет факты.
+    window.userMemory._deletedFactIds = window.userMemory._deletedFactIds || [];
+    var key = fact.id || (fact.text+fact.ts);
+    if(!window.userMemory._deletedFactIds.includes(key)){
+      window.userMemory._deletedFactIds.push(key);
+    }
+    // Ограничиваем размер списка надгробий, чтобы он не рос бесконечно
+    if(window.userMemory._deletedFactIds.length > 200){
+      window.userMemory._deletedFactIds = window.userMemory._deletedFactIds.slice(-200);
+    }
+  }
   window.userMemory.facts.splice(i, 1);
   persistMemory();
   renderFactsList();

@@ -575,10 +575,7 @@
   <div style="display:flex;gap:6px;flex-wrap:wrap">
     <button onclick="openVaultUpload()" style="padding:5px 10px;background:#15803d;color:#fff;border:none;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600">📂 Загрузить в Health Vault</button>
     <button onclick="hAct('interpret')" style="padding:5px 10px;background:#fff;color:#15803d;border:1px solid #4ade80;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600">🔬 Расшифровать анализы</button>
-    <button onclick="hAct('plan')" style="padding:5px 10px;background:#fff;color:#15803d;border:1px solid #4ade80;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600">🎯 План на неделю</button>
-    <button onclick="hAct('supplements')" style="padding:5px 10px;background:#fff;color:#15803d;border:1px solid #4ade80;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600">💊 Добавки</button>
     <button onclick="hAct('bioage')" style="padding:5px 10px;background:#fff;color:#15803d;border:1px solid #4ade80;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600">⏱ Биовозраст</button>
-    <button onclick="hAct('energy')" style="padding:5px 10px;background:#fff;color:#15803d;border:1px solid #4ade80;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600">⚡ Энергия и сон</button>
     <button onclick="hAct('risks')" style="padding:5px 10px;background:#fff;color:#dc2626;border:1px solid #fca5a5;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600">⚠️ Риски</button>
     <button onclick="searchPubMed()" style="padding:5px 10px;background:#0f172a;color:#60a5fa;border:1px solid #1e3a5f;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600">🔬 Исследования PubMed</button>
     <button onclick="openDiary()" style="padding:5px 10px;background:#fff;color:#7c3aed;border:1px solid #ddd6fe;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600">📔 Дневник</button>
@@ -903,10 +900,7 @@ var HEALTH_SYSTEMS = {
 
 var HEALTH_PROMPTS = {
   interpret:   "Расшифруй мои анализы как эксперт по превентивной медицине. Выдели норму, отклонения и дай рекомендации.",
-  plan:        "Составь персональный план на неделю: питание, сон, физическая активность, добавки — с учётом моих данных.",
-  supplements: "Какие добавки рекомендуешь на основе моих показателей? Только доказательно эффективные, с дозировками.",
   bioage:      "Оцени мой биологический возраст. Что ускоряет старение в моём случае? Топ-3 изменения с максимальным эффектом.",
-  energy:      "Проанализируй уровень энергии и сон. Какие биомаркеры влияют на усталость? Что улучшить за 4 недели?",
   risks:       "Оцени риски по имеющимся данным. Приоритеты: критично / важно / можно подождать."
 };
 
@@ -1095,6 +1089,7 @@ var WEAR_METRICS = [
   {k:"spo2",n:"SpO2",u:"%",i:"🫁"},
   {k:"weight",n:"Вес",u:"кг",i:"⚖️"},
   {k:"systolic",n:"Давление сист.",u:"мм рт.ст.",i:"🩺"},
+  {k:"diastolic",n:"Давление диаст.",u:"мм рт.ст.",i:"🩺"},
   {k:"stress",n:"Уровень стресса",u:"0-100",i:"🧠"}
 ];
 
@@ -1298,14 +1293,17 @@ function buildSamsungTab(){
   h += '<input type="file" id="sFile" accept=".json,.csv" multiple style="display:none" onchange="importSamsung(event)"></div>';
   h += '<div id="sResult" style="margin-top:10px"></div>';
   var wr = window.healthData.wearable;
-  var hasData = (wr.steps&&wr.steps.length)||(wr.heartRate&&wr.heartRate.length)||(wr.sleep&&wr.sleep.length)||(wr.weight&&wr.weight.length);
+  var hasData = WEAR_METRICS.some(function(m){ return wr[m.k] && wr[m.k].length; });
   if(hasData){
     h += '<div style="margin-top:12px;background:#f8fafc;border-radius:8px;padding:10px;font-size:12px">';
     h += '<div style="font-weight:600;color:#1e293b;margin-bottom:6px">📊 Загруженные данные:</div>';
-    if(wr.steps&&wr.steps.length){ var ls=wr.steps[wr.steps.length-1]; h += '<div>👣 Шаги: <b>'+wr.steps.length+' дней</b> · последние: '+ls.value.toLocaleString()+' ('+ls.date+')</div>'; }
-    if(wr.heartRate&&wr.heartRate.length){ var lh=wr.heartRate[wr.heartRate.length-1]; h += '<div>❤️ Пульс: <b>'+wr.heartRate.length+' дней</b> · последний: '+lh.value+' уд/мин ('+lh.date+')</div>'; }
-    if(wr.sleep&&wr.sleep.length){ var lsl=wr.sleep[wr.sleep.length-1]; h += '<div>😴 Сон: <b>'+wr.sleep.length+' дней</b> · последний: '+lsl.value+' ч ('+lsl.date+')</div>'; }
-    if(wr.weight&&wr.weight.length){ var lw=wr.weight[wr.weight.length-1]; h += '<div>⚖️ Вес: '+lw.value+' кг ('+lw.date+')</div>'; }
+    WEAR_METRICS.forEach(function(m){
+      var vals = wr[m.k];
+      if(!vals || !vals.length) return;
+      var last = vals[vals.length-1];
+      var displayValue = typeof last.value === "number" && last.value > 999 ? last.value.toLocaleString() : last.value;
+      h += '<div>' + m.i + ' ' + m.n + ': <b>' + vals.length + (vals.length===1?' запись':' дней/записей') + '</b> · последнее: ' + displayValue + ' ' + (m.u||'') + ' (' + last.date + ')</div>';
+    });
     h += '</div>';
   }
   return h;
@@ -1616,12 +1614,20 @@ function importSamsung(event){
           rows.slice(-90).forEach(function(r){
             var dt=(r.start_time||r.date||"").split(" ")[0]||today;
             var sys=parseInt(r.systolic||0);
-            if(!sys||!dt) return;
-            if(!wr.systolic) wr.systolic=[];
-            wr.systolic=wr.systolic.filter(function(x){return x.date!==dt;});
-            wr.systolic.push({date:dt,value:sys,unit:"мм рт.ст."}); imp++;
+            var dia=parseInt(r.diastolic||0);
+            if(!dt) return;
+            if(sys){
+              if(!wr.systolic) wr.systolic=[];
+              wr.systolic=wr.systolic.filter(function(x){return x.date!==dt;});
+              wr.systolic.push({date:dt,value:sys,unit:"мм рт.ст."}); imp++;
+            }
+            if(dia){
+              if(!wr.diastolic) wr.diastolic=[];
+              wr.diastolic=wr.diastolic.filter(function(x){return x.date!==dt;});
+              wr.diastolic.push({date:dt,value:dia,unit:"мм рт.ст."}); imp++;
+            }
           });
-          if(imp>0) summary.push("🩺 Давление: "+imp+" записей");
+          if(imp>0) summary.push("🩺 Давление: "+imp+" записей (сист./диаст.)");
         } else if(parsed.type==="unknown"){
           console.log("Unknown Samsung file:", fname, "headers:", parsed.headers);
         }
@@ -2482,6 +2488,54 @@ var PUBMED_TERMS = {
   "Лейкоциты":    "(\"white blood cell\"[tiab] OR leukocyte[tiab]) AND (\"immune health\"[tiab] OR lifestyle[tiab])"
 };
 
+// Извлекает из последнего ответа AI в текущем чате конкретные медицинские термины
+// и состояния, упомянутые в связи с биомаркером (например "неалкогольная жировая
+// болезнь печени" вместо просто "повышен АЛТ"). Используется, чтобы PubMed-поиск
+// искал по реальным выводам AI, а не только по голому названию показателя — это
+// делает найденные статьи более релевантными конкретной интерпретации, а не любому
+// упоминанию слова "ALT" в любом контексте.
+async function extractClinicalTermsFromLastAnswer(biomarkerNames){
+  var keys = getKeys ? getKeys() : {};
+  if(!keys.claude) return {};
+  var chat = getChat();
+  if(!chat || !chat.messages || !chat.messages.length) return {};
+  // Берём последний ответ ассистента (а не пользователя)
+  var lastAssistantMsg = null;
+  for(var i = chat.messages.length - 1; i >= 0; i--){
+    if(chat.messages[i].role === "assistant"){ lastAssistantMsg = chat.messages[i]; break; }
+  }
+  if(!lastAssistantMsg) return {};
+  var text = typeof lastAssistantMsg.content === "string" ? lastAssistantMsg.content : "";
+  if(text.length < 50) return {};
+
+  var prompt = "Вот текст медицинской интерпретации анализов пользователя и список показателей, которые в нём упомянуты как отклонение от нормы.\n"
+    + "Для каждого показателя из списка найди в тексте конкретное название состояния/диагноза/механизма, с которым AI его связал (например, если для АЛТ в тексте упомянута 'жировая болезнь печени' или 'гепатоцеллюлярное повреждение' — извлеки именно это).\n"
+    + "Если для показателя в тексте не названо конкретное состояние — верни для него null.\n"
+    + "Верни ТОЛЬКО JSON объект вида {\"АЛТ\":\"non-alcoholic fatty liver disease\" или null, ...}, термины переведи на английский (для PubMed-поиска), без пояснений.\n\n"
+    + "ПОКАЗАТЕЛИ: " + biomarkerNames.join(", ") + "\n\n"
+    + "ТЕКСТ ИНТЕРПРЕТАЦИИ:\n" + text.slice(0, 4000);
+
+  try{
+    var body = JSON.stringify({ model:"claude-haiku-4-5", max_tokens:300, messages:[{role:"user",content:prompt}] });
+    var data;
+    if(isMobile){
+      data = await proxyFetch("https://api.anthropic.com/v1/messages", {"x-api-key":keys.claude,"anthropic-version":"2023-06-01"}, body);
+    } else {
+      var resp = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "x-api-key": keys.claude, "anthropic-version":"2023-06-01", "anthropic-dangerous-direct-browser-access":"true" },
+        body: body
+      });
+      data = await resp.json();
+    }
+    var rtext = (data.content&&data.content[0]&&data.content[0].text)||"{}";
+    rtext = rtext.replace(/```json|```/g,"").trim();
+    var s2=rtext.indexOf("{"),e2=rtext.lastIndexOf("}");
+    if(s2>-1&&e2>s2) rtext=rtext.slice(s2,e2+1);
+    return JSON.parse(rtext) || {};
+  }catch(e){ return {}; }
+}
+
 async function searchPubMed(){
   // Находим отклонения в биомаркерах
   var bm = window.healthData.biomarkers;
@@ -2506,6 +2560,25 @@ async function searchPubMed(){
     showToast("🟢 Все биомаркеры в норме — нечего искать!");
     return;
   }
+
+  // Пытаемся уточнить поиск по тому, что AI реально написал в расшифровке анализов —
+  // вместо общего "elevated ALT" использовать конкретное состояние, если оно упомянуто
+  // (например "non-alcoholic fatty liver disease"). Если ключа Claude нет или ответа
+  // не нашлось — тихо продолжаем со старыми общими терминами (abnormal не меняется).
+  try{
+    var shortNames = abnormal.map(function(it){ return BIO_NORMS_ALIASES[it.name] || it.name; });
+    var clinicalTerms = await extractClinicalTermsFromLastAnswer(shortNames);
+    abnormal.forEach(function(it, idx){
+      var shortName = shortNames[idx];
+      var clinicalTerm = clinicalTerms[shortName];
+      if(clinicalTerm && typeof clinicalTerm === "string" && clinicalTerm.trim()){
+        // Добавляем конкретное состояние как дополнительное условие AND к общему термину —
+        // сужает поиск до статей, где упомянуты ОБА: показатель и конкретный диагноз/механизм.
+        it.term = "(" + it.term + ") AND (\"" + clinicalTerm.trim() + "\"[tiab])";
+        it.clinicalTerm = clinicalTerm.trim();
+      }
+    });
+  }catch(e){ /* тихо продолжаем с общими терминами */ }
 
   // Открываем панель результатов
   var old = document.getElementById("pubmedModal");
@@ -2542,7 +2615,7 @@ async function searchPubMed(){
       // с "Failed to fetch".
       if(i > 0) await sleep(400);
       // Step 1: поиск ID статей
-      var searchUrl = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=3&sort=date&format=json&term=" + encodeURIComponent(term);
+      var searchUrl = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=10&sort=date&format=json&term=" + encodeURIComponent(term);
       var r1 = await fetch(searchUrl);
       var d1 = await r1.json();
       var ids = (d1.esearchresult && d1.esearchresult.idlist) || [];
@@ -2561,10 +2634,15 @@ async function searchPubMed(){
 
       // Рендерим блок
       var block = '<div style="margin-bottom:16px;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden">';
-      block += '<div style="padding:10px 14px;background:' + (item.status.emoji==="🔴"?"#fef2f2":"#fefce8") + ';border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px">';
+      block += '<div style="padding:10px 14px;background:' + (item.status.emoji==="🔴"?"#fef2f2":"#fefce8") + ';border-bottom:1px solid #e2e8f0">';
+      block += '<div style="display:flex;align-items:center;gap:8px">';
       block += '<span>' + item.status.emoji + '</span>';
       block += '<span style="font-size:13px;font-weight:700;color:#1e293b">' + item.name + ': ' + item.value + ' (' + item.status.label + ')</span>';
       block += '<span style="margin-left:auto;font-size:11px;color:#6b7280">найдено ' + articles.length + ' исследований</span></div>';
+      if(item.clinicalTerm){
+        block += '<div style="font-size:11px;color:#7c3aed;margin-top:3px">🎯 Уточнено по расшифровке: ' + escHtml(item.clinicalTerm) + '</div>';
+      }
+      block += '</div>';
 
       articles.forEach(function(a){
         block += '<div style="padding:12px 14px;border-bottom:1px solid #f1f5f9">';

@@ -1020,7 +1020,7 @@ function toggleHealthMode(){
 function hAct(type){
   var text = HEALTH_PROMPTS[type];
   if(!text) return;
-  var inp = document.getElementById("msgInput");
+  var inp = document.getElementById("queryInput");
   if(inp) inp.value = text;
   // В Health режиме по умолчанию отвечает лучший доступный AI (не все 4)
   // Это ускоряет ответ и избегает таймаутов
@@ -1638,10 +1638,10 @@ function importSamsung(event){
 
 // ── НОРМЫ БИОМАРКЕРОВ (светофор) ────────────────────────────
 var BIO_NORMS = {
-  "Гемоглобин":     {lo:120, hi:170, unit:"г/л"},
+  "Гемоглобин":     {lo:135, hi:169, unit:"г/л"},
   "Ферритин":       {lo:20,  hi:250, unit:"мкг/л"},
-  "Лейкоциты":      {lo:4.0, hi:9.0, unit:"10⁹/л"},
-  "Глюкоза":        {lo:3.9, hi:5.5, unit:"ммоль/л"},
+  "Лейкоциты":      {lo:3.91, hi:8.77, unit:"10⁹/л"},
+  "Глюкоза":        {lo:4.10, hi:5.90, unit:"ммоль/л"},
   "HbA1c":          {lo:0,   hi:5.7, unit:"%"},
   "Инсулин":        {lo:2.6, hi:24.9,unit:"мкМЕ/мл"},
   "Холестерин":     {lo:0,   hi:5.2, unit:"ммоль/л"},
@@ -1655,39 +1655,42 @@ var BIO_NORMS = {
   "Витамин B12":    {lo:200, hi:900, unit:"пг/мл"},
   "Магний":         {lo:0.74,hi:1.0, unit:"ммоль/л"},
   "Цинк":           {lo:11,  hi:23,  unit:"мкмоль/л"},
-  "АЛТ":            {lo:0,   hi:45,  unit:"Ед/л"},
-  "АСТ":            {lo:0,   hi:35,  unit:"Ед/л"},
-  "Креатинин":      {lo:44,  hi:106, unit:"мкмоль/л"},
+  "АЛТ":            {lo:0,   hi:50,  unit:"Ед/л"},
+  "АСТ":            {lo:0,   hi:50,  unit:"Ед/л"},
+  "Креатинин":      {lo:74,  hi:110, unit:"мкмоль/л"},
   "Тестостерон":    {lo:8.6, hi:29,  unit:"нмоль/л"},
   "ДГЭА-С":         {lo:3.0, hi:10,  unit:"мкмоль/л"},
   // ── Общий анализ крови (ОАК) — стандартные нормы для взрослых ──
   "СОЭ":            {lo:0,   hi:15,  unit:"мм/час"},
-  "Эритроциты":     {lo:3.9, hi:5.7, unit:"10¹²/л"},
-  "Гематокрит":     {lo:35,  hi:52,  unit:"%"},
+  "Эритроциты":     {lo:4.44, hi:5.61, unit:"10¹²/л"},
+  "Гематокрит":     {lo:40.0, hi:49.4, unit:"%"},
   "Средний объем эритроцитов (MCV)":            {lo:80,  hi:100, unit:"фл"},
   "Среднее содержание гемоглобина в эритроците (MCH)": {lo:27,  hi:34,  unit:"пг"},
   "Средняя концентрация Hb в эритроцитах (MCHC)":      {lo:32,  hi:36,  unit:"г/дл"},
   "Ширина распределения эритроцитов по объему (RDW)":  {lo:11.5,hi:14.5,unit:"%"},
-  "RDW-SD (стандартное отклонение ширины распределения эритроцитов)": {lo:37,  hi:54,  unit:"фл"},
-  "RDW-CV (коэффициент вариации ширины распределения эритроцитов)":   {lo:11.5,hi:14.8,unit:"%"},
-  "Тромбоциты":     {lo:150, hi:400, unit:"10⁹/л"},
+  "RDW-SD (стандартное отклонение ширины распределения эритроцитов)": {lo:37.1, hi:45.7, unit:"фл"},
+  "RDW-CV (коэффициент вариации ширины распределения эритроцитов)":   {lo:12.0, hi:13.6, unit:"%"},
+  "Тромбоциты":     {lo:166, hi:308, unit:"10⁹/л"},
   "Средний объем тромбоцитов (MPV)":            {lo:7.5, hi:11.5, unit:"фл"},
   "Тромбокрит (PCT)": {lo:0.15,hi:0.4, unit:"%"},
-  "Нейтрофилы":     {lo:1.8, hi:7.7,  unit:"10⁹/л"},
-  "Лимфоциты":      {lo:1.0, hi:4.8,  unit:"10⁹/л"},
-  "Моноциты":       {lo:0.1, hi:1.0,  unit:"10⁹/л"},
-  "Эозинофилы":     {lo:0.0, hi:0.5,  unit:"10⁹/л"},
-  "Базофилы":       {lo:0.0, hi:0.2,  unit:"10⁹/л"},
+  "Относительная ширина распределения тромбоцитов по объему (PDW)": {lo:10.1, hi:16.1, unit:"%"},
+  "Иммуноглобулин E (IgE)": {lo:0,   hi:100, unit:"МЕ/мл"},
+  "Эозинофильный катионный белок (ECP)": {lo:0, hi:24, unit:"мкг/л"},
+  "Нейтрофилы":     {lo:1.82, hi:7.42, unit:"10⁹/л"},
+  "Лимфоциты":      {lo:0.85, hi:3.00, unit:"10⁹/л"},
+  "Моноциты":       {lo:0.19, hi:0.77, unit:"10⁹/л"},
+  "Эозинофилы":     {lo:0.03, hi:0.44, unit:"10⁹/л"},
+  "Базофилы":       {lo:0.01, hi:0.05, unit:"10⁹/л"},
   // ── Лейкоцитарная формула — относительное содержание (%), отдельно от абсолютных значений выше ──
-  "Нейтрофилы %":   {lo:45,  hi:70,  unit:"%"},
-  "Лимфоциты %":    {lo:20,  hi:40,  unit:"%"},
-  "Моноциты %":     {lo:3,   hi:12,  unit:"%"},
-  "Эозинофилы %":   {lo:1,   hi:5,   unit:"%"},
-  "Базофилы %":     {lo:0,   hi:1,   unit:"%"},
+  "Нейтрофилы %":   {lo:40.3, hi:74.8, unit:"%"},
+  "Лимфоциты %":    {lo:12.2, hi:47.1, unit:"%"},
+  "Моноциты %":     {lo:4.4,  hi:12.3, unit:"%"},
+  "Эозинофилы %":   {lo:0.0,  hi:4.4,  unit:"%"},
+  "Базофилы %":     {lo:0.0,  hi:0.7,  unit:"%"},
   // ── Биохимия — недостающие распространённые показатели ──
-  "Общий белок":    {lo:64,  hi:83,  unit:"г/л"},
+  "Общий белок":    {lo:66,  hi:83,  unit:"г/л"},
   "Билирубин общий": {lo:5,  hi:21,  unit:"мкмоль/л"},
-  "Мочевина":       {lo:2.5, hi:8.3, unit:"ммоль/л"},
+  "Мочевина":       {lo:2.8, hi:7.2,  unit:"ммоль/л"},
   // ── ЭКГ — основные интервалы ──
   "ЧСС":            {lo:60,  hi:100, unit:"уд/мин"},
   "PQ":             {lo:120, hi:200, unit:"мс"},
@@ -1889,7 +1892,7 @@ function askAIDiary(){
     + (d.notes ? "Заметки: " + d.notes + ". " : "")
     + "Что это может означать для здоровья и что порекомендуешь?";
   document.getElementById("diaryModal").remove();
-  var inp = document.getElementById("msgInput");
+  var inp = document.getElementById("queryInput");
   if(inp){ inp.value = text; }
   var hMode = typeof healthMode !== "undefined" && healthMode;
   if(!hMode) toggleHealthMode();
@@ -2002,7 +2005,7 @@ function askAIBioAge(chronoAge){
     + ". Составь персональный план замедления старения: что критично исправить в первую очередь, конкретные шаги на 3 месяца.";
   var old = document.getElementById("bioAgeModal");
   if(old) old.remove();
-  var inp = document.getElementById("msgInput");
+  var inp = document.getElementById("queryInput");
   if(inp) inp.value = text;
   if(typeof healthMode === "undefined" || !healthMode) toggleHealthMode();
   setTimeout(function(){
@@ -2490,8 +2493,12 @@ async function searchPubMed(){
     var st = getBioStatus(name, v);
     // Жёлтый/оранжевый теперь означают "в норме, у края диапазона" — не повод искать PubMed.
     // Только реально вышедшие за границы нормы (красный) считаются отклонением.
-    if(st.emoji === "🔴" && PUBMED_TERMS[name]){
-      abnormal.push({name:name, value:v, status:st, term:PUBMED_TERMS[name]});
+    // PUBMED_TERMS использует короткие названия (АЛТ, АСТ) — если показатель сохранён
+    // под развёрнутым именем (например "Аланинаминотрансфераза (АЛТ)"), ищем термин
+    // через тот же алиас, который getBioStatus уже использует для норм.
+    var pubmedTerm = PUBMED_TERMS[name] || (BIO_NORMS_ALIASES[name] && PUBMED_TERMS[BIO_NORMS_ALIASES[name]]);
+    if(st.emoji === "🔴" && pubmedTerm){
+      abnormal.push({name:name, value:v, status:st, term:pubmedTerm});
     }
   });
 
@@ -2633,7 +2640,7 @@ async function askAIPubMed(){
     + "ИССЛЕДОВАНИЯ:\n" + summary;
 
   document.getElementById("pubmedModal").remove();
-  var inp = document.getElementById("msgInput");
+  var inp = document.getElementById("queryInput");
   if(inp) inp.value = text;
   if(typeof healthMode === "undefined" || !healthMode) toggleHealthMode();
   setTimeout(function(){

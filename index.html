@@ -2458,28 +2458,28 @@ function loadAllProfiles(bmData, wrData){
 // ════════════════════════════════════════════════════
 
 var PUBMED_TERMS = {
-  "Ферритин":     "ferritin deficiency supplementation treatment longevity",
-  "Витамин D":    "vitamin D deficiency supplementation health outcomes aging",
-  "hsCRP":        "high sensitivity CRP inflammation cardiovascular prevention",
-  "Глюкоза":      "fasting glucose insulin resistance prevention intervention",
-  "HbA1c":        "HbA1c glycated hemoglobin metabolic syndrome intervention",
-  "ЛПНП":         "LDL cholesterol cardiovascular risk reduction intervention",
-  "ЛПВП":         "HDL cholesterol cardiovascular protection lifestyle",
-  "Триглицериды": "triglycerides metabolic syndrome lifestyle intervention",
-  "Холестерин":   "total cholesterol cardiovascular risk primary prevention",
-  "Кортизол":     "cortisol stress chronic adrenal fatigue treatment",
-  "ТТГ":          "TSH thyroid subclinical hypothyroidism treatment outcomes",
-  "Тестостерон":  "testosterone deficiency men treatment longevity",
-  "ДГЭА-С":       "DHEA aging supplementation vitality outcomes",
-  "Витамин B12":  "vitamin B12 deficiency neurological cardiovascular treatment",
-  "Магний":       "magnesium deficiency cardiovascular metabolic supplementation",
-  "Цинк":         "zinc deficiency immune function aging supplementation",
-  "АЛТ":          "elevated ALT liver health lifestyle intervention",
-  "АСТ":          "elevated AST liver health treatment outcomes",
-  "Креатинин":    "creatinine kidney function aging lifestyle",
-  "Инсулин":      "insulin resistance fasting interventions reversing",
-  "Гемоглобин":   "hemoglobin anemia treatment iron supplementation",
-  "Лейкоциты":    "white blood cell count immune health lifestyle"
+  "Ферритин":     "(ferritin[tiab]) AND (deficiency[tiab] OR supplementation[tiab]) AND (treatment[tiab] OR outcomes[tiab])",
+  "Витамин D":    "(\"vitamin D\"[tiab]) AND (deficiency[tiab]) AND (supplementation[tiab] OR treatment[tiab])",
+  "hsCRP":        "(\"C-reactive protein\"[tiab] OR CRP[tiab]) AND (inflammation[tiab]) AND (cardiovascular[tiab] OR prevention[tiab])",
+  "Глюкоза":      "(\"fasting glucose\"[tiab] OR \"impaired fasting glucose\"[tiab]) AND (\"insulin resistance\"[tiab] OR prevention[tiab])",
+  "HbA1c":        "(HbA1c[tiab] OR \"glycated hemoglobin\"[tiab]) AND (\"metabolic syndrome\"[tiab] OR intervention[tiab])",
+  "ЛПНП":         "(\"LDL cholesterol\"[tiab]) AND (\"cardiovascular risk\"[tiab]) AND (reduction[tiab] OR treatment[tiab])",
+  "ЛПВП":         "(\"HDL cholesterol\"[tiab]) AND (cardiovascular[tiab]) AND (lifestyle[tiab] OR protection[tiab])",
+  "Триглицериды": "(triglycerides[tiab]) AND (\"metabolic syndrome\"[tiab]) AND (lifestyle[tiab] OR treatment[tiab])",
+  "Холестерин":   "(\"total cholesterol\"[tiab]) AND (\"cardiovascular risk\"[tiab]) AND (\"primary prevention\"[tiab])",
+  "Кортизол":     "(cortisol[tiab]) AND (\"chronic stress\"[tiab] OR \"adrenal fatigue\"[tiab]) AND (treatment[tiab])",
+  "ТТГ":          "(TSH[tiab] OR thyrotropin[tiab]) AND (\"subclinical hypothyroidism\"[tiab]) AND (treatment[tiab])",
+  "Тестостерон":  "(testosterone[tiab]) AND (deficiency[tiab]) AND (men[tiab]) AND (treatment[tiab])",
+  "ДГЭА-С":       "(DHEA[tiab] OR \"dehydroepiandrosterone\"[tiab]) AND (aging[tiab]) AND (supplementation[tiab])",
+  "Витамин B12":  "(\"vitamin B12\"[tiab] OR cobalamin[tiab]) AND (deficiency[tiab]) AND (treatment[tiab])",
+  "Магний":       "(magnesium[tiab]) AND (deficiency[tiab]) AND (cardiovascular[tiab] OR metabolic[tiab])",
+  "Цинк":         "(zinc[tiab]) AND (deficiency[tiab]) AND (\"immune function\"[tiab] OR aging[tiab])",
+  "АЛТ":          "(\"alanine aminotransferase\"[tiab] OR ALT[tiab]) AND (elevated[tiab] OR \"liver enzyme\"[tiab]) AND (\"fatty liver\"[tiab] OR treatment[tiab])",
+  "АСТ":          "(\"aspartate aminotransferase\"[tiab] OR AST[tiab]) AND (elevated[tiab] OR \"liver enzyme\"[tiab]) AND (\"fatty liver\"[tiab] OR treatment[tiab])",
+  "Креатинин":    "(creatinine[tiab]) AND (\"kidney function\"[tiab]) AND (aging[tiab] OR lifestyle[tiab])",
+  "Инсулин":      "(\"fasting insulin\"[tiab] OR \"insulin resistance\"[tiab]) AND (intervention[tiab] OR reversal[tiab])",
+  "Гемоглобин":   "(hemoglobin[tiab]) AND (anemia[tiab]) AND (treatment[tiab] OR \"iron supplementation\"[tiab])",
+  "Лейкоциты":    "(\"white blood cell\"[tiab] OR leukocyte[tiab]) AND (\"immune health\"[tiab] OR lifestyle[tiab])"
 };
 
 async function searchPubMed(){
@@ -2536,6 +2536,11 @@ async function searchPubMed(){
     var item = abnormal[i];
     var term = item.term + " 2022:2026[dp]";
     try{
+      // NCBI без API-ключа ограничивает запросы до 3/сек. Между показателями
+      // делаем паузу 400мс — каждый показатель уже даёт 2 запроса (esearch+efetch),
+      // без задержки несколько показателей подряд легко превышают лимит и падают
+      // с "Failed to fetch".
+      if(i > 0) await sleep(400);
       // Step 1: поиск ID статей
       var searchUrl = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi?db=pubmed&retmax=3&sort=date&format=json&term=" + encodeURIComponent(term);
       var r1 = await fetch(searchUrl);
@@ -2543,6 +2548,8 @@ async function searchPubMed(){
       var ids = (d1.esearchresult && d1.esearchresult.idlist) || [];
       if(!ids.length) continue;
 
+      // Небольшая пауза перед вторым запросом для того же показателя
+      await sleep(350);
       // Step 2: получаем абстракты
       var fetchUrl = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pubmed&rettype=abstract&retmode=text&id=" + ids.join(",");
       var r2 = await fetch(fetchUrl);

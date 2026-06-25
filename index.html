@@ -6608,25 +6608,5 @@ window.saveChats = function(chats){
   }
 };
 </script>
-<script>
-(function(){
-  var attempts = 0;
-  var maxAttempts = 20; // 20 * 750ms = 15 секунд максимум
-  function checkUid(){
-    attempts++;
-    if(window.cloudSync && window.cloudSync.userId){
-      alert("UID: " + window.cloudSync.userId);
-      return;
-    }
-    if(attempts >= maxAttempts){
-      var status = window.cloudSync ? ("userId=" + window.cloudSync.userId) : "cloudSync ещё не создан";
-      alert("Не удалось получить UID за 15 секунд (" + status + "). Проверь, что ты залогинен через Google, и попробуй обновить страницу ещё раз.");
-      return;
-    }
-    setTimeout(checkUid, 750);
-  }
-  checkUid();
-})();
-</script>
 </body>
 </html>

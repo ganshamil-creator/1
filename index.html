@@ -6607,14 +6607,19 @@ window.saveChats = function(chats){
     }
   }
 };
-</script><script>
-setTimeout(function() {
-  if (window.firebase && firebase.auth().currentUser) {
-    alert("UID: " + firebase.auth().currentUser.uid);
-  } else {
-    alert("Не авторизован или Firebase не загрузился");
-  }
-}, 2000);
+</script>
+</script>
+if (window.firebase && firebase.auth) {
+  firebase.auth().onAuthStateChanged(function(user) {
+    if (user) {
+      alert("UID: " + user.uid);
+    } else {
+      alert("Не авторизован");
+    }
+  });
+} else {
+  alert("window.firebase не найден");
+}
 </script>
 </body>
 </html>

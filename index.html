@@ -6609,17 +6609,13 @@ window.saveChats = function(chats){
 };
 </script>
 <script>
-if (window.firebase && firebase.auth) {
-  firebase.auth().onAuthStateChanged(function(user) {
-    if (user) {
-      alert("UID: " + user.uid);
-    } else {
-      alert("Не авторизован");
-    }
-  });
-} else {
-  alert("window.firebase не найден");
-}
+setTimeout(function(){
+  if(window.cloudSync && window.cloudSync.userId){
+    alert("UID: " + window.cloudSync.userId);
+  } else {
+    alert("cloudSync.userId не найден");
+  }
+}, 1500);
 </script>
 </body>
 </html>
